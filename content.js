@@ -32,11 +32,10 @@ function handleSelectionChange() {
 // Show the lookup icon near the selection
 function showLookupIcon(selection) {
   if (!lookupIcon) {
-    console.log('# icon');
     lookupIcon = document.createElement('div');
     lookupIcon.textContent = '#';
     lookupIcon.style.position = 'absolute';
-    lookupIcon.style.backgroundColor = 'yellow';
+    lookupIcon.style.backgroundColor = 'white';
     lookupIcon.style.border = '1px solid #ccc';
     lookupIcon.style.borderRadius = '3px';
     lookupIcon.style.padding = '2px 4px';
@@ -46,7 +45,6 @@ function showLookupIcon(selection) {
     lookupIcon.style.fontWeight = 'bold';
     lookupIcon.addEventListener('click', handleIconClick);
     lookupIcon.addEventListener('mousedown', (e) => {
-      console.log('mousedown on icon');
       e.preventDefault();
       e.stopPropagation();
       handleIconClick();
@@ -62,7 +60,6 @@ function showLookupIcon(selection) {
   lookupIcon.style.left = left + 'px';
   lookupIcon.style.top = top + 'px';
   lookupIcon.style.display = 'block';
-  console.log('Icon positioned at:', left, top);
 }
 
 // Hide the lookup icon
@@ -74,13 +71,9 @@ function hideLookupIcon() {
 
 // Handle icon click
 function handleIconClick() {
-  console.log('# icon clicked');
-  console.log('Selected word:', selectedWord);
-
   if (selectedWord) {
     hideLookupIcon(); // Hide the icon after click
-    // For testing, show lorem ipsum instead of lookup
-    showResult("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.");
+    lookupWord(selectedWord);
   }
 }
 
@@ -97,7 +90,6 @@ function lookupWord(word) {
 
 // Show the result in a div below the text
 function showResult(definition) {
-  console.log('showResult called with:', definition);
   resultJustShown = true;
   if (!resultDiv) {
     resultDiv = document.createElement('div');
@@ -105,16 +97,13 @@ function showResult(definition) {
     resultDiv.style.setProperty('width', '300px', 'important');
     resultDiv.style.setProperty('height', '300px', 'important');
     resultDiv.style.setProperty('background-color', 'white', 'important');
-    resultDiv.style.setProperty('border', '2px solid red', 'important');
+    resultDiv.style.setProperty('border', '1px solid #ccc', 'important');
     resultDiv.style.setProperty('border-radius', '4px', 'important');
     resultDiv.style.setProperty('padding', '10px', 'important');
     resultDiv.style.setProperty('overflow-y', 'auto', 'important');
     resultDiv.style.setProperty('z-index', '999999', 'important');
     resultDiv.style.setProperty('font-size', '14px', 'important');
     resultDiv.style.setProperty('box-shadow', '0 2px 8px rgba(0,0,0,0.1)', 'important');
-    resultDiv.style.setProperty('left', '100px', 'important');
-    resultDiv.style.setProperty('top', '100px', 'important');
-    resultDiv.style.setProperty('display', 'block', 'important');
 
     // Add close button
     const closeBtn = document.createElement('button');
@@ -133,11 +122,30 @@ function showResult(definition) {
     resultDiv.appendChild(closeBtn);
 
     document.body.appendChild(resultDiv);
-    console.log('resultDiv created and appended');
   }
 
-  resultDiv.textContent = definition;
-  // Re-add close button since textContent clears it
+  // Position near the original selection
+  const selection = window.getSelection();
+  if (selection.rangeCount > 0) {
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    let left = rect.left + window.scrollX;
+    let top = rect.bottom + window.scrollY + 5;
+
+    // Adjust if it would go off screen
+    if (left + 300 > window.innerWidth + window.scrollX) {
+      left = window.innerWidth + window.scrollX - 310;
+    }
+    if (top + 300 > window.innerHeight + window.scrollY) {
+      top = rect.top + window.scrollY - 310;
+    }
+
+    resultDiv.style.setProperty('left', left + 'px', 'important');
+    resultDiv.style.setProperty('top', top + 'px', 'important');
+  }
+
+  resultDiv.innerHTML = definition;
+  // Re-add close button since innerHTML clears it
   const closeBtn = document.createElement('button');
   closeBtn.textContent = 'X';
   closeBtn.style.position = 'absolute';
@@ -148,13 +156,13 @@ function showResult(definition) {
   closeBtn.style.border = 'none';
   closeBtn.style.borderRadius = '3px';
   closeBtn.style.cursor = 'pointer';
+  closeBtn.style.zIndex = '1000000';
   closeBtn.onclick = () => {
     resultDiv.style.display = 'none';
   };
   resultDiv.appendChild(closeBtn);
 
-  resultDiv.style.display = 'block';
-  console.log('resultDiv displayed');
+  resultDiv.style.setProperty('display', 'block', 'important');
 }
 
 // Hide result div when clicking elsewhere

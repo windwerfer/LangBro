@@ -117,10 +117,7 @@ class StarDictParser {
         const entry = this.wordOffsets[mid];
         const slice = this.dictData.subarray(entry.dictOffset, entry.dictOffset + entry.dictSize);
         let def = new TextDecoder('utf-8').decode(slice);
-        if (this.sequenceType === 'h') {
-          def = this.stripHtmlTags(def);
-        }
-        // Handle other types: 'm' = multi-part, etc. (extend as needed)
+        // Return HTML as-is for 'h' type, strip for others if needed
         return def;
       }
       if (midWord < word) {
