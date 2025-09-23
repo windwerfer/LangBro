@@ -7,12 +7,12 @@
     "storage",
     "activeTab"
   ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "options_page": "options.html",
   "background": {
-      "_chrome":"to pack for chrome enable next line (scripts), disable the (service_worker) line",
-      "_service_worker": "background.js",
-      "_firefox":"to pack for firefox, enable the next line (service_worker), disable the previus",
-      "scripts": ["background.js"]            
+    "scripts": ["background.js"]
   },
   "web_accessible_resources": [{"resources": ["pako.min.js"], "matches": ["<all_urls>"]}],
   "content_scripts": [
