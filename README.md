@@ -56,8 +56,9 @@ Keep the manifest as-is with:
 2. Select all extension files
 3. Create a ZIP archive
 4. Rename the .zip file to .xpi
-5. For Firefox Add-ons: Submit to AMO (addons.mozilla.org)
-6. For manual installation: Can install .xpi directly in Firefox
+5. **For Development:** Use "Load Temporary Add-on" in Firefox debugging
+6. **For Distribution:** Submit to AMO (addons.mozilla.org) for signing and verification
+7. **Manual Installation:** Unsigned .xpi files cannot be installed permanently due to Firefox security policies
 
 ### Files to Include:
 - manifest.json

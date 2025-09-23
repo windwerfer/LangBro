@@ -9,7 +9,7 @@
   ],
   "options_page": "options.html",
   "background": {
-    "scripts": ["background.js"]
+      "service_worker": "background.js"
   },
   "web_accessible_resources": [{"resources": ["pako.min.js"], "matches": ["<all_urls>"]}],
   "content_scripts": [

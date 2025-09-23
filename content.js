@@ -79,13 +79,23 @@ function handleIconClick() {
 
 // Lookup the word via background script
 function lookupWord(word) {
-  chrome.runtime.sendMessage({ action: 'lookup', word: word }, (response) => {
-    if (response.error) {
-      showResult(`Error: ${response.error}`);
-    } else {
-      showResult(response.definition);
-    }
-  });
+  try {
+    chrome.runtime.sendMessage({ action: 'lookup', word: word }, (response) => {
+      if (chrome.runtime.lastError) {
+        showResult('Extension context invalidated. Please refresh the page.');
+        return;
+      }
+      if (response && response.error) {
+        showResult(`Error: ${response.error}`);
+      } else if (response && response.definition) {
+        showResult(response.definition);
+      } else {
+        showResult('No response from extension.');
+      }
+    });
+  } catch (error) {
+    showResult('Extension communication error. Please refresh the page.');
+  }
 }
 
 // Show the result in a div below the text
@@ -106,20 +116,7 @@ function showResult(definition) {
     resultDiv.style.setProperty('box-shadow', '0 2px 8px rgba(0,0,0,0.1)', 'important');
 
     // Add close button
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = 'X';
-    closeBtn.style.position = 'absolute';
-    closeBtn.style.top = '5px';
-    closeBtn.style.right = '5px';
-    closeBtn.style.background = 'red';
-    closeBtn.style.color = 'white';
-    closeBtn.style.border = 'none';
-    closeBtn.style.borderRadius = '3px';
-    closeBtn.style.cursor = 'pointer';
-    closeBtn.onclick = () => {
-      resultDiv.style.display = 'none';
-    };
-    resultDiv.appendChild(closeBtn);
+    resultDiv.appendChild(createCloseButton());
 
     document.body.appendChild(resultDiv);
   }
@@ -146,6 +143,13 @@ function showResult(definition) {
 
   resultDiv.innerHTML = definition;
   // Re-add close button since innerHTML clears it
+  resultDiv.appendChild(createCloseButton());
+
+  resultDiv.style.setProperty('display', 'block', 'important');
+}
+
+// Create close button for result div
+function createCloseButton() {
   const closeBtn = document.createElement('button');
   closeBtn.textContent = 'X';
   closeBtn.style.position = 'absolute';
@@ -160,9 +164,7 @@ function showResult(definition) {
   closeBtn.onclick = () => {
     resultDiv.style.display = 'none';
   };
-  resultDiv.appendChild(closeBtn);
-
-  resultDiv.style.setProperty('display', 'block', 'important');
+  return closeBtn;
 }
 
 // Hide result div when clicking elsewhere
