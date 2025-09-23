@@ -15,13 +15,14 @@
 </head>
 <body>
   <h2>Upload StarDict Dictionary</h2>
-  <p>Select all three files:</p>
-  <input type="file" id="ifoFile" accept=".ifo" />
-  <input type="file" id="idxFile" accept=".idx,.gz" />
-  <input type="file" id="dictFile" accept=".dict,.dz" />
+  <p>Select the .ifo file (other files will be auto-selected):</p>
+  <input type="file" id="filesInput" multiple accept=".ifo,.idx,.dict,.gz,.dz" />
   <br>
   <button id="uploadBtn">Upload & Validate</button>
   <div id="status"></div>
+
+  <h3>Loaded Dictionaries</h3>
+  <div id="dictList"></div>
   <script src="pako.min.js"></script>
   <script src="options.js"></script>
 </body>

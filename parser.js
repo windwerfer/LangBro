@@ -11,11 +11,10 @@ class StarDictParser {
     this.sequenceType = 'h';
   }
 
-  // Load from chrome.storage (called in background)
-  async loadFromStorage() {
-    const { stardict } = await chrome.storage.local.get('stardict');
+  // Load from IndexedDB (called in background)
+  async loadFromIndexedDB(stardict) {
     if (!stardict) {
-      throw new Error('No dictionary loaded in storage');
+      throw new Error('No dictionary loaded in IndexedDB');
     }
 
     this.metadata = stardict.metadata;
@@ -27,14 +26,7 @@ class StarDictParser {
     this.idxData = decodeBuffer(stardict.idx);
     this.dictData = decodeBuffer(stardict.dict);
 
-    // Decompress if needed (stub; extend for .gz/.dz - see notes below)
-    // For now, assumes uncompressed; add flags in storageData for compression
-    if (stardict.isIdxCompressed) {
-      this.idxData = this.decompressGzip(this.idxData); // Requires pako.js
-    }
-    if (stardict.isDictCompressed) {
-      this.dictData = this.decompressLzo(this.dictData); // Requires LZO lib
-    }
+    // Data is already decompressed in options.js before saving
 
     // Build index: Precompute word start positions for binary search
     await this.buildWordIndex();

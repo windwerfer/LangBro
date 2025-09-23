@@ -1,30 +1,38 @@
 // Options page script for uploading and validating StarDict files
 document.addEventListener('DOMContentLoaded', () => {
-  const ifoInput = document.getElementById('ifoFile');
-  const idxInput = document.getElementById('idxFile');
-  const dictInput = document.getElementById('dictFile');
+  const filesInput = document.getElementById('filesInput');
   const uploadBtn = document.getElementById('uploadBtn');
   const statusDiv = document.getElementById('status');
 
   uploadBtn.addEventListener('click', async () => {
+    const files = Array.from(filesInput.files);
 
-    const ifoFile = ifoInput.files[0];
-    const idxFile = idxInput.files[0];
-    const dictFile = dictInput.files[0];
+    // Identify files by extension
+    const ifoFile = files.find(file => file.name.endsWith('.ifo'));
+    const idxFile = files.find(file => file.name.endsWith('.idx') || file.name.endsWith('.idx.gz'));
+    const dictFile = files.find(file => file.name.endsWith('.dict') || file.name.endsWith('.dict.gz') || file.name.endsWith('.dict.dz'));
 
-    if (!ifoFile || !idxFile || !dictFile) {
-      showStatus('Please select all three files.', 'error');
+    if (!ifoFile) {
+      showStatus('Please select the .ifo file.', 'error');
+      return;
+    }
+    if (!idxFile) {
+      showStatus('Please select the .idx file (.idx or .idx.gz).', 'error');
+      return;
+    }
+    if (!dictFile) {
+      showStatus('Please select the .dict file (.dict, .dict.gz, or .dict.dz).', 'error');
       return;
     }
 
     statusDiv.className = 'info';
     statusDiv.textContent = 'Validating and saving...';
 	alert('trying to load');
-    try { 
+    try {
       // Read files as ArrayBuffer
       const ifoBuffer = await ifoFile.arrayBuffer();
-      const idxBuffer = await idxFile.arrayBuffer();
-      const dictBuffer = await dictFile.arrayBuffer();
+      let idxBuffer = await idxFile.arrayBuffer();
+      let dictBuffer = await dictFile.arrayBuffer();
 
       // Detect and decompress .idx if .gz
       let isIdxCompressed = false;
@@ -37,12 +45,13 @@ document.addEventListener('DOMContentLoaded', () => {
 		alert('unpacked');
       }
 
-      // After reading dictBuffer
+      // Detect and decompress .dict if .dz
+      let isDictCompressed = false;
       if (dictFile.name.endsWith('.dz')) {
 		alert('is compressed - .dz');
         const pako = window.pako; // From <script src="pako.min.js">
         dictBuffer = pako.inflate(new Uint8Array(dictBuffer), { to: 'uint8array' }).buffer;
-        isIdxCompressed = true;
+        isDictCompressed = true;
       }
       
       // Validate .ifo
@@ -60,18 +69,32 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       // Note: dictfilesize check optional; add if needed
 
-      // Save to storage (base64 for ArrayBuffer)
+      // Helper function to convert Uint8Array to string in chunks to avoid call stack overflow
+      function uint8ArrayToString(array) {
+        const chunkSize = 8192; // Process in 8KB chunks
+        let result = '';
+        for (let i = 0; i < array.length; i += chunkSize) {
+          const chunk = array.subarray(i, i + chunkSize);
+          result += String.fromCharCode.apply(null, chunk);
+        }
+        return result;
+      }
+
+      // Save to IndexedDB for larger storage capacity
       const storageData = {
         dictName: ifoFile.name.replace('.ifo', ''),
-        ifo: btoa(String.fromCharCode(...new Uint8Array(ifoBuffer))),
-        idx: btoa(String.fromCharCode(...new Uint8Array(idxBuffer))),
-        dict: btoa(String.fromCharCode(...new Uint8Array(dictBuffer))),
+        ifo: btoa(uint8ArrayToString(new Uint8Array(ifoBuffer))),
+        idx: btoa(uint8ArrayToString(new Uint8Array(idxBuffer))),
+        dict: btoa(uint8ArrayToString(new Uint8Array(dictBuffer))),
         metadata: metadata
       };
 
-      await chrome.storage.local.set({ stardict: storageData });
+      await saveToIndexedDB(storageData);
       showStatus(`Dictionary "${storageData.dictName}" loaded successfully! (${metadata.wordcount} words)`, 'success');
       loadCurrentDict(); // Refresh display if needed
+
+      // Notify background script to reload parser
+      chrome.runtime.sendMessage({ action: 'reloadParser' });
     } catch (error) {
       showStatus(error.message, 'error');
     }
@@ -115,15 +138,110 @@ document.addEventListener('DOMContentLoaded', () => {
     statusDiv.className = type;
   }
 
+  // IndexedDB functions
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open('StarDictDB', 1);
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains('dictionaries')) {
+          db.createObjectStore('dictionaries', { keyPath: 'dictName' });
+        }
+      };
+      request.onsuccess = (event) => resolve(event.target.result);
+      request.onerror = (event) => reject(event.target.error);
+    });
+  }
+
+  async function saveToIndexedDB(data) {
+    const db = await openDB();
+    const transaction = db.transaction(['dictionaries'], 'readwrite');
+    const store = transaction.objectStore('dictionaries');
+    await new Promise((resolve, reject) => {
+      const request = store.put(data);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+    db.close();
+  }
+
+  async function loadFromIndexedDB(dictName) {
+    const db = await openDB();
+    const transaction = db.transaction(['dictionaries'], 'readonly');
+    const store = transaction.objectStore('dictionaries');
+    return new Promise((resolve, reject) => {
+      const request = store.get(dictName);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async function getAllDictsFromIndexedDB() {
+    const db = await openDB();
+    const transaction = db.transaction(['dictionaries'], 'readonly');
+    const store = transaction.objectStore('dictionaries');
+    return new Promise((resolve, reject) => {
+      const request = store.getAll();
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
   // Load and display current dict on open
   loadCurrentDict();
 
   async function loadCurrentDict() {
-    const { stardict } = await chrome.storage.local.get('stardict');
-    if (stardict) {
-      showStatus(`Loaded: ${stardict.dictName} (${stardict.metadata.wordcount} words)`, 'info');
-    } else {
-      showStatus('No dictionary loaded. Upload one to start.', 'info');
+    try {
+      const dicts = await getAllDictsFromIndexedDB();
+      const dictListDiv = document.getElementById('dictList');
+      dictListDiv.innerHTML = '';
+
+      if (dicts.length > 0) {
+        dicts.forEach(dict => {
+          const dictDiv = document.createElement('div');
+          dictDiv.style.margin = '5px 0';
+          dictDiv.style.padding = '5px';
+          dictDiv.style.border = '1px solid #ccc';
+          dictDiv.style.borderRadius = '4px';
+
+          const nameSpan = document.createElement('span');
+          nameSpan.textContent = `${dict.dictName} (${dict.metadata.wordcount} words)`;
+
+          const deleteBtn = document.createElement('button');
+          deleteBtn.textContent = 'Delete';
+          deleteBtn.style.marginLeft = '10px';
+          deleteBtn.onclick = () => deleteDict(dict.dictName);
+
+          dictDiv.appendChild(nameSpan);
+          dictDiv.appendChild(deleteBtn);
+          dictListDiv.appendChild(dictDiv);
+        });
+
+        showStatus(`${dicts.length} dictionary(ies) loaded.`, 'info');
+      } else {
+        dictListDiv.textContent = 'No dictionaries loaded.';
+        showStatus('No dictionary loaded. Upload one to start.', 'info');
+      }
+    } catch (error) {
+      showStatus('Error loading dictionary: ' + error.message, 'error');
+    }
+  }
+
+  async function deleteDict(dictName) {
+    try {
+      const db = await openDB();
+      const transaction = db.transaction(['dictionaries'], 'readwrite');
+      const store = transaction.objectStore('dictionaries');
+      await new Promise((resolve, reject) => {
+        const request = store.delete(dictName);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+      db.close();
+      showStatus(`Dictionary "${dictName}" deleted.`, 'info');
+      loadCurrentDict(); // Refresh list
+    } catch (error) {
+      showStatus('Error deleting dictionary: ' + error.message, 'error');
     }
   }
 });
