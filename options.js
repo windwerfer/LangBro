@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     statusDiv.className = 'info';
     statusDiv.textContent = 'Validating and saving...';
-	alert('trying to load');
+
     try {
       // Read files as ArrayBuffer
       const ifoBuffer = await ifoFile.arrayBuffer();
@@ -37,18 +37,15 @@ document.addEventListener('DOMContentLoaded', () => {
       // Detect and decompress .idx if .gz
       let isIdxCompressed = false;
       if (idxFile.name.endsWith('.gz')) {
-		alert('is compressed - .gz');
         // Load pako dynamically or include in options.html <script src="pako.min.js"></script>
         const pako = window.pako; // Assume loaded
         idxBuffer = pako.inflate(new Uint8Array(idxBuffer), { to: 'uint8array' }).buffer;
         isIdxCompressed = true;
-		alert('unpacked');
       }
 
       // Detect and decompress .dict if .dz
       let isDictCompressed = false;
       if (dictFile.name.endsWith('.dz')) {
-		alert('is compressed - .dz');
         const pako = window.pako; // From <script src="pako.min.js">
         dictBuffer = pako.inflate(new Uint8Array(dictBuffer), { to: 'uint8array' }).buffer;
         isDictCompressed = true;
@@ -57,7 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
       // Validate .ifo
       const ifoText = new TextDecoder('utf-8').decode(ifoBuffer);
       const metadata = parseIfo(ifoText);
-	  alert(ifoText);
       if (!metadata.isValid) {
         throw new Error(`Invalid .ifo: ${metadata.error}`);
       }
@@ -240,6 +236,9 @@ document.addEventListener('DOMContentLoaded', () => {
       db.close();
       showStatus(`Dictionary "${dictName}" deleted.`, 'info');
       loadCurrentDict(); // Refresh list
+
+      // Notify background script to reload parser
+      chrome.runtime.sendMessage({ action: 'reloadParser' });
     } catch (error) {
       showStatus('Error deleting dictionary: ' + error.message, 'error');
     }
