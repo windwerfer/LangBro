@@ -3,10 +3,12 @@
 
 let lookupIcon = null;
 let resultDiv = null;
+let selectedWord = '';
+let resultJustShown = false;
 
 // Listen for text selection
 document.addEventListener('selectionchange', handleSelectionChange);
-document.addEventListener('mouseup', handleSelectionChange);
+// document.addEventListener('mouseup', handleSelectionChange);
 document.addEventListener('keyup', handleSelectionChange);
 
 // Function to handle selection changes
@@ -17,6 +19,7 @@ function handleSelectionChange() {
   if (selectedText) {
     // Check if it's a single word (no spaces)
     if (!selectedText.includes(' ')) {
+      selectedWord = selectedText;
       showLookupIcon(selection);
     } else {
       hideLookupIcon();
@@ -29,27 +32,37 @@ function handleSelectionChange() {
 // Show the lookup icon near the selection
 function showLookupIcon(selection) {
   if (!lookupIcon) {
+    console.log('# icon');
     lookupIcon = document.createElement('div');
     lookupIcon.textContent = '#';
     lookupIcon.style.position = 'absolute';
-    lookupIcon.style.backgroundColor = 'white';
+    lookupIcon.style.backgroundColor = 'yellow';
     lookupIcon.style.border = '1px solid #ccc';
     lookupIcon.style.borderRadius = '3px';
     lookupIcon.style.padding = '2px 4px';
     lookupIcon.style.cursor = 'pointer';
-    lookupIcon.style.zIndex = '10000';
+    lookupIcon.style.zIndex = '999999';
     lookupIcon.style.fontSize = '14px';
     lookupIcon.style.fontWeight = 'bold';
     lookupIcon.addEventListener('click', handleIconClick);
+    lookupIcon.addEventListener('mousedown', (e) => {
+      console.log('mousedown on icon');
+      e.preventDefault();
+      e.stopPropagation();
+      handleIconClick();
+    });
     document.body.appendChild(lookupIcon);
   }
 
   // Position the icon near the selection
   const range = selection.getRangeAt(0);
   const rect = range.getBoundingClientRect();
-  lookupIcon.style.left = (rect.left + window.scrollX) + 'px';
-  lookupIcon.style.top = (rect.bottom + window.scrollY + 5) + 'px';
+  const left = rect.left + window.scrollX;
+  const top = rect.bottom + window.scrollY + 5;
+  lookupIcon.style.left = left + 'px';
+  lookupIcon.style.top = top + 'px';
   lookupIcon.style.display = 'block';
+  console.log('Icon positioned at:', left, top);
 }
 
 // Hide the lookup icon
@@ -61,11 +74,13 @@ function hideLookupIcon() {
 
 // Handle icon click
 function handleIconClick() {
-  const selection = window.getSelection();
-  const word = selection.toString().trim();
+  console.log('# icon clicked');
+  console.log('Selected word:', selectedWord);
 
-  if (word) {
-    lookupWord(word);
+  if (selectedWord) {
+    hideLookupIcon(); // Hide the icon after click
+    // For testing, show lorem ipsum instead of lookup
+    showResult("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.");
   }
 }
 
@@ -82,36 +97,73 @@ function lookupWord(word) {
 
 // Show the result in a div below the text
 function showResult(definition) {
+  console.log('showResult called with:', definition);
+  resultJustShown = true;
   if (!resultDiv) {
     resultDiv = document.createElement('div');
-    resultDiv.style.position = 'absolute';
-    resultDiv.style.width = '300px';
-    resultDiv.style.height = '300px';
-    resultDiv.style.backgroundColor = 'white';
-    resultDiv.style.border = '1px solid #ccc';
-    resultDiv.style.borderRadius = '4px';
-    resultDiv.style.padding = '10px';
-    resultDiv.style.overflowY = 'auto';
-    resultDiv.style.zIndex = '10001';
-    resultDiv.style.fontSize = '14px';
-    resultDiv.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+    resultDiv.style.setProperty('position', 'absolute', 'important');
+    resultDiv.style.setProperty('width', '300px', 'important');
+    resultDiv.style.setProperty('height', '300px', 'important');
+    resultDiv.style.setProperty('background-color', 'white', 'important');
+    resultDiv.style.setProperty('border', '2px solid red', 'important');
+    resultDiv.style.setProperty('border-radius', '4px', 'important');
+    resultDiv.style.setProperty('padding', '10px', 'important');
+    resultDiv.style.setProperty('overflow-y', 'auto', 'important');
+    resultDiv.style.setProperty('z-index', '999999', 'important');
+    resultDiv.style.setProperty('font-size', '14px', 'important');
+    resultDiv.style.setProperty('box-shadow', '0 2px 8px rgba(0,0,0,0.1)', 'important');
+    resultDiv.style.setProperty('left', '100px', 'important');
+    resultDiv.style.setProperty('top', '100px', 'important');
+    resultDiv.style.setProperty('display', 'block', 'important');
+
+    // Add close button
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = 'X';
+    closeBtn.style.position = 'absolute';
+    closeBtn.style.top = '5px';
+    closeBtn.style.right = '5px';
+    closeBtn.style.background = 'red';
+    closeBtn.style.color = 'white';
+    closeBtn.style.border = 'none';
+    closeBtn.style.borderRadius = '3px';
+    closeBtn.style.cursor = 'pointer';
+    closeBtn.onclick = () => {
+      resultDiv.style.display = 'none';
+    };
+    resultDiv.appendChild(closeBtn);
+
     document.body.appendChild(resultDiv);
+    console.log('resultDiv created and appended');
   }
 
   resultDiv.textContent = definition;
+  // Re-add close button since textContent clears it
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = 'X';
+  closeBtn.style.position = 'absolute';
+  closeBtn.style.top = '5px';
+  closeBtn.style.right = '5px';
+  closeBtn.style.background = 'red';
+  closeBtn.style.color = 'white';
+  closeBtn.style.border = 'none';
+  closeBtn.style.borderRadius = '3px';
+  closeBtn.style.cursor = 'pointer';
+  closeBtn.onclick = () => {
+    resultDiv.style.display = 'none';
+  };
+  resultDiv.appendChild(closeBtn);
 
-  // Position below the icon
-  if (lookupIcon) {
-    const iconRect = lookupIcon.getBoundingClientRect();
-    resultDiv.style.left = (iconRect.left + window.scrollX) + 'px';
-    resultDiv.style.top = (iconRect.bottom + window.scrollY + 5) + 'px';
-    resultDiv.style.display = 'block';
-  }
+  resultDiv.style.display = 'block';
+  console.log('resultDiv displayed');
 }
 
 // Hide result div when clicking elsewhere
 document.addEventListener('click', (e) => {
-  if (resultDiv && !lookupIcon.contains(e.target) && !resultDiv.contains(e.target)) {
+  if (resultJustShown) {
+    resultJustShown = false;
+    return;
+  }
+  if (resultDiv && !resultDiv.contains(e.target)) {
     resultDiv.style.display = 'none';
   }
 });
