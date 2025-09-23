@@ -1,8 +1,28 @@
 // Options page script for uploading and validating StarDict files
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('Options page loaded');
   const filesInput = document.getElementById('filesInput');
   const uploadBtn = document.getElementById('uploadBtn');
   const statusDiv = document.getElementById('status');
+  const darkModeCheckbox = document.getElementById('darkModeCheckbox');
+
+  if (!darkModeCheckbox) {
+    console.error('Dark mode checkbox not found!');
+  } else {
+    console.log('Dark mode checkbox found');
+  }
+
+  // Load dark mode setting
+  chrome.storage.local.get(['darkMode'], (result) => {
+    console.log('Loaded dark mode setting:', result.darkMode);
+    darkModeCheckbox.checked = result.darkMode || false;
+  });
+
+  // Save dark mode setting when changed
+  darkModeCheckbox.addEventListener('change', () => {
+    console.log('Saving dark mode setting:', darkModeCheckbox.checked);
+    chrome.storage.local.set({ darkMode: darkModeCheckbox.checked });
+  });
 
   uploadBtn.addEventListener('click', async () => {
     const files = Array.from(filesInput.files);
