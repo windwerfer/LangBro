@@ -213,10 +213,10 @@ document.addEventListener('DOMContentLoaded', () => {
           dictListDiv.appendChild(dictDiv);
         });
 
-        showStatus(`${dicts.length} dictionary(ies) loaded.`, 'info');
+        // Don't show status here, just update the list
       } else {
         dictListDiv.textContent = 'No dictionaries loaded.';
-        showStatus('No dictionary loaded. Upload one to start.', 'info');
+        // Don't show status here
       }
     } catch (error) {
       showStatus('Error loading dictionary: ' + error.message, 'error');

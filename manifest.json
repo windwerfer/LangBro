@@ -20,9 +20,14 @@
     }
   ],
   "action": {
-    "default_popup": "options.html"
+    "default_popup": "popup.html"
   },
   "icons": {
     "128": "icon128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "wordclick-dictionary@example.com"
+    }
   }
 }
