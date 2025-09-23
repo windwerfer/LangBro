@@ -120,10 +120,8 @@ class StarDictParser {
         const entry = this.wordOffsets[mid];
         const slice = this.dictData.subarray(entry.dictOffset, entry.dictOffset + entry.dictSize);
         let def = new TextDecoder('utf-8').decode(slice);
-        if (this.sequenceType === 'h') {
-          def = this.stripHtmlTags(def);
-        }
-        // Handle other types: 'm' = multi-part, etc. (extend as needed)
+        console.log('Parser received definition:', def);
+        // Return HTML as-is for 'h' type, strip for others if needed
         return def;
       }
       if (midWord < word) {
@@ -215,15 +213,20 @@ async function initParser() {
 
 // Message listener for content scripts (e.g., lookup requests)
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log('Background received message:', request);
   if (request.action === 'lookup') {
+    console.log('Lookup request for word:', request.word);
     if (!parser) {
+      console.log('No parser loaded');
       sendResponse({ error: 'No dictionary loaded' });
       return;
     }
     try {
       const definition = parser.lookup(request.word);
+      console.log('Lookup result:', definition);
       sendResponse({ definition: definition || 'No definition found' });
     } catch (error) {
+      console.log('Lookup error:', error);
       sendResponse({ error: error.message });
     }
     return true; // Async response

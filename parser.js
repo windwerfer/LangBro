@@ -117,6 +117,7 @@ class StarDictParser {
         const entry = this.wordOffsets[mid];
         const slice = this.dictData.subarray(entry.dictOffset, entry.dictOffset + entry.dictSize);
         let def = new TextDecoder('utf-8').decode(slice);
+        console.log('Parser received definition:', def);
         // Return HTML as-is for 'h' type, strip for others if needed
         return def;
       }
