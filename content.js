@@ -60,7 +60,7 @@ function showLookupIcon(selection) {
   const range = selection.getRangeAt(0);
   const rect = range.getBoundingClientRect();
   const left = rect.left + window.scrollX;
-  const top = rect.bottom + window.scrollY + 5;
+  const top = rect.bottom + window.scrollY + 20;
   lookupIcon.style.left = left + 'px';
   lookupIcon.style.top = top + 'px';
   lookupIcon.style.display = 'block';
