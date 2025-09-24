@@ -86,19 +86,24 @@ function lookupWord(word) {
   try {
     chrome.runtime.sendMessage({ action: 'lookup', word: word }, (response) => {
       if (chrome.runtime.lastError) {
-        showResult('Extension context invalidated. Please refresh the page.');
+        const errorMsg = chrome.runtime.lastError.message;
+        if (errorMsg.includes('Extension context invalidated')) {
+          showResult('Dictionary updated! Please refresh this page to continue using word lookup.');
+        } else {
+          showResult(`Extension error: ${errorMsg}`);
+        }
         return;
       }
       if (response && response.error) {
-        showResult(`Error: ${response.error}`);
+        showResult(`Lookup error: ${response.error}`);
       } else if (response && response.definition) {
         showResult(response.definition);
       } else {
-        showResult('No response from extension.');
+        showResult('No definition found for this word.');
       }
     });
   } catch (error) {
-    showResult('Extension communication error. Please refresh the page.');
+    showResult('Unable to connect to dictionary. Please refresh the page.');
   }
 }
 

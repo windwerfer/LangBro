@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const uploadBtn = document.getElementById('uploadBtn');
   const statusDiv = document.getElementById('status');
   const darkModeCheckbox = document.getElementById('darkModeCheckbox');
+  const checkDictsBtn = document.getElementById('checkDictsBtn');
 
   if (!darkModeCheckbox) {
     console.error('Dark mode checkbox not found!');
@@ -22,6 +23,29 @@ document.addEventListener('DOMContentLoaded', () => {
   darkModeCheckbox.addEventListener('change', () => {
     console.log('Saving dark mode setting:', darkModeCheckbox.checked);
     chrome.storage.local.set({ darkMode: darkModeCheckbox.checked });
+  });
+
+  // Check dictionaries button
+  checkDictsBtn.addEventListener('click', async () => {
+    try {
+      showStatus('Checking dictionary integrity...', 'info');
+      const db = await getStructuredDB();
+      const counts = await db.getActualTermCounts();
+
+      let resultText = 'Dictionary Check Results:\n\n';
+      for (const [dictName, countInfo] of Object.entries(counts)) {
+        const status = countInfo.expected === countInfo.actual ? '✓ OK' : '✗ MISMATCH';
+        resultText += `${dictName}: ${countInfo.actual}/${countInfo.expected} words ${status}\n`;
+      }
+
+      if (Object.keys(counts).length === 0) {
+        resultText = 'No dictionaries found in database.';
+      }
+
+      showStatus(resultText, Object.values(counts).some(c => c.expected !== c.actual) ? 'error' : 'success');
+    } catch (error) {
+      showStatus('Error checking dictionaries: ' + error.message, 'error');
+    }
   });
 
   uploadBtn.addEventListener('click', async () => {
@@ -127,9 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Build alias index if alias data exists
       if (oftBuffer) {
-        // Estimate alias count from file size
-        const estimatedAliasCount = Math.floor(oftBuffer.byteLength / 20);
-        await parser.buildAliasIndex(parser.aliasData, estimatedAliasCount);
+        await parser.buildAliasIndex(parser.aliasData, 0); // Don't estimate, parse until end
       }
 
       // Extract structured data

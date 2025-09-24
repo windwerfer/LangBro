@@ -186,6 +186,48 @@ class StructuredDictionaryDatabase {
       transaction.onerror = () => reject(transaction.error);
     });
   }
+
+  // Get actual term counts for verification
+  async getActualTermCounts() {
+    if (!this.db) await this.open();
+
+    const dicts = await this.getAllDictionaries();
+    const result = {};
+
+    for (const dict of dicts) {
+      const transaction = this.db.transaction(['terms'], 'readonly');
+      const store = transaction.objectStore('terms');
+      const index = store.index('expression');
+
+      // Count terms for this dictionary
+      const count = await new Promise((resolve, reject) => {
+        let termCount = 0;
+        const request = index.openCursor();
+
+        request.onsuccess = (event) => {
+          const cursor = event.target.result;
+          if (cursor) {
+            // Check if this term belongs to our dictionary
+            if (cursor.value.dictionary === dict.title) {
+              termCount++;
+            }
+            cursor.continue();
+          } else {
+            resolve(termCount);
+          }
+        };
+
+        request.onerror = () => reject(request.error);
+      });
+
+      result[dict.title] = {
+        expected: dict.counts.terms.total,
+        actual: count
+      };
+    }
+
+    return result;
+  }
 }
 
 // Export for use

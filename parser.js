@@ -112,17 +112,28 @@ class StarDictParser {
     if (!aliasData || aliasCount === 0) return;
 
     console.log(`Building alias index for ${aliasCount} aliases...`);
+    console.log(`Alias data length: ${aliasData.length} bytes`);
+
     this.aliasOffsets = [];
     let pos = 0;
+    let actualCount = 0;
 
-    for (let i = 0; i < aliasCount; i++) {
-      if (pos >= aliasData.length) {
-        throw new Error(`Alias file too short: reached end at alias ${i + 1}/${aliasCount}`);
+    // Try to parse until we can't find more entries
+    while (pos < aliasData.length - 10) { // Need at least 10 bytes for word + null + 8 bytes
+      const wordStart = pos;
+
+      // Find null terminator for word
+      let wordEnd = -1;
+      for (let i = pos; i < Math.min(pos + 100, aliasData.length); i++) { // Search up to 100 bytes for null
+        if (aliasData[i] === 0) {
+          wordEnd = i;
+          break;
+        }
       }
 
-      const wordEnd = aliasData.indexOf(0, pos);
       if (wordEnd === -1) {
-        throw new Error(`Invalid alias structure: no null terminator at position ~${pos} (alias ${i + 1})`);
+        console.log(`No null terminator found near position ${pos}, stopping alias parsing`);
+        break;
       }
 
       const wordBytes = aliasData.subarray(pos, wordEnd);
@@ -130,12 +141,15 @@ class StarDictParser {
       const offsetPos = wordEnd + 1;
 
       if (offsetPos + 8 > aliasData.length) {
-        throw new Error(`Invalid alias offsets at alias ${i + 1}: beyond file end`);
+        console.log(`Not enough bytes for offsets at position ${offsetPos}, stopping`);
+        break;
       }
 
       // In .idx.oft files, the offset points to the main .idx entry
       const mainEntryOffset = this.readUint32(aliasData, offsetPos);
       const dictSize = this.readUint32(aliasData, offsetPos + 4);
+
+      console.log(`Parsed alias ${actualCount + 1}: "${aliasWord}" -> offset ${mainEntryOffset}`);
 
       this.aliasOffsets.push({
         word: aliasWord,
@@ -144,17 +158,24 @@ class StarDictParser {
       });
 
       pos = wordEnd + 9; // 1 null + 8 bytes (two uint32)
+      actualCount++;
+
+      // Safety check
+      if (actualCount > 1000) {
+        console.log('Too many aliases, stopping to prevent infinite loop');
+        break;
+      }
     }
 
-    console.log(`Alias index built with ${this.aliasOffsets.length} entries`);
+    console.log(`Alias index built with ${this.aliasOffsets.length} entries (estimated: ${aliasCount})`);
   }
 
   // Set alias data from files
   setAliasData(aliasBuffer, synonymBuffer = null) {
     if (aliasBuffer) {
       this.aliasData = new Uint8Array(aliasBuffer);
-      // Estimate alias count (rough calculation)
-      this.aliasCount = Math.floor(aliasBuffer.byteLength / 20); // Average ~20 bytes per entry
+      // Don't estimate count, we'll parse until we can't find more entries
+      this.aliasCount = 0; // Will be set by buildAliasIndex
     }
     if (synonymBuffer) {
       this.synonymData = new Uint8Array(synonymBuffer);
@@ -196,19 +217,19 @@ class StarDictParser {
 
     console.log(`Extracting structured data for ${this.wordCount} words...`);
 
-    // First, create a map of main entries for quick lookup
+    // First, create a map of main entries for quick lookup by dictOffset
     const mainEntryMap = new Map();
     for (let i = 0; i < this.wordCount; i++) {
       const entry = this.wordOffsets[i];
       const slice = this.dictData.subarray(entry.dictOffset, entry.dictOffset + entry.dictSize);
       const definition = new TextDecoder('utf-8').decode(slice);
-      mainEntryMap.set(entry.startByte, { entry, definition });
+      mainEntryMap.set(entry.dictOffset, { entry, definition });
     }
 
     // Process main entries
     for (let i = 0; i < this.wordCount; i++) {
       const entry = this.wordOffsets[i];
-      const mainData = mainEntryMap.get(entry.startByte);
+      const mainData = mainEntryMap.get(entry.dictOffset);
 
       // Create term entry in Yomitan format
       const termEntry = {
@@ -229,6 +250,7 @@ class StarDictParser {
     // Process aliases from .idx.oft/.idx.xoft files
     if (this.aliasData && this.aliasOffsets.length > 0) {
       console.log(`Processing ${this.aliasOffsets.length} aliases...`);
+      let aliasesProcessed = 0;
 
       for (let i = 0; i < this.aliasOffsets.length; i++) {
         const alias = this.aliasOffsets[i];
@@ -249,8 +271,13 @@ class StarDictParser {
           };
 
           terms.push(aliasEntry);
+          aliasesProcessed++;
+        } else {
+          console.log(`Alias "${alias.word}" points to unknown offset ${alias.mainEntryOffset}`);
         }
       }
+
+      console.log(`Successfully processed ${aliasesProcessed}/${this.aliasOffsets.length} aliases`);
     }
 
     const totalTerms = terms.length;

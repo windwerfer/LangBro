@@ -166,12 +166,12 @@ async function getStructuredDB() {
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
-  debugLog('LOG', 'WordClick Dictionary installed');
+  console.log('LOG', 'WordClick Dictionary installed');
   await initDB();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-  debugLog('LOG', 'WordClick Dictionary startup');
+  console.log('LOG', 'WordClick Dictionary startup');
   await initDB();
 });
 
@@ -206,25 +206,25 @@ async function initDB() {
   try {
     const db = await getStructuredDB();
     const dicts = await db.getAllDictionaries();
-    debugLog('LOG', `Database initialized with ${dicts.length} dictionaries`);
+    console.log('LOG', `Database initialized with ${dicts.length} dictionaries`);
   } catch (error) {
-    debugLog('ERROR', 'Failed to initialize database:', error);
+    console.error('ERROR', 'Failed to initialize database:', error);
   }
 }
 
 // Message listener for content scripts (e.g., lookup requests)
 chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
-  debugLog('LOG', 'Background received message:', request);
+  console.log('LOG', 'Background received message:', request);
 
   if (request.action === 'lookup') {
-    debugLog('LOG', 'Lookup request for word:', request.word);
+    console.log('LOG', 'Lookup request for word:', request.word);
     try {
       const db = await getStructuredDB();
       const definition = await db.lookupTerm(request.word);
-      debugLog('LOG', 'Lookup result:', definition);
+      console.log('LOG', 'Lookup result:', definition);
       sendResponse({ definition: definition || 'No definition found' });
     } catch (error) {
-      debugLog('ERROR', 'Lookup error:', error);
+      console.error('ERROR', 'Lookup error:', error);
       sendResponse({ error: error.message });
     }
     return true; // Async response
@@ -235,7 +235,7 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
       const totalWords = dicts.reduce((sum, dict) => sum + dict.counts.terms.total, 0);
       sendResponse({ isLoaded: dicts.length > 0, wordCount: totalWords });
     } catch (error) {
-      debugLog('ERROR', 'Error checking if loaded:', error);
+      console.error('ERROR', 'Error checking if loaded:', error);
       sendResponse({ isLoaded: false, wordCount: 0 });
     }
   } else if (request.action === 'reloadParser') {

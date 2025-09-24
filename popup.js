@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Show current dictionary status
-  showStatus();
+  checkStatus();
 });
 
 function showStatus(message, type = 'info') {
@@ -18,16 +18,16 @@ function showStatus(message, type = 'info') {
 }
 
 // Get current dictionary status
-async function showStatus() {
-  try {
-    chrome.runtime.sendMessage({ action: 'isLoaded' }, (response) => {
-      if (response.isLoaded) {
-        showStatus(`Dictionary loaded (${response.wordCount} words)`, 'success');
-      } else {
-        showStatus('No dictionary loaded. Click settings to add one.', 'error');
-      }
-    });
-  } catch (error) {
-    showStatus('Error checking status', 'error');
-  }
+function checkStatus() {
+  chrome.runtime.sendMessage({ action: 'isLoaded' }, (response) => {
+    if (chrome.runtime.lastError) {
+      showStatus('Extension not responding. Please refresh the page.', 'error');
+      return;
+    }
+    if (response && response.isLoaded) {
+      showStatus(`Dictionary loaded (${response.wordCount} words)`, 'success');
+    } else {
+      showStatus('No dictionary loaded. Click settings to add one.', 'error');
+    }
+  });
 }
