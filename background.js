@@ -95,9 +95,9 @@ class StarDictParser {
       pos = wordEnd + 9; // 1 null + 8 bytes (two uint32)
       processed++;
 
-      // Progress log for large dicts (every 10k)
-      if (processed % 10000 === 0) {
-        console.log(`Processed ${processed}/${this.wordCount} words...`);
+      // Progress log for large dicts (every 2k)
+      if (processed % 2000 === 0) {
+        console.log(`Processed ${processed}/${this.wordCount} words so far...`);
       }
     }
 

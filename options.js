@@ -25,6 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.storage.local.set({ darkMode: darkModeCheckbox.checked });
   });
 
+
+
   // Check dictionaries button
   checkDictsBtn.addEventListener('click', async () => {
     try {
@@ -154,7 +156,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Save to structured database
       const db = await getStructuredDB();
-      await db.storeDictionary(structuredData);
+      await db.storeDictionary(structuredData, (message) => {
+        showStatus(message, 'info');
+      });
 
       showStatus(`Dictionary "${dictionaryName}" loaded successfully! (${metadata.wordcount} words)`, 'success');
       loadCurrentDict(); // Refresh display if needed

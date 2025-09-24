@@ -50,7 +50,7 @@ class StructuredDictionaryDatabase {
   }
 
   // Store structured dictionary data
-  async storeDictionary(structuredData) {
+  async storeDictionary(structuredData, progressCallback = null) {
     if (!this.db) await this.open();
 
     const { terms, kanji, media, metadata } = structuredData;
@@ -65,20 +65,20 @@ class StructuredDictionaryDatabase {
 
     // Store terms in batches
     const termStore = transaction.objectStore('terms');
-    const termsStored = await this._storeBatch(termStore, terms, 100);
+    const termsStored = await this._storeBatch(termStore, terms, 100, progressCallback);
     console.log(`Terms storage: sent ${terms.length}, stored ${termsStored}`);
 
     // Store kanji if any
     if (kanji.length > 0) {
       const kanjiStore = transaction.objectStore('kanji');
-      const kanjiStored = await this._storeBatch(kanjiStore, kanji, 100);
+      const kanjiStored = await this._storeBatch(kanjiStore, kanji, 100, progressCallback);
       console.log(`Kanji storage: sent ${kanji.length}, stored ${kanjiStored}`);
     }
 
     // Store media if any
     if (media.length > 0) {
       const mediaStore = transaction.objectStore('media');
-      const mediaStored = await this._storeBatch(mediaStore, media, 100);
+      const mediaStored = await this._storeBatch(mediaStore, media, 100, progressCallback);
       console.log(`Media storage: sent ${media.length}, stored ${mediaStored}`);
     }
 
@@ -181,20 +181,37 @@ class StructuredDictionaryDatabase {
     });
   }
 
-  async _storeBatch(store, items, batchSize) {
+  async _storeBatch(store, items, batchSize, progressCallback = null) {
     let storedCount = 0;
+    let lastProgressTime = Date.now();
+
     for (let i = 0; i < items.length; i += batchSize) {
       const batch = items.slice(i, i + batchSize);
       for (const item of batch) {
         try {
           await this._put(store, item);
           storedCount++;
+
+          // Send progress update every 2 seconds
+          if (progressCallback) {
+            const currentTime = Date.now();
+            if (currentTime - lastProgressTime >= 2000) { // 10 seconds
+              progressCallback(`Saved ${storedCount} entries to database so far...`);
+              lastProgressTime = currentTime;
+            }
+          }
         } catch (error) {
           console.error('Failed to store item:', item, error);
           // Continue with other items
         }
       }
     }
+
+    // Send final progress update
+    if (progressCallback) {
+      progressCallback(`Saved ${storedCount} entries to database...`);
+    }
+
     return storedCount;
   }
 
@@ -274,8 +291,4 @@ class StructuredDictionaryDatabase {
 }
 
 // Export for use
-if (typeof module !== 'undefined') {
-  module.exports = StructuredDictionaryDatabase;
-} else {
-  window.StructuredDictionaryDatabase = StructuredDictionaryDatabase;
-}
+window.StructuredDictionaryDatabase = StructuredDictionaryDatabase;
