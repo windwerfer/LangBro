@@ -85,6 +85,7 @@ function handleIconClick() {
 function lookupWord(word) {
   try {
     chrome.runtime.sendMessage({ action: 'lookup', word: word }, (response) => {
+      console.log('Content script received response:', response);
       if (chrome.runtime.lastError) {
         const errorMsg = chrome.runtime.lastError.message;
         if (errorMsg.includes('Extension context invalidated')) {

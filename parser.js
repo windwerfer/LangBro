@@ -107,67 +107,52 @@ class StarDictParser {
     // NO SORT NEEDED: StarDict .idx is pre-sorted
   }
 
-  // Parse alias/offset files (.idx.oft, .idx.xoft)
-  async buildAliasIndex(aliasData, aliasCount) {
-    if (!aliasData || aliasCount === 0) return;
+  // Parse synonym file (.syn) - text-based format
+  async parseSynFile(synData) {
+    if (!synData) return;
 
-    console.log(`Building alias index for ${aliasCount} aliases...`);
-    console.log(`Alias data length: ${aliasData.length} bytes`);
+    console.log(`Parsing synonym file, ${synData.length} bytes...`);
 
     this.aliasOffsets = [];
-    let pos = 0;
-    let actualCount = 0;
 
-    // Try to parse until we can't find more entries
-    while (pos < aliasData.length - 10) { // Need at least 10 bytes for word + null + 8 bytes
-      const wordStart = pos;
+    // Convert Uint8Array to string
+    const synText = new TextDecoder('utf-8').decode(synData);
+    const lines = synText.split('\n');
 
-      // Find null terminator for word
-      let wordEnd = -1;
-      for (let i = pos; i < Math.min(pos + 100, aliasData.length); i++) { // Search up to 100 bytes for null
-        if (aliasData[i] === 0) {
-          wordEnd = i;
-          break;
+    console.log(`Found ${lines.length} lines in synonym file`);
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line || line.startsWith('#')) continue; // Skip empty lines and comments
+
+      // Parse synonym line: "main_word synonym1 synonym2 ..."
+      const parts = line.split(/\s+/);
+      if (parts.length < 2) continue;
+
+      const mainWord = parts[0];
+      const synonyms = parts.slice(1);
+
+      // Find the main word in our wordOffsets
+      const mainEntry = this.wordOffsets.find(entry => entry.word === mainWord);
+
+      if (mainEntry) {
+        // Add each synonym as an alias pointing to the main entry
+        for (const synonym of synonyms) {
+          if (synonym && synonym !== mainWord) { // Avoid self-references
+            this.aliasOffsets.push({
+              word: synonym,
+              mainEntryOffset: mainEntry.dictOffset, // Point to main entry's definition
+              dictSize: mainEntry.dictSize
+            });
+            console.log(`Added synonym: "${synonym}" -> "${mainWord}"`);
+          }
         }
-      }
-
-      if (wordEnd === -1) {
-        console.log(`No null terminator found near position ${pos}, stopping alias parsing`);
-        break;
-      }
-
-      const wordBytes = aliasData.subarray(pos, wordEnd);
-      const aliasWord = new TextDecoder('utf-8').decode(wordBytes);
-      const offsetPos = wordEnd + 1;
-
-      if (offsetPos + 8 > aliasData.length) {
-        console.log(`Not enough bytes for offsets at position ${offsetPos}, stopping`);
-        break;
-      }
-
-      // In .idx.oft files, the offset points to the main .idx entry
-      const mainEntryOffset = this.readUint32(aliasData, offsetPos);
-      const dictSize = this.readUint32(aliasData, offsetPos + 4);
-
-      console.log(`Parsed alias ${actualCount + 1}: "${aliasWord}" -> offset ${mainEntryOffset}`);
-
-      this.aliasOffsets.push({
-        word: aliasWord,
-        mainEntryOffset,
-        dictSize
-      });
-
-      pos = wordEnd + 9; // 1 null + 8 bytes (two uint32)
-      actualCount++;
-
-      // Safety check
-      if (actualCount > 1000) {
-        console.log('Too many aliases, stopping to prevent infinite loop');
-        break;
+      } else {
+        console.log(`Main word "${mainWord}" not found in dictionary for synonym line: ${line}`);
       }
     }
 
-    console.log(`Alias index built with ${this.aliasOffsets.length} entries (estimated: ${aliasCount})`);
+    console.log(`Parsed ${this.aliasOffsets.length} synonyms from .syn file`);
   }
 
   // Set alias data from files

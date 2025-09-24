@@ -56,8 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const idxFile = files.find(file => file.name.endsWith('.idx') || file.name.endsWith('.idx.gz'));
     const dictFile = files.find(file => file.name.endsWith('.dict') || file.name.endsWith('.dict.gz') || file.name.endsWith('.dict.dz'));
 
-    // Check for alias/offset files
-    const oftFile = files.find(file => file.name.endsWith('.idx.oft') || file.name.endsWith('.idx.xoft'));
+    // Check for synonym file
     const synFile = files.find(file => file.name.endsWith('.syn'));
 
     if (!ifoFile) {
@@ -82,13 +81,8 @@ document.addEventListener('DOMContentLoaded', () => {
       let idxBuffer = await idxFile.arrayBuffer();
       let dictBuffer = await dictFile.arrayBuffer();
 
-      // Read alias files if present
-      let oftBuffer = null;
+      // Read synonym file if present
       let synBuffer = null;
-      if (oftFile) {
-        oftBuffer = await oftFile.arrayBuffer();
-        console.log('Found alias file:', oftFile.name);
-      }
       if (synFile) {
         synBuffer = await synFile.arrayBuffer();
         console.log('Found synonym file:', synFile.name);
@@ -143,15 +137,15 @@ document.addEventListener('DOMContentLoaded', () => {
       parser.dictData = new Uint8Array(dictBuffer);
       parser.wordCount = metadata.wordcount;
 
-      // Set alias data if available
-      parser.setAliasData(oftBuffer, synBuffer);
+      // Set synonym data if available
+      parser.setAliasData(null, synBuffer);
 
       // Build word index
       await parser.buildWordIndex();
 
-      // Build alias index if alias data exists
-      if (oftBuffer) {
-        await parser.buildAliasIndex(parser.aliasData, 0); // Don't estimate, parse until end
+      // Parse synonym file if available
+      if (synBuffer) {
+        await parser.parseSynFile(parser.synonymData);
       }
 
       // Extract structured data

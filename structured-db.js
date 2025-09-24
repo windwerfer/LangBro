@@ -95,17 +95,23 @@ class StructuredDictionaryDatabase {
   async lookupTerm(expression, reading = expression) {
     if (!this.db) await this.open();
 
-    // Try exact match first
-    let results = await this._queryTerms('expression', [null, expression]);
+    // Get all dictionaries first
+    const dictionaries = await this.getAllDictionaries();
 
-    // If no results and reading differs, try reading match
-    if (results.length === 0 && reading !== expression) {
-      results = await this._queryTerms('reading', [null, reading]);
-    }
+    // Search through each dictionary
+    for (const dict of dictionaries) {
+      // Try exact match first
+      let results = await this._queryTerms('expression', [dict.title, expression]);
 
-    if (results.length > 0) {
-      // Return the first match's glossary
-      return results[0].glossary.join('\n');
+      // If no results and reading differs, try reading match
+      if (results.length === 0 && reading !== expression) {
+        results = await this._queryTerms('reading', [dict.title, reading]);
+      }
+
+      if (results.length > 0) {
+        // Return the first match's glossary
+        return results[0].glossary.join('\n');
+      }
     }
 
     return null;

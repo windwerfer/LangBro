@@ -213,31 +213,37 @@ async function initDB() {
 }
 
 // Message listener for content scripts (e.g., lookup requests)
-chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('LOG', 'Background received message:', request);
 
   if (request.action === 'lookup') {
     console.log('LOG', 'Lookup request for word:', request.word);
-    try {
-      const db = await getStructuredDB();
-      const definition = await db.lookupTerm(request.word);
-      console.log('LOG', 'Lookup result:', definition);
-      sendResponse({ definition: definition || 'No definition found' });
-    } catch (error) {
-      console.error('ERROR', 'Lookup error:', error);
-      sendResponse({ error: error.message });
-    }
-    return true; // Async response
+    // Handle async operation properly
+    (async () => {
+      try {
+        const db = await getStructuredDB();
+        const definition = await db.lookupTerm(request.word);
+        console.log('LOG', 'Lookup result:', definition);
+        sendResponse({ definition: definition || 'No definition found' });
+      } catch (error) {
+        console.error('ERROR', 'Lookup error:', error);
+        sendResponse({ error: error.message });
+      }
+    })();
+    return true; // Keep message channel open for async response
   } else if (request.action === 'isLoaded') {
-    try {
-      const db = await getStructuredDB();
-      const dicts = await db.getAllDictionaries();
-      const totalWords = dicts.reduce((sum, dict) => sum + dict.counts.terms.total, 0);
-      sendResponse({ isLoaded: dicts.length > 0, wordCount: totalWords });
-    } catch (error) {
-      console.error('ERROR', 'Error checking if loaded:', error);
-      sendResponse({ isLoaded: false, wordCount: 0 });
-    }
+    (async () => {
+      try {
+        const db = await getStructuredDB();
+        const dicts = await db.getAllDictionaries();
+        const totalWords = dicts.reduce((sum, dict) => sum + dict.counts.terms.total, 0);
+        sendResponse({ isLoaded: dicts.length > 0, wordCount: totalWords });
+      } catch (error) {
+        console.error('ERROR', 'Error checking if loaded:', error);
+        sendResponse({ isLoaded: false, wordCount: 0 });
+      }
+    })();
+    return true; // Keep message channel open for async response
   } else if (request.action === 'reloadParser') {
     // No longer needed with structured DB, but keep for compatibility
     sendResponse({ success: true });
