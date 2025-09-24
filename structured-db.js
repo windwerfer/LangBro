@@ -100,7 +100,7 @@ class StructuredDictionaryDatabase {
 
     // Get all dictionaries first
     const dictionaries = await this.getAllDictionaries();
-    const allResults = [];
+    const dictionaryResults = [];
 
     // Search through each dictionary
     for (const dict of dictionaries) {
@@ -113,28 +113,44 @@ class StructuredDictionaryDatabase {
       }
 
       if (results.length > 0) {
-        // Collect all matching glossaries
+        // Collect definitions for this dictionary
+        const dictDefinitions = [];
+
         for (const result of results) {
+          // Handle multiple definitions within the same term entry
           if (result.glossary.length > 1) {
             // Add <hr> between multiple definitions for the same term
-            const definitionsWithSeparators = [];
             for (let i = 0; i < result.glossary.length; i++) {
-              definitionsWithSeparators.push(result.glossary[i]);
+              dictDefinitions.push(result.glossary[i]);
               if (i < result.glossary.length - 1) {
-                definitionsWithSeparators.push('<hr>');
+                dictDefinitions.push('<hr>');
               }
             }
-            allResults.push(...definitionsWithSeparators);
           } else {
-            allResults.push(...result.glossary);
+            dictDefinitions.push(...result.glossary);
           }
         }
+
+        // Add this dictionary's results
+        dictionaryResults.push({
+          dictionary: dict.title,
+          definitions: dictDefinitions
+        });
       }
     }
 
-    if (allResults.length > 0) {
-      // Return combined definitions, separated by dictionary if multiple
-      return allResults.join('\n\n');
+    if (dictionaryResults.length > 0) {
+      // Combine definitions from different dictionaries with <hr> separators
+      const allDefinitions = [];
+      for (let i = 0; i < dictionaryResults.length; i++) {
+        allDefinitions.push(...dictionaryResults[i].definitions);
+        // Add <hr> between different dictionaries (but not after the last one)
+        if (i < dictionaryResults.length - 1) {
+          allDefinitions.push('<hr>');
+        }
+      }
+
+      return allDefinitions.join('\n\n');
     }
 
     return null;
