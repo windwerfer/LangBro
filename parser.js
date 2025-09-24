@@ -217,7 +217,6 @@ class StarDictParser {
 
   // Extract structured data for Yomitan-style storage
   extractStructuredData(dictionaryName) {
-    const terms = [];
     const kanji = [];
     const media = [];
 
@@ -232,25 +231,33 @@ class StarDictParser {
       mainEntryMap.set(entry.dictOffset, { entry, definition });
     }
 
+    // Use a Map to group terms by [expression, reading] and merge glossaries
+    const termMap = new Map();
+
     // Process main entries
     for (let i = 0; i < this.wordOffsets.length; i++) {
       const entry = this.wordOffsets[i];
       const mainData = mainEntryMap.get(entry.dictOffset);
 
-      // Create term entry in Yomitan format
-      const termEntry = {
-        expression: entry.word,
-        reading: entry.word, // StarDict doesn't separate reading from expression
-        definitionTags: [],
-        rules: [],
-        score: 0,
-        glossary: [mainData.definition], // Array of definitions
-        sequence: i + 1,
-        termTags: [],
-        dictionary: dictionaryName
-      };
+      const key = `${entry.word}|${entry.word}`; // expression|reading (same for StarDict)
 
-      terms.push(termEntry);
+      if (termMap.has(key)) {
+        // Merge glossary with existing term
+        termMap.get(key).glossary.push(mainData.definition);
+      } else {
+        // Create new term entry
+        const termEntry = {
+          expression: entry.word,
+          reading: entry.word, // StarDict doesn't separate reading from expression
+          definitionTags: [],
+          rules: [],
+          score: 0,
+          glossary: [mainData.definition], // Array of definitions
+          termTags: [],
+          dictionary: dictionaryName
+        };
+        termMap.set(key, termEntry);
+      }
     }
 
     // Process aliases from .syn files and .idx.oft/.idx.xoft files
@@ -263,20 +270,25 @@ class StarDictParser {
         const mainData = mainEntryMap.get(alias.mainEntryOffset);
 
         if (mainData) {
-          // Create alias term entry pointing to same definition
-          const aliasEntry = {
-            expression: alias.word,
-            reading: alias.word,
-            definitionTags: [],
-            rules: [],
-            score: 0,
-            glossary: [mainData.definition], // Same definition as main entry
-            sequence: this.wordOffsets.length + i + 1, // Continue sequence numbering
-            termTags: [],
-            dictionary: dictionaryName
-          };
+          const key = `${alias.word}|${alias.word}`; // expression|reading
 
-          terms.push(aliasEntry);
+          if (termMap.has(key)) {
+            // Merge glossary with existing term
+            termMap.get(key).glossary.push(mainData.definition);
+          } else {
+            // Create new term entry for alias
+            const aliasEntry = {
+              expression: alias.word,
+              reading: alias.word,
+              definitionTags: [],
+              rules: [],
+              score: 0,
+              glossary: [mainData.definition], // Same definition as main entry
+              termTags: [],
+              dictionary: dictionaryName
+            };
+            termMap.set(key, aliasEntry);
+          }
           aliasesProcessed++;
         } else {
           console.log(`Alias "${alias.word}" points to unknown offset ${alias.mainEntryOffset}`);
@@ -286,8 +298,14 @@ class StarDictParser {
       console.log(`Successfully processed ${aliasesProcessed}/${this.aliasOffsets.length} aliases`);
     }
 
+    // Convert Map to array and assign sequential IDs
+    const terms = Array.from(termMap.values());
+    terms.forEach((term, index) => {
+      term.sequence = index + 1;
+    });
+
     const totalTerms = terms.length;
-    console.log(`Total terms extracted: ${totalTerms} (${this.wordCount} main + ${this.aliasOffsets.length} aliases)`);
+    console.log(`Total unique terms extracted: ${totalTerms} (from ${this.wordOffsets.length} main + ${this.aliasOffsets.length} aliases)`);
 
     return {
       terms,

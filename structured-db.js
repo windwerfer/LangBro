@@ -21,7 +21,7 @@ class StructuredDictionaryDatabase {
           db.createObjectStore('dictionaries', { keyPath: 'title' });
         }
         if (!db.objectStoreNames.contains('terms')) {
-          const termsStore = db.createObjectStore('terms', { keyPath: ['dictionary', 'expression', 'reading', 'sequence'] });
+          const termsStore = db.createObjectStore('terms', { keyPath: ['dictionary', 'expression', 'reading'] });
           termsStore.createIndex('expression', ['dictionary', 'expression']);
           termsStore.createIndex('reading', ['dictionary', 'reading']);
         }
@@ -115,7 +115,19 @@ class StructuredDictionaryDatabase {
       if (results.length > 0) {
         // Collect all matching glossaries
         for (const result of results) {
-          allResults.push(...result.glossary);
+          if (result.glossary.length > 1) {
+            // Add <hr> between multiple definitions for the same term
+            const definitionsWithSeparators = [];
+            for (let i = 0; i < result.glossary.length; i++) {
+              definitionsWithSeparators.push(result.glossary[i]);
+              if (i < result.glossary.length - 1) {
+                definitionsWithSeparators.push('<hr>');
+              }
+            }
+            allResults.push(...definitionsWithSeparators);
+          } else {
+            allResults.push(...result.glossary);
+          }
         }
       }
     }
