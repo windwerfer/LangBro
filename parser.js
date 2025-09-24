@@ -6,8 +6,12 @@ class StarDictParser {
     this.metadata = null;
     this.idxData = null;
     this.dictData = null;
+    this.aliasData = null; // For .idx.oft/.idx.xoft files
+    this.synonymData = null; // For .syn files
     this.wordOffsets = []; // Precomputed [startByte] for each word
+    this.aliasOffsets = []; // Aliases pointing to main entries
     this.wordCount = 0;
+    this.aliasCount = 0;
     this.sequenceType = 'h';
   }
 
@@ -103,6 +107,60 @@ class StarDictParser {
     // NO SORT NEEDED: StarDict .idx is pre-sorted
   }
 
+  // Parse alias/offset files (.idx.oft, .idx.xoft)
+  async buildAliasIndex(aliasData, aliasCount) {
+    if (!aliasData || aliasCount === 0) return;
+
+    console.log(`Building alias index for ${aliasCount} aliases...`);
+    this.aliasOffsets = [];
+    let pos = 0;
+
+    for (let i = 0; i < aliasCount; i++) {
+      if (pos >= aliasData.length) {
+        throw new Error(`Alias file too short: reached end at alias ${i + 1}/${aliasCount}`);
+      }
+
+      const wordEnd = aliasData.indexOf(0, pos);
+      if (wordEnd === -1) {
+        throw new Error(`Invalid alias structure: no null terminator at position ~${pos} (alias ${i + 1})`);
+      }
+
+      const wordBytes = aliasData.subarray(pos, wordEnd);
+      const aliasWord = new TextDecoder('utf-8').decode(wordBytes);
+      const offsetPos = wordEnd + 1;
+
+      if (offsetPos + 8 > aliasData.length) {
+        throw new Error(`Invalid alias offsets at alias ${i + 1}: beyond file end`);
+      }
+
+      // In .idx.oft files, the offset points to the main .idx entry
+      const mainEntryOffset = this.readUint32(aliasData, offsetPos);
+      const dictSize = this.readUint32(aliasData, offsetPos + 4);
+
+      this.aliasOffsets.push({
+        word: aliasWord,
+        mainEntryOffset,
+        dictSize
+      });
+
+      pos = wordEnd + 9; // 1 null + 8 bytes (two uint32)
+    }
+
+    console.log(`Alias index built with ${this.aliasOffsets.length} entries`);
+  }
+
+  // Set alias data from files
+  setAliasData(aliasBuffer, synonymBuffer = null) {
+    if (aliasBuffer) {
+      this.aliasData = new Uint8Array(aliasBuffer);
+      // Estimate alias count (rough calculation)
+      this.aliasCount = Math.floor(aliasBuffer.byteLength / 20); // Average ~20 bytes per entry
+    }
+    if (synonymBuffer) {
+      this.synonymData = new Uint8Array(synonymBuffer);
+    }
+  }
+
   // Lookup word: Binary search + extract definition
   lookup(word) {
     if (!this.wordOffsets.length) return null;
@@ -128,6 +186,97 @@ class StarDictParser {
       }
     }
     return null; // No exact match
+  }
+
+  // Extract structured data for Yomitan-style storage
+  extractStructuredData(dictionaryName) {
+    const terms = [];
+    const kanji = [];
+    const media = [];
+
+    console.log(`Extracting structured data for ${this.wordCount} words...`);
+
+    // First, create a map of main entries for quick lookup
+    const mainEntryMap = new Map();
+    for (let i = 0; i < this.wordCount; i++) {
+      const entry = this.wordOffsets[i];
+      const slice = this.dictData.subarray(entry.dictOffset, entry.dictOffset + entry.dictSize);
+      const definition = new TextDecoder('utf-8').decode(slice);
+      mainEntryMap.set(entry.startByte, { entry, definition });
+    }
+
+    // Process main entries
+    for (let i = 0; i < this.wordCount; i++) {
+      const entry = this.wordOffsets[i];
+      const mainData = mainEntryMap.get(entry.startByte);
+
+      // Create term entry in Yomitan format
+      const termEntry = {
+        expression: entry.word,
+        reading: entry.word, // StarDict doesn't separate reading from expression
+        definitionTags: [],
+        rules: [],
+        score: 0,
+        glossary: [mainData.definition], // Array of definitions
+        sequence: i + 1,
+        termTags: [],
+        dictionary: dictionaryName
+      };
+
+      terms.push(termEntry);
+    }
+
+    // Process aliases from .idx.oft/.idx.xoft files
+    if (this.aliasData && this.aliasOffsets.length > 0) {
+      console.log(`Processing ${this.aliasOffsets.length} aliases...`);
+
+      for (let i = 0; i < this.aliasOffsets.length; i++) {
+        const alias = this.aliasOffsets[i];
+        const mainData = mainEntryMap.get(alias.mainEntryOffset);
+
+        if (mainData) {
+          // Create alias term entry pointing to same definition
+          const aliasEntry = {
+            expression: alias.word,
+            reading: alias.word,
+            definitionTags: [],
+            rules: [],
+            score: 0,
+            glossary: [mainData.definition], // Same definition as main entry
+            sequence: this.wordCount + i + 1, // Continue sequence numbering
+            termTags: [],
+            dictionary: dictionaryName
+          };
+
+          terms.push(aliasEntry);
+        }
+      }
+    }
+
+    const totalTerms = terms.length;
+    console.log(`Total terms extracted: ${totalTerms} (${this.wordCount} main + ${this.aliasOffsets.length} aliases)`);
+
+    return {
+      terms,
+      kanji,
+      media,
+      metadata: {
+        title: dictionaryName,
+        revision: '1.0.0',
+        sequenced: true,
+        version: 3,
+        importDate: Date.now(),
+        prefixWildcardsSupported: false,
+        counts: {
+          terms: { total: totalTerms },
+          termMeta: { total: 0 },
+          kanji: { total: kanji.length },
+          kanjiMeta: { total: 0 },
+          tagMeta: { total: 0 },
+          media: { total: media.length }
+        }
+      }
+    };
   }
 
   // Utils

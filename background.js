@@ -155,15 +155,24 @@ class StarDictParser {
   }
 }
 
-let parser = null;
+let structuredDB = null;
+
+async function getStructuredDB() {
+  if (!structuredDB) {
+    structuredDB = new StructuredDictionaryDatabase();
+    await structuredDB.open();
+  }
+  return structuredDB;
+}
 
 chrome.runtime.onInstalled.addListener(async () => {
-  console.log('WordClick Dictionary installed');
-  await initParser();
+  debugLog('LOG', 'WordClick Dictionary installed');
+  await initDB();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-  await initParser();
+  debugLog('LOG', 'WordClick Dictionary startup');
+  await initDB();
 });
 
 // IndexedDB functions for background
@@ -192,48 +201,45 @@ async function getAllDictsFromIndexedDB() {
   });
 }
 
-// Initialize parser from IndexedDB
-async function initParser() {
+// Initialize structured database
+async function initDB() {
   try {
-    if (!parser) {
-      const dicts = await getAllDictsFromIndexedDB();
-      if (dicts.length > 0) {
-        parser = new StarDictParser();
-        await parser.loadFromIndexedDB(dicts[0]);
-        console.log(`Parser initialized with ${parser.wordCount} words`);
-      } else {
-        console.log('No dictionary in IndexedDB');
-      }
-    }
+    const db = await getStructuredDB();
+    const dicts = await db.getAllDictionaries();
+    debugLog('LOG', `Database initialized with ${dicts.length} dictionaries`);
   } catch (error) {
-    console.error('Failed to initialize parser:', error);
-    parser = null;
+    debugLog('ERROR', 'Failed to initialize database:', error);
   }
 }
 
 // Message listener for content scripts (e.g., lookup requests)
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('Background received message:', request);
+chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
+  debugLog('LOG', 'Background received message:', request);
+
   if (request.action === 'lookup') {
-    console.log('Lookup request for word:', request.word);
-    if (!parser) {
-      console.log('No parser loaded');
-      sendResponse({ error: 'No dictionary loaded' });
-      return;
-    }
+    debugLog('LOG', 'Lookup request for word:', request.word);
     try {
-      const definition = parser.lookup(request.word);
-      console.log('Lookup result:', definition);
+      const db = await getStructuredDB();
+      const definition = await db.lookupTerm(request.word);
+      debugLog('LOG', 'Lookup result:', definition);
       sendResponse({ definition: definition || 'No definition found' });
     } catch (error) {
-      console.log('Lookup error:', error);
+      debugLog('ERROR', 'Lookup error:', error);
       sendResponse({ error: error.message });
     }
     return true; // Async response
   } else if (request.action === 'isLoaded') {
-    sendResponse({ isLoaded: !!parser, wordCount: parser ? parser.wordCount : 0 });
+    try {
+      const db = await getStructuredDB();
+      const dicts = await db.getAllDictionaries();
+      const totalWords = dicts.reduce((sum, dict) => sum + dict.counts.terms.total, 0);
+      sendResponse({ isLoaded: dicts.length > 0, wordCount: totalWords });
+    } catch (error) {
+      debugLog('ERROR', 'Error checking if loaded:', error);
+      sendResponse({ isLoaded: false, wordCount: 0 });
+    }
   } else if (request.action === 'reloadParser') {
-    initParser().catch(console.error);
+    // No longer needed with structured DB, but keep for compatibility
     sendResponse({ success: true });
   }
   return false;

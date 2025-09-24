@@ -32,6 +32,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const idxFile = files.find(file => file.name.endsWith('.idx') || file.name.endsWith('.idx.gz'));
     const dictFile = files.find(file => file.name.endsWith('.dict') || file.name.endsWith('.dict.gz') || file.name.endsWith('.dict.dz'));
 
+    // Check for alias/offset files
+    const oftFile = files.find(file => file.name.endsWith('.idx.oft') || file.name.endsWith('.idx.xoft'));
+    const synFile = files.find(file => file.name.endsWith('.syn'));
+
     if (!ifoFile) {
       showStatus('Please select the .ifo file.', 'error');
       return;
@@ -53,6 +57,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const ifoBuffer = await ifoFile.arrayBuffer();
       let idxBuffer = await idxFile.arrayBuffer();
       let dictBuffer = await dictFile.arrayBuffer();
+
+      // Read alias files if present
+      let oftBuffer = null;
+      let synBuffer = null;
+      if (oftFile) {
+        oftBuffer = await oftFile.arrayBuffer();
+        console.log('Found alias file:', oftFile.name);
+      }
+      if (synFile) {
+        synBuffer = await synFile.arrayBuffer();
+        console.log('Found synonym file:', synFile.name);
+      }
 
       // Detect and decompress .idx if .gz
       let isIdxCompressed = false;
@@ -96,17 +112,35 @@ document.addEventListener('DOMContentLoaded', () => {
         return result;
       }
 
-      // Save to IndexedDB for larger storage capacity
-      const storageData = {
-        dictName: ifoFile.name.replace('.ifo', ''),
-        ifo: btoa(uint8ArrayToString(new Uint8Array(ifoBuffer))),
-        idx: btoa(uint8ArrayToString(new Uint8Array(idxBuffer))),
-        dict: btoa(uint8ArrayToString(new Uint8Array(dictBuffer))),
-        metadata: metadata
-      };
+      // Parse StarDict and convert to structured format
+      const parser = new StarDictParser();
+      parser.metadata = metadata;
+      parser.idxData = new Uint8Array(idxBuffer);
+      parser.dictData = new Uint8Array(dictBuffer);
+      parser.wordCount = metadata.wordcount;
 
-      await saveToIndexedDB(storageData);
-      showStatus(`Dictionary "${storageData.dictName}" loaded successfully! (${metadata.wordcount} words)`, 'success');
+      // Set alias data if available
+      parser.setAliasData(oftBuffer, synBuffer);
+
+      // Build word index
+      await parser.buildWordIndex();
+
+      // Build alias index if alias data exists
+      if (oftBuffer) {
+        // Estimate alias count from file size
+        const estimatedAliasCount = Math.floor(oftBuffer.byteLength / 20);
+        await parser.buildAliasIndex(parser.aliasData, estimatedAliasCount);
+      }
+
+      // Extract structured data
+      const dictionaryName = ifoFile.name.replace('.ifo', '');
+      const structuredData = parser.extractStructuredData(dictionaryName);
+
+      // Save to structured database
+      const db = await getStructuredDB();
+      await db.storeDictionary(structuredData);
+
+      showStatus(`Dictionary "${dictionaryName}" loaded successfully! (${metadata.wordcount} words)`, 'success');
       loadCurrentDict(); // Refresh display if needed
 
       // Notify background script to reload parser
@@ -154,53 +188,15 @@ document.addEventListener('DOMContentLoaded', () => {
     statusDiv.className = type;
   }
 
-  // IndexedDB functions
-  function openDB() {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open('StarDictDB', 1);
-      request.onupgradeneeded = (event) => {
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains('dictionaries')) {
-          db.createObjectStore('dictionaries', { keyPath: 'dictName' });
-        }
-      };
-      request.onsuccess = (event) => resolve(event.target.result);
-      request.onerror = (event) => reject(event.target.error);
-    });
-  }
+  // Structured database instance
+  let structuredDB = null;
 
-  async function saveToIndexedDB(data) {
-    const db = await openDB();
-    const transaction = db.transaction(['dictionaries'], 'readwrite');
-    const store = transaction.objectStore('dictionaries');
-    await new Promise((resolve, reject) => {
-      const request = store.put(data);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-    db.close();
-  }
-
-  async function loadFromIndexedDB(dictName) {
-    const db = await openDB();
-    const transaction = db.transaction(['dictionaries'], 'readonly');
-    const store = transaction.objectStore('dictionaries');
-    return new Promise((resolve, reject) => {
-      const request = store.get(dictName);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  async function getAllDictsFromIndexedDB() {
-    const db = await openDB();
-    const transaction = db.transaction(['dictionaries'], 'readonly');
-    const store = transaction.objectStore('dictionaries');
-    return new Promise((resolve, reject) => {
-      const request = store.getAll();
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
+  async function getStructuredDB() {
+    if (!structuredDB) {
+      structuredDB = new StructuredDictionaryDatabase();
+      await structuredDB.open();
+    }
+    return structuredDB;
   }
 
   // Load and display current dict on open
@@ -208,7 +204,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadCurrentDict() {
     try {
-      const dicts = await getAllDictsFromIndexedDB();
+      const db = await getStructuredDB();
+      const dicts = await db.getAllDictionaries();
       const dictListDiv = document.getElementById('dictList');
       dictListDiv.innerHTML = '';
 
@@ -221,12 +218,12 @@ document.addEventListener('DOMContentLoaded', () => {
           dictDiv.style.borderRadius = '4px';
 
           const nameSpan = document.createElement('span');
-          nameSpan.textContent = `${dict.dictName} (${dict.metadata.wordcount} words)`;
+          nameSpan.textContent = `${dict.title} (${dict.counts.terms.total} words)`;
 
           const deleteBtn = document.createElement('button');
           deleteBtn.textContent = 'Delete';
           deleteBtn.style.marginLeft = '10px';
-          deleteBtn.onclick = () => deleteDict(dict.dictName);
+          deleteBtn.onclick = () => deleteDict(dict.title);
 
           dictDiv.appendChild(nameSpan);
           dictDiv.appendChild(deleteBtn);
@@ -245,15 +242,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function deleteDict(dictName) {
     try {
-      const db = await openDB();
-      const transaction = db.transaction(['dictionaries'], 'readwrite');
-      const store = transaction.objectStore('dictionaries');
-      await new Promise((resolve, reject) => {
-        const request = store.delete(dictName);
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-      });
-      db.close();
+      const db = await getStructuredDB();
+      await db.clearAll(); // For now, clear all - could be made more selective
       showStatus(`Dictionary "${dictName}" deleted.`, 'info');
       loadCurrentDict(); // Refresh list
 

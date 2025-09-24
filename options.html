@@ -24,7 +24,7 @@
 
   <h3>Upload StarDict Dictionary</h3>
   <p>Select the .ifo file (other files will be auto-selected):</p>
-  <input type="file" id="filesInput" multiple accept=".ifo,.idx,.dict,.gz,.dz" />
+  <input type="file" id="filesInput" multiple accept=".ifo,.idx,.dict,.gz,.dz,.oft,.xoft,.syn" />
   <br>
   <button id="uploadBtn">Upload & Validate</button>
   <div id="status"></div>
@@ -32,6 +32,8 @@
   <h3>Loaded Dictionaries</h3>
   <div id="dictList"></div>
   <script src="pako.min.js"></script>
+  <script src="structured-db.js"></script>
+  <script src="parser.js"></script>
   <script src="options.js"></script>
 </body>
 </html>
