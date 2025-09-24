@@ -257,6 +257,85 @@ class StructuredDictionaryDatabase {
     });
   }
 
+  // Delete a specific dictionary and all its data
+  async deleteDictionary(dictName) {
+    if (!this.db) await this.open();
+
+    const stores = ['dictionaries', 'terms', 'kanji', 'media', 'tagMeta'];
+    const transaction = this.db.transaction(stores, 'readwrite');
+
+    // Delete dictionary metadata
+    const dictStore = transaction.objectStore('dictionaries');
+    dictStore.delete(dictName);
+
+    // Delete all terms for this dictionary
+    const termStore = transaction.objectStore('terms');
+    const termIndex = termStore.index('expression');
+    // Use a cursor to delete all terms for this dictionary
+    const termCursorRequest = termIndex.openCursor(IDBKeyRange.bound([dictName, ''], [dictName, '\uffff']));
+
+    termCursorRequest.onsuccess = (event) => {
+      const cursor = event.target.result;
+      if (cursor) {
+        cursor.delete(); // Delete this term
+        cursor.continue();
+      }
+    };
+
+    // Delete kanji for this dictionary (if any)
+    const kanjiStore = transaction.objectStore('kanji');
+    const kanjiCursorRequest = kanjiStore.openCursor();
+
+    kanjiCursorRequest.onsuccess = (event) => {
+      const cursor = event.target.result;
+      if (cursor) {
+        if (cursor.value.dictionary === dictName) {
+          cursor.delete();
+        }
+        cursor.continue();
+      }
+    };
+
+    // Delete media for this dictionary (if any)
+    const mediaStore = transaction.objectStore('media');
+    const mediaCursorRequest = mediaStore.openCursor();
+
+    mediaCursorRequest.onsuccess = (event) => {
+      const cursor = event.target.result;
+      if (cursor) {
+        if (cursor.value.dictionary === dictName) {
+          cursor.delete();
+        }
+        cursor.continue();
+      }
+    };
+
+    // Delete tag metadata for this dictionary (if any)
+    const tagStore = transaction.objectStore('tagMeta');
+    const tagCursorRequest = tagStore.openCursor();
+
+    tagCursorRequest.onsuccess = (event) => {
+      const cursor = event.target.result;
+      if (cursor) {
+        if (cursor.value.dictionary === dictName) {
+          cursor.delete();
+        }
+        cursor.continue();
+      }
+    };
+
+    return new Promise((resolve, reject) => {
+      transaction.oncomplete = () => {
+        console.log(`Dictionary "${dictName}" and all its data deleted successfully`);
+        resolve();
+      };
+      transaction.onerror = () => {
+        console.error('Failed to delete dictionary:', transaction.error);
+        reject(transaction.error);
+      };
+    });
+  }
+
   // Get actual term counts for verification
   async getActualTermCounts() {
     if (!this.db) await this.open();

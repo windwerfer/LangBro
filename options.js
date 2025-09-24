@@ -263,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function deleteDict(dictName) {
     try {
       const db = await getStructuredDB();
-      await db.clearAll(); // For now, clear all - could be made more selective
+      await db.deleteDictionary(dictName); // Delete only the specific dictionary
       showStatus(`Dictionary "${dictName}" deleted.`, 'info');
       loadCurrentDict(); // Refresh list
 
