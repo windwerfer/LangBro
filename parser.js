@@ -103,7 +103,12 @@ class StarDictParser {
     }
 
     const endTime = performance.now();
-    console.log(`Index built in ${(endTime - startTime).toFixed(2)}ms with ${this.wordOffsets.length} entries`);
+    console.log(`Index built in ${(endTime - startTime).toFixed(2)}ms with ${this.wordOffsets.length} entries (expected: ${this.wordCount})`);
+
+    if (this.wordOffsets.length !== this.wordCount) {
+      console.warn(`Warning: Parsed ${this.wordOffsets.length} entries but .ifo declared ${this.wordCount} words`);
+    }
+
     // NO SORT NEEDED: StarDict .idx is pre-sorted
   }
 
@@ -216,11 +221,11 @@ class StarDictParser {
     const kanji = [];
     const media = [];
 
-    console.log(`Extracting structured data for ${this.wordCount} words...`);
+    console.log(`Extracting structured data for ${this.wordOffsets.length} words (declared: ${this.wordCount})...`);
 
     // First, create a map of main entries for quick lookup by dictOffset
     const mainEntryMap = new Map();
-    for (let i = 0; i < this.wordCount; i++) {
+    for (let i = 0; i < this.wordOffsets.length; i++) {
       const entry = this.wordOffsets[i];
       const slice = this.dictData.subarray(entry.dictOffset, entry.dictOffset + entry.dictSize);
       const definition = new TextDecoder('utf-8').decode(slice);
@@ -228,7 +233,7 @@ class StarDictParser {
     }
 
     // Process main entries
-    for (let i = 0; i < this.wordCount; i++) {
+    for (let i = 0; i < this.wordOffsets.length; i++) {
       const entry = this.wordOffsets[i];
       const mainData = mainEntryMap.get(entry.dictOffset);
 
@@ -266,7 +271,7 @@ class StarDictParser {
             rules: [],
             score: 0,
             glossary: [mainData.definition], // Same definition as main entry
-            sequence: this.wordCount + i + 1, // Continue sequence numbering
+            sequence: this.wordOffsets.length + i + 1, // Continue sequence numbering
             termTags: [],
             dictionary: dictionaryName
           };

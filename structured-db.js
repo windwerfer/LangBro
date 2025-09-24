@@ -4,7 +4,7 @@
 class StructuredDictionaryDatabase {
   constructor() {
     this.db = null;
-    this.dbVersion = 2; // Increment version for new schema
+    this.dbVersion = 3; // Increment version for new schema
   }
 
   // Initialize database with structured schema
@@ -21,7 +21,7 @@ class StructuredDictionaryDatabase {
           db.createObjectStore('dictionaries', { keyPath: 'title' });
         }
         if (!db.objectStoreNames.contains('terms')) {
-          const termsStore = db.createObjectStore('terms', { keyPath: ['dictionary', 'expression', 'reading'] });
+          const termsStore = db.createObjectStore('terms', { keyPath: ['dictionary', 'expression', 'reading', 'sequence'] });
           termsStore.createIndex('expression', ['dictionary', 'expression']);
           termsStore.createIndex('reading', ['dictionary', 'reading']);
         }
@@ -65,18 +65,21 @@ class StructuredDictionaryDatabase {
 
     // Store terms in batches
     const termStore = transaction.objectStore('terms');
-    await this._storeBatch(termStore, terms, 100);
+    const termsStored = await this._storeBatch(termStore, terms, 100);
+    console.log(`Terms storage: sent ${terms.length}, stored ${termsStored}`);
 
     // Store kanji if any
     if (kanji.length > 0) {
       const kanjiStore = transaction.objectStore('kanji');
-      await this._storeBatch(kanjiStore, kanji, 100);
+      const kanjiStored = await this._storeBatch(kanjiStore, kanji, 100);
+      console.log(`Kanji storage: sent ${kanji.length}, stored ${kanjiStored}`);
     }
 
     // Store media if any
     if (media.length > 0) {
       const mediaStore = transaction.objectStore('media');
-      await this._storeBatch(mediaStore, media, 100);
+      const mediaStored = await this._storeBatch(mediaStore, media, 100);
+      console.log(`Media storage: sent ${media.length}, stored ${mediaStored}`);
     }
 
     return new Promise((resolve, reject) => {
@@ -97,6 +100,7 @@ class StructuredDictionaryDatabase {
 
     // Get all dictionaries first
     const dictionaries = await this.getAllDictionaries();
+    const allResults = [];
 
     // Search through each dictionary
     for (const dict of dictionaries) {
@@ -109,9 +113,16 @@ class StructuredDictionaryDatabase {
       }
 
       if (results.length > 0) {
-        // Return the first match's glossary
-        return results[0].glossary.join('\n');
+        // Collect all matching glossaries
+        for (const result of results) {
+          allResults.push(...result.glossary);
+        }
       }
+    }
+
+    if (allResults.length > 0) {
+      // Return combined definitions, separated by dictionary if multiple
+      return allResults.join('\n\n');
     }
 
     return null;
@@ -159,12 +170,20 @@ class StructuredDictionaryDatabase {
   }
 
   async _storeBatch(store, items, batchSize) {
+    let storedCount = 0;
     for (let i = 0; i < items.length; i += batchSize) {
       const batch = items.slice(i, i + batchSize);
       for (const item of batch) {
-        await this._put(store, item);
+        try {
+          await this._put(store, item);
+          storedCount++;
+        } catch (error) {
+          console.error('Failed to store item:', item, error);
+          // Continue with other items
+        }
       }
     }
+    return storedCount;
   }
 
   async _put(store, item) {
@@ -203,22 +222,28 @@ class StructuredDictionaryDatabase {
     for (const dict of dicts) {
       const transaction = this.db.transaction(['terms'], 'readonly');
       const store = transaction.objectStore('terms');
-      const index = store.index('expression');
 
-      // Count terms for this dictionary
+      // Count terms for this dictionary by iterating over the main store
       const count = await new Promise((resolve, reject) => {
         let termCount = 0;
-        const request = index.openCursor();
+        let totalProcessed = 0;
+        const request = store.openCursor();
 
         request.onsuccess = (event) => {
           const cursor = event.target.result;
           if (cursor) {
+            totalProcessed++;
             // Check if this term belongs to our dictionary
             if (cursor.value.dictionary === dict.title) {
               termCount++;
+              // Debug: log first few matches
+              if (termCount <= 3) {
+                console.log(`Found term ${termCount} for ${dict.title}: "${cursor.value.expression}" (seq: ${cursor.value.sequence})`);
+              }
             }
             cursor.continue();
           } else {
+            console.log(`Counted ${termCount} terms for ${dict.title} (processed ${totalProcessed} total records)`);
             resolve(termCount);
           }
         };
