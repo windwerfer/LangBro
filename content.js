@@ -39,8 +39,6 @@ function showLookupIcon(selection) {
     lookupIcon = document.createElement('div');
     lookupIcon.textContent = '#';
     lookupIcon.style.position = 'absolute';
-    lookupIcon.style.backgroundColor = 'white';
-    lookupIcon.style.border = '1px solid #ccc';
     lookupIcon.style.borderRadius = '3px';
     lookupIcon.style.padding = '2px 4px';
     lookupIcon.style.cursor = 'pointer';
@@ -56,11 +54,25 @@ function showLookupIcon(selection) {
     document.body.appendChild(lookupIcon);
   }
 
-  // Position the icon near the selection
+  // Apply dark mode styling if enabled
+  chrome.storage.local.get(['darkMode'], (result) => {
+    const isDarkMode = result.darkMode || false;
+    if (isDarkMode) {
+      lookupIcon.style.backgroundColor = 'black';
+      lookupIcon.style.color = 'gray';
+      lookupIcon.style.border = '1px solid gray';
+    } else {
+      lookupIcon.style.backgroundColor = 'white';
+      lookupIcon.style.color = 'black';
+      lookupIcon.style.border = '1px solid #ccc';
+    }
+  });
+
+  // Position the icon on the right side of the screen, 5px above the selection
   const range = selection.getRangeAt(0);
   const rect = range.getBoundingClientRect();
-  const left = rect.left + window.scrollX;
-  const top = rect.bottom + window.scrollY + 20;
+  const left = window.innerWidth + window.scrollX - 30 - 5; // Approximate button width 30px + 5px margin
+  const top = rect.top + window.scrollY - 5;
   lookupIcon.style.left = left + 'px';
   lookupIcon.style.top = top + 'px';
   lookupIcon.style.display = 'block';
@@ -235,8 +247,8 @@ function createCloseButton() {
   closeBtn.style.position = 'absolute';
   closeBtn.style.top = '5px';
   closeBtn.style.right = '5px';
-  closeBtn.style.background = 'red';
-  closeBtn.style.color = 'white';
+  closeBtn.style.background = 'black';
+  closeBtn.style.color = 'gray';
   closeBtn.style.border = 'none';
   closeBtn.style.borderRadius = '3px';
   closeBtn.style.cursor = 'pointer';
