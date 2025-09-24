@@ -107,52 +107,68 @@ class StarDictParser {
     // NO SORT NEEDED: StarDict .idx is pre-sorted
   }
 
-  // Parse synonym file (.syn) - text-based format
+  // Parse synonym file (.syn) - binary format per StarDict spec
   async parseSynFile(synData) {
     if (!synData) return;
 
     console.log(`Parsing synonym file, ${synData.length} bytes...`);
 
     this.aliasOffsets = [];
+    let pos = 0;
 
-    // Convert Uint8Array to string
-    const synText = new TextDecoder('utf-8').decode(synData);
-    const lines = synText.split('\n');
-
-    console.log(`Found ${lines.length} lines in synonym file`);
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line || line.startsWith('#')) continue; // Skip empty lines and comments
-
-      // Parse synonym line: "main_word synonym1 synonym2 ..."
-      const parts = line.split(/\s+/);
-      if (parts.length < 2) continue;
-
-      const mainWord = parts[0];
-      const synonyms = parts.slice(1);
-
-      // Find the main word in our wordOffsets
-      const mainEntry = this.wordOffsets.find(entry => entry.word === mainWord);
-
-      if (mainEntry) {
-        // Add each synonym as an alias pointing to the main entry
-        for (const synonym of synonyms) {
-          if (synonym && synonym !== mainWord) { // Avoid self-references
-            this.aliasOffsets.push({
-              word: synonym,
-              mainEntryOffset: mainEntry.dictOffset, // Point to main entry's definition
-              dictSize: mainEntry.dictSize
-            });
-            console.log(`Added synonym: "${synonym}" -> "${mainWord}"`);
-          }
-        }
-      } else {
-        console.log(`Main word "${mainWord}" not found in dictionary for synonym line: ${line}`);
+    while (pos < synData.length) {
+      // Find null terminator for synonym word
+      const nullIndex = synData.indexOf(0, pos);
+      if (nullIndex === -1) {
+        console.log(`Invalid .syn structure: no null terminator found at position ${pos}`);
+        break;
       }
+
+      // Extract synonym word
+      const wordBytes = synData.subarray(pos, nullIndex);
+      const synonym = new TextDecoder('utf-8').decode(wordBytes);
+
+      // Move past null terminator
+      pos = nullIndex + 1;
+
+      // Read 4 bytes for main word index (big-endian uint32)
+      if (pos + 4 > synData.length) {
+        console.log(`Invalid .syn structure: insufficient bytes for index at position ${pos}`);
+        break;
+      }
+
+      const mainWordIndex = this.readUint32(synData, pos);
+      pos += 4;
+
+      // Validate index
+      if (mainWordIndex >= this.wordOffsets.length) {
+        console.log(`Invalid synonym index ${mainWordIndex} for "${synonym}" (max: ${this.wordOffsets.length - 1})`);
+        continue;
+      }
+
+      // Get main entry
+      const mainEntry = this.wordOffsets[mainWordIndex];
+
+      // Add synonym as alias
+      this.aliasOffsets.push({
+        word: synonym,
+        mainEntryOffset: mainEntry.dictOffset,
+        dictSize: mainEntry.dictSize
+      });
+
+      console.log(`Added synonym: "${synonym}" -> "${mainEntry.word}" (index ${mainWordIndex})`);
     }
 
     console.log(`Parsed ${this.aliasOffsets.length} synonyms from .syn file`);
+
+    // Log all found synonyms for verification
+    if (this.aliasOffsets.length > 0) {
+      console.log('All synonyms found:');
+      this.aliasOffsets.forEach((alias, index) => {
+        const mainEntry = this.wordOffsets.find(entry => entry.dictOffset === alias.mainEntryOffset);
+        console.log(`${index + 1}. "${alias.word}" -> "${mainEntry ? mainEntry.word : 'UNKNOWN'}"`);
+      });
+    }
   }
 
   // Set alias data from files
@@ -232,8 +248,8 @@ class StarDictParser {
       terms.push(termEntry);
     }
 
-    // Process aliases from .idx.oft/.idx.xoft files
-    if (this.aliasData && this.aliasOffsets.length > 0) {
+    // Process aliases from .syn files and .idx.oft/.idx.xoft files
+    if (this.aliasOffsets.length > 0) {
       console.log(`Processing ${this.aliasOffsets.length} aliases...`);
       let aliasesProcessed = 0;
 
