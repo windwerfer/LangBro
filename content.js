@@ -16,6 +16,7 @@ let iconOffset = 50;
 let iconSpacing = 10;
 let boxIdCounter = 0;
 let rightSwipeGroupId = '';
+let tripleClickGroupId = '';
 
 // Load settings and query groups on startup
 loadSettings();
@@ -173,18 +174,20 @@ function handleSelectionChange() {
 // Load settings from storage
 async function loadSettings() {
   try {
-    const result = await chrome.storage.local.get(['iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup']);
+    const result = await chrome.storage.local.get(['iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'tripleClickGroup']);
     iconPlacement = result.iconPlacement || 'word';
     iconOffset = result.iconOffset || 50;
     iconSpacing = result.iconSpacing || 10;
     rightSwipeGroupId = result.rightSwipeGroup || '';
-    console.log('Loaded icon settings:', { iconPlacement, iconOffset, iconSpacing, rightSwipeGroupId });
+    tripleClickGroupId = result.tripleClickGroup || '';
+    console.log('Loaded icon settings:', { iconPlacement, iconOffset, iconSpacing, rightSwipeGroupId, tripleClickGroupId });
   } catch (error) {
     console.error('Error loading settings:', error);
     iconPlacement = 'word';
     iconOffset = 50;
     iconSpacing = 10;
     rightSwipeGroupId = '';
+    tripleClickGroupId = '';
   }
 }
 
@@ -914,16 +917,110 @@ function executeSwipeQuery(element) {
   lookupWord(word, selectedGroup, locationInfo);
 }
 
-// Initialize swipe listeners when DOM is ready
+// Mouse gesture handling for triple click detection
+let clickCount = 0;
+let clickTimer = null;
+let lastClickElement = null;
+
+// Add click event listeners to paragraphs for triple click gestures
+function addClickListeners() {
+  // Remove existing listeners first
+  document.querySelectorAll('p, div').forEach(element => {
+    element.removeEventListener('click', handleClick);
+  });
+
+  // Add listeners to paragraphs and divs
+  document.querySelectorAll('p, div').forEach(element => {
+    element.addEventListener('click', handleClick);
+  });
+}
+
+function handleClick(event) {
+  if (!tripleClickGroupId) return;
+
+  const targetElement = event.target.closest('p, div');
+  if (!targetElement || !targetElement.textContent.trim()) return;
+
+  // Reset click count if clicking on a different element
+  if (lastClickElement !== targetElement) {
+    clickCount = 0;
+    lastClickElement = targetElement;
+  }
+
+  clickCount++;
+
+  // Clear existing timer
+  if (clickTimer) {
+    clearTimeout(clickTimer);
+  }
+
+  // Set timer to reset click count after 500ms
+  clickTimer = setTimeout(() => {
+    clickCount = 0;
+    lastClickElement = null;
+  }, 500);
+
+  // Check for triple click
+  if (clickCount === 3) {
+    // Prevent default behavior and execute query
+    event.preventDefault();
+    event.stopPropagation();
+
+    // Reset click tracking
+    clickCount = 0;
+    lastClickElement = null;
+    if (clickTimer) {
+      clearTimeout(clickTimer);
+      clickTimer = null;
+    }
+
+    // Execute the selected query group with the paragraph text
+    executeTripleClickQuery(targetElement);
+  }
+}
+
+function executeTripleClickQuery(element) {
+  // Find the selected query group
+  const selectedGroup = queryGroups.find(group => group.id === tripleClickGroupId);
+  if (!selectedGroup || !selectedGroup.enabled) return;
+
+  console.log(`Executing triple click query for group: ${selectedGroup.name}`);
+
+  // Create a temporary selection object for the paragraph
+  const paragraphText = element.textContent.trim();
+  const tempSelection = {
+    selectedText: paragraphText,
+    wholeWord: paragraphText,
+    wholeParagraph: paragraphText
+  };
+
+  // Show loading state
+  const locationInfo = showSpinner(selectedGroup);
+
+  // Always use whole paragraph for triple click (as requested)
+  const word = tempSelection.wholeParagraph || tempSelection.selectedText || '';
+
+  console.log(`Triple click query text: ${word}`);
+  lookupWord(word, selectedGroup, locationInfo);
+}
+
+// Initialize listeners when DOM is ready
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', addSwipeListeners);
+  document.addEventListener('DOMContentLoaded', () => {
+    addSwipeListeners();
+    addClickListeners();
+  });
 } else {
   addSwipeListeners();
+  addClickListeners();
 }
 
 // Re-add listeners when content changes (for dynamic content)
 const observer = new MutationObserver(() => {
-  setTimeout(addSwipeListeners, 100); // Small delay to avoid excessive updates
+  setTimeout(() => {
+    addSwipeListeners();
+    addClickListeners();
+  }, 100); // Small delay to avoid excessive updates
 });
 observer.observe(document.body, { childList: true, subtree: true });
 

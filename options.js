@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const iconOffsetInput = document.getElementById('iconOffset');
   const iconSpacingInput = document.getElementById('iconSpacing');
   const rightSwipeGroupSelect = document.getElementById('rightSwipeGroup');
+  const tripleClickGroupSelect = document.getElementById('tripleClickGroup');
 
   // Import page elements
   const filesInput = document.getElementById('filesInput');
@@ -59,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Load settings
-  chrome.storage.local.get(['darkMode', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup'], (result) => {
+  chrome.storage.local.get(['darkMode', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'tripleClickGroup'], (result) => {
     console.log('Loaded settings:', result);
     darkModeCheckbox.checked = result.darkMode || false;
     targetLanguageSelect.value = result.targetLanguage || 'en';
@@ -67,6 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
     iconOffsetInput.value = result.iconOffset || 50;
     iconSpacingInput.value = result.iconSpacing || 10;
     rightSwipeGroupSelect.value = result.rightSwipeGroup || '';
+    tripleClickGroupSelect.value = result.tripleClickGroup || '';
   });
 
   // Save settings when changed
@@ -100,6 +102,11 @@ document.addEventListener('DOMContentLoaded', () => {
   rightSwipeGroupSelect.addEventListener('change', () => {
     console.log('Saving right swipe group setting:', rightSwipeGroupSelect.value);
     chrome.storage.local.set({ rightSwipeGroup: rightSwipeGroupSelect.value });
+  });
+
+  tripleClickGroupSelect.addEventListener('change', () => {
+    console.log('Saving triple click group setting:', tripleClickGroupSelect.value);
+    chrome.storage.local.set({ tripleClickGroup: tripleClickGroupSelect.value });
   });
 
 
@@ -418,14 +425,19 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderQueryGroups(groups) {
     groupsList.innerHTML = '';
 
-    // Update right swipe dropdown options
-    rightSwipeGroupSelect.innerHTML = '<option value="">None</option>';
-    groups.forEach(group => {
-      const option = document.createElement('option');
-      option.value = group.id;
-      option.textContent = `${group.icon} ${group.name}`;
-      rightSwipeGroupSelect.appendChild(option);
-    });
+    // Update gesture dropdown options
+    const updateDropdown = (selectElement) => {
+      selectElement.innerHTML = '<option value="">None</option>';
+      groups.forEach(group => {
+        const option = document.createElement('option');
+        option.value = group.id;
+        option.textContent = `${group.icon} ${group.name}`;
+        selectElement.appendChild(option);
+      });
+    };
+
+    updateDropdown(rightSwipeGroupSelect);
+    updateDropdown(tripleClickGroupSelect);
 
     if (groups.length === 0) {
       groupsList.innerHTML = '<p>No query groups configured. Click "Add Query Group" to create one.</p>';
