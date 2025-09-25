@@ -380,14 +380,24 @@ function lookupWord(word, group, locationInfo) {
         }
         return;
       }
+      // Create group label with proper icon rendering
+      const createGroupLabel = (group) => {
+        if (group.icon && group.icon.endsWith('.png')) {
+          const iconHtml = `<img src="${chrome.runtime.getURL(group.icon)}" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;" alt="${group.icon}">`;
+          return hideGroupNames ? iconHtml : `${iconHtml}${group.name}`;
+        } else {
+          return hideGroupNames ? group.icon : `${group.icon} ${group.name}`;
+        }
+      };
+
       if (response && response.error) {
-        const groupLabel = hideGroupNames ? (group.icon.endsWith('.png') ? 'Image' : group.icon) : (group.icon.endsWith('.png') ? `Image ${group.name}` : `${group.icon} ${group.name}`);
+        const groupLabel = createGroupLabel(group);
         showResult(`Lookup error (${groupLabel}): ${response.error}`, group, locationInfo);
       } else if (response && response.definition) {
-        const groupLabel = hideGroupNames ? (group.icon.endsWith('.png') ? 'Image' : group.icon) : (group.icon.endsWith('.png') ? `Image ${group.name}` : `${group.icon} ${group.name}`);
+        const groupLabel = createGroupLabel(group);
         showResult(`${groupLabel}\n\n${response.definition}`, group, locationInfo);
       } else {
-        const groupLabel = hideGroupNames ? (group.icon.endsWith('.png') ? 'Image' : group.icon) : (group.icon.endsWith('.png') ? `Image ${group.name}` : `${group.icon} ${group.name}`);
+        const groupLabel = createGroupLabel(group);
         showResult(`No definition found for "${word}" in ${groupLabel}.`, group, locationInfo);
       }
     });
