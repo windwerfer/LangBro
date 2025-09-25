@@ -10,6 +10,47 @@ let queryGroups = [];
 
 // Load query groups on startup
 loadQueryGroups();
+ensureDefaultQueryGroup();
+
+// Create a default offline query group if none exist
+async function ensureDefaultQueryGroup() {
+  try {
+    const result = await chrome.storage.local.get(['queryGroups']);
+    let groups = result.queryGroups || [];
+
+    if (groups.length === 0) {
+      console.log('No query groups found, creating default offline group');
+
+      // Get all available dictionaries to populate the default group
+      let selectedDictionaries = [];
+      try {
+        // Try to get dictionaries from background script
+        const db = await chrome.runtime.sendMessage({ action: 'getAllDictionaries' });
+        if (db && db.dictionaries) {
+          selectedDictionaries = db.dictionaries.map(dict => dict.title);
+        }
+      } catch (error) {
+        console.log('Could not get dictionaries from background, will use empty list');
+      }
+
+      // Create a default offline group
+      const defaultGroup = {
+        id: 'default-offline',
+        name: 'Dictionary',
+        icon: '#',
+        queryType: 'offline',
+        settings: { selectedDictionaries: selectedDictionaries },
+        enabled: true
+      };
+      groups.push(defaultGroup);
+      await chrome.storage.local.set({ queryGroups: groups });
+      queryGroups = groups;
+      console.log('Created default query group:', defaultGroup);
+    }
+  } catch (error) {
+    console.error('Error ensuring default query group:', error);
+  }
+}
 
 // Listen for messages from background/options
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

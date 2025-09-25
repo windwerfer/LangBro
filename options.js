@@ -336,6 +336,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Query type change
   queryTypeSelect.addEventListener('change', () => {
     showQueryTypeSettings(queryTypeSelect.value);
+    if (queryTypeSelect.value === 'offline') {
+      loadAvailableDictionaries();
+    }
   });
 
   // Save group button
@@ -446,6 +449,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('aiApiKey').value = group.settings?.apiKey || '';
         document.getElementById('aiModel').value = group.settings?.model || '';
         document.getElementById('aiPrompt').value = group.settings?.prompt || '';
+      } else if (group.queryType === 'offline') {
+        // Load selected dictionaries for offline groups
+        loadAvailableDictionaries(group.settings?.selectedDictionaries || []);
       }
     } else {
       formTitle.textContent = 'Add Query Group';
@@ -500,7 +506,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Build settings based on query type
     let settings = {};
-    if (queryType === 'web') {
+    if (queryType === 'offline') {
+      // Collect selected dictionaries
+      const selectedDictionaries = [];
+      const checkboxes = document.querySelectorAll('#dictionarySelection input[type="checkbox"]:checked');
+      checkboxes.forEach(checkbox => {
+        selectedDictionaries.push(checkbox.value);
+      });
+
+      if (selectedDictionaries.length === 0) {
+        alert('Please select at least one dictionary for this offline query group.');
+        return;
+      }
+
+      settings = { selectedDictionaries };
+    } else if (queryType === 'web') {
       const url = document.getElementById('webUrl').value.trim();
       const apiKey = document.getElementById('webApiKey').value;
       if (!url) {
@@ -607,6 +627,49 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     } catch (error) {
       console.error('Error toggling group enabled state:', error);
+    }
+  }
+
+  // Load available dictionaries for selection
+  async function loadAvailableDictionaries(selectedDictionaries = []) {
+    try {
+      const db = await getStructuredDB();
+      const dictionaries = await db.getAllDictionaries();
+
+      const dictionarySelection = document.getElementById('dictionarySelection');
+      dictionarySelection.innerHTML = '';
+
+      if (dictionaries.length === 0) {
+        dictionarySelection.innerHTML = '<p style="color: #666; font-style: italic;">No dictionaries available. Please import dictionaries first.</p>';
+        return;
+      }
+
+      dictionaries.forEach(dict => {
+        const dictDiv = document.createElement('div');
+        dictDiv.style.display = 'flex';
+        dictDiv.style.alignItems = 'center';
+        dictDiv.style.margin = '5px 0';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = dict.title;
+        checkbox.id = `dict-${dict.title}`;
+        checkbox.checked = selectedDictionaries.includes(dict.title);
+
+        const label = document.createElement('label');
+        label.htmlFor = `dict-${dict.title}`;
+        label.style.marginLeft = '8px';
+        label.style.flex = '1';
+        label.textContent = `${dict.title} (${dict.counts.terms.total} words)`;
+
+        dictDiv.appendChild(checkbox);
+        dictDiv.appendChild(label);
+        dictionarySelection.appendChild(dictDiv);
+      });
+    } catch (error) {
+      console.error('Error loading available dictionaries:', error);
+      const dictionarySelection = document.getElementById('dictionarySelection');
+      dictionarySelection.innerHTML = '<p style="color: #d9534f;">Error loading dictionaries.</p>';
     }
   }
 });

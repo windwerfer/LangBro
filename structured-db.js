@@ -156,6 +156,74 @@ class StructuredDictionaryDatabase {
     return null;
   }
 
+  // Lookup term in specific dictionaries only
+  async lookupTermInDictionaries(expression, selectedDictionaryNames, reading = expression) {
+    if (!this.db) await this.open();
+
+    // Get all dictionaries first, then filter to selected ones
+    const allDictionaries = await this.getAllDictionaries();
+    const dictionaries = allDictionaries.filter(dict => selectedDictionaryNames.includes(dict.title));
+
+    if (dictionaries.length === 0) {
+      return null;
+    }
+
+    const dictionaryResults = [];
+
+    // Search through each selected dictionary
+    for (const dict of dictionaries) {
+      // Try exact match first
+      let results = await this._queryTerms('expression', [dict.title, expression]);
+
+      // If no results and reading differs, try reading match
+      if (results.length === 0 && reading !== expression) {
+        results = await this._queryTerms('reading', [dict.title, reading]);
+      }
+
+      if (results.length > 0) {
+        // Collect definitions for this dictionary
+        const dictDefinitions = [];
+
+        for (const result of results) {
+          // Handle multiple definitions within the same term entry
+          if (result.glossary.length > 1) {
+            // Add <hr> between multiple definitions for the same term
+            for (let i = 0; i < result.glossary.length; i++) {
+              dictDefinitions.push(result.glossary[i]);
+              if (i < result.glossary.length - 1) {
+                dictDefinitions.push('<hr>');
+              }
+            }
+          } else {
+            dictDefinitions.push(...result.glossary);
+          }
+        }
+
+        // Add this dictionary's results
+        dictionaryResults.push({
+          dictionary: dict.title,
+          definitions: dictDefinitions
+        });
+      }
+    }
+
+    if (dictionaryResults.length > 0) {
+      // Combine definitions from different dictionaries with <hr> separators
+      const allDefinitions = [];
+      for (let i = 0; i < dictionaryResults.length; i++) {
+        allDefinitions.push(...dictionaryResults[i].definitions);
+        // Add <hr> between different dictionaries (but not after the last one)
+        if (i < dictionaryResults.length - 1) {
+          allDefinitions.push('<hr>');
+        }
+      }
+
+      return allDefinitions.join('\n\n');
+    }
+
+    return null;
+  }
+
   // Check if dictionary exists
   async dictionaryExists(title) {
     if (!this.db) await this.open();

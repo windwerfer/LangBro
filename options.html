@@ -100,7 +100,14 @@
 
       <!-- Offline Settings -->
       <div id="offlineSettings" class="query-type-settings">
-        <p>This group will use the loaded StarDict dictionaries.</p>
+        <p>This group will use the selected StarDict dictionaries.</p>
+        <div class="form-group">
+          <label>Available Dictionaries:</label>
+          <div id="dictionarySelection" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: white;">
+            <!-- Dictionary checkboxes will be loaded here -->
+            <p style="color: #666; font-style: italic;">Loading dictionaries...</p>
+          </div>
+        </div>
       </div>
 
       <!-- Web API Settings -->

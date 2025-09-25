@@ -1,6 +1,9 @@
 // Background script for WordClick Dictionary
 // Manages StarDictParser instance and message passing
 
+console.log('BACKGROUND SCRIPT LOADED - WordClick Dictionary v2.0');
+console.log('Background script initialization starting...');
+
 // StarDict Parser for Chrome Extension
 // Handles loading, indexing, and lookups for .ifo/.idx/.dict files
 
@@ -225,10 +228,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         let definition = null;
 
         if (request.queryType === 'offline') {
-          // Use existing StarDict lookup
+          // Use selective StarDict lookup based on selected dictionaries
           const db = await getStructuredDB();
-          definition = await db.lookupTerm(request.word);
-          console.log('LOG', 'Offline lookup result:', definition);
+          const selectedDictionaries = request.settings?.selectedDictionaries || [];
+
+          if (selectedDictionaries.length === 0) {
+            definition = 'No dictionaries selected for this query group.';
+          } else {
+            // Query only selected dictionaries
+            definition = await db.lookupTermInDictionaries(request.word, selectedDictionaries);
+            console.log('LOG', 'Selective offline lookup result:', definition);
+          }
         } else if (request.queryType === 'web') {
           // Web API lookup
           definition = await performWebLookup(request.word, request.settings);
@@ -256,6 +266,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       } catch (error) {
         console.error('ERROR', 'Error checking if loaded:', error);
         sendResponse({ isLoaded: false, wordCount: 0 });
+      }
+    })();
+    return true; // Keep message channel open for async response
+  } else if (request.action === 'getAllDictionaries') {
+    (async () => {
+      try {
+        const db = await getStructuredDB();
+        const dictionaries = await db.getAllDictionaries();
+        sendResponse({ dictionaries: dictionaries });
+      } catch (error) {
+        console.error('ERROR', 'Error getting dictionaries:', error);
+        sendResponse({ dictionaries: [] });
       }
     })();
     return true; // Keep message channel open for async response
