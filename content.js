@@ -1,16 +1,32 @@
-// Content script for WordClick Dictionary
-// Handles text selection and displays lookup icon and results
+// Content script for WordClick Dictionary v2
+// Handles text selection and displays multiple lookup icons for query groups
 
 console.log('Content script loaded');
 
-let lookupIcon = null;
+let lookupIcons = [];
 let resultDiv = null;
 let selectedWord = '';
-let resultJustShown = false;
+let queryGroups = [];
+
+// Load query groups on startup
+loadQueryGroups();
+
+// Listen for messages from background/options
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'updateQueryGroups') {
+    queryGroups = message.groups || [];
+    // Update icons if word is currently selected
+    if (selectedWord) {
+      const selection = window.getSelection();
+      if (selection.toString().trim()) {
+        showLookupIcons(selection);
+      }
+    }
+  }
+});
 
 // Listen for text selection
 document.addEventListener('selectionchange', handleSelectionChange);
-// document.addEventListener('mouseup', handleSelectionChange);
 document.addEventListener('keyup', handleSelectionChange);
 
 // Function to handle selection changes
@@ -24,79 +40,123 @@ function handleSelectionChange() {
     // Check if it's a single word (no spaces)
     if (!selectedText.includes(' ')) {
       selectedWord = selectedText;
-      showLookupIcon(selection);
+      showLookupIcons(selection);
     } else {
-      hideLookupIcon();
+      hideLookupIcons();
     }
   } else {
-    hideLookupIcon();
+    hideLookupIcons();
   }
 }
 
-// Show the lookup icon near the selection
-function showLookupIcon(selection) {
-  if (!lookupIcon) {
-    lookupIcon = document.createElement('div');
-    lookupIcon.textContent = '#';
-    lookupIcon.style.position = 'absolute';
-    lookupIcon.style.borderRadius = '3px';
-    lookupIcon.style.padding = '2px 4px';
-    lookupIcon.style.cursor = 'pointer';
-    lookupIcon.style.zIndex = '999999';
-    lookupIcon.style.fontSize = '14px';
-    lookupIcon.style.fontWeight = 'bold';
-    lookupIcon.addEventListener('click', handleIconClick);
-    lookupIcon.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      handleIconClick();
-    });
-    document.body.appendChild(lookupIcon);
+// Load query groups from storage
+async function loadQueryGroups() {
+  try {
+    const result = await chrome.storage.local.get(['queryGroups']);
+    queryGroups = result.queryGroups || [];
+    console.log('Loaded query groups:', queryGroups);
+  } catch (error) {
+    console.error('Error loading query groups:', error);
+    queryGroups = [];
   }
+}
 
-  // Apply dark mode styling if enabled
+// Show multiple lookup icons near the selection
+function showLookupIcons(selection) {
+  // Hide existing icons
+  hideLookupIcons();
+
+  // Filter enabled groups
+  const enabledGroups = queryGroups.filter(group => group.enabled);
+  if (enabledGroups.length === 0) return;
+
+  // Apply dark mode styling
   chrome.storage.local.get(['darkMode'], (result) => {
     const isDarkMode = result.darkMode || false;
-    if (isDarkMode) {
-      lookupIcon.style.backgroundColor = 'black';
-      lookupIcon.style.color = 'gray';
-      lookupIcon.style.border = '1px solid gray';
-    } else {
-      lookupIcon.style.backgroundColor = 'white';
-      lookupIcon.style.color = 'black';
-      lookupIcon.style.border = '1px solid #ccc';
+
+    // Position calculation
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    const baseTop = rect.top + window.scrollY - 5;
+    const iconSpacing = 35; // Space between icons
+
+    enabledGroups.forEach((group, index) => {
+      const icon = document.createElement('div');
+      icon.textContent = group.icon;
+      icon.style.position = 'absolute';
+      icon.style.borderRadius = '3px';
+      icon.style.padding = '2px 4px';
+      icon.style.cursor = 'pointer';
+      icon.style.zIndex = '999999';
+      icon.style.fontSize = '14px';
+      icon.style.fontWeight = 'bold';
+      icon.dataset.groupId = group.id;
+      icon.dataset.groupIndex = index;
+
+      // Apply dark mode styling
+      if (isDarkMode) {
+        icon.style.backgroundColor = 'black';
+        icon.style.color = 'gray';
+        icon.style.border = '1px solid gray';
+      } else {
+        icon.style.backgroundColor = 'white';
+        icon.style.color = 'black';
+        icon.style.border = '1px solid #ccc';
+      }
+
+      // Position icons horizontally from right to left
+      const left = window.innerWidth + window.scrollX - 30 - 5 - (index * iconSpacing);
+      const top = baseTop;
+      icon.style.left = left + 'px';
+      icon.style.top = top + 'px';
+      icon.style.display = 'block';
+
+      // Add event listeners
+      icon.addEventListener('click', (e) => handleIconClick(e, group));
+      icon.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+
+      document.body.appendChild(icon);
+      lookupIcons.push(icon);
+    });
+  });
+}
+
+// Hide all lookup icons
+function hideLookupIcons() {
+  lookupIcons.forEach(icon => {
+    if (icon.parentNode) {
+      icon.parentNode.removeChild(icon);
     }
   });
-
-  // Position the icon on the right side of the screen, 5px above the selection
-  const range = selection.getRangeAt(0);
-  const rect = range.getBoundingClientRect();
-  const left = window.innerWidth + window.scrollX - 30 - 5; // Approximate button width 30px + 5px margin
-  const top = rect.top + window.scrollY - 5;
-  lookupIcon.style.left = left + 'px';
-  lookupIcon.style.top = top + 'px';
-  lookupIcon.style.display = 'block';
+  lookupIcons = [];
 }
 
-// Hide the lookup icon
-function hideLookupIcon() {
-  if (lookupIcon) {
-    lookupIcon.style.display = 'none';
-  }
-}
+// Handle icon click for specific group
+function handleIconClick(event, group) {
+  event.preventDefault();
+  event.stopPropagation();
 
-// Handle icon click
-function handleIconClick() {
   if (selectedWord) {
-    hideLookupIcon(); // Hide the icon after click
-    lookupWord(selectedWord);
+    hideLookupIcons(); // Hide icons after click
+    lookupWord(selectedWord, group);
   }
 }
 
-// Lookup the word via background script
-function lookupWord(word) {
+// Lookup the word via background script for specific query group
+function lookupWord(word, group) {
   try {
-    chrome.runtime.sendMessage({ action: 'lookup', word: word }, (response) => {
+    const message = {
+      action: 'lookup',
+      word: word,
+      groupId: group.id,
+      queryType: group.queryType,
+      settings: group.settings
+    };
+
+    chrome.runtime.sendMessage(message, (response) => {
       console.log('Content script received response:', response);
       if (chrome.runtime.lastError) {
         const errorMsg = chrome.runtime.lastError.message;
@@ -108,15 +168,15 @@ function lookupWord(word) {
         return;
       }
       if (response && response.error) {
-        showResult(`Lookup error: ${response.error}`);
+        showResult(`Lookup error (${group.name}): ${response.error}`);
       } else if (response && response.definition) {
-        showResult(response.definition);
+        showResult(`${group.icon} ${group.name}\n\n${response.definition}`);
       } else {
-        showResult('No definition found for this word.');
+        showResult(`No definition found for "${word}" in ${group.name}.`);
       }
     });
   } catch (error) {
-    showResult('Unable to connect to dictionary. Please refresh the page.');
+    showResult(`Unable to query ${group.name}. Please refresh the page.`);
   }
 }
 
