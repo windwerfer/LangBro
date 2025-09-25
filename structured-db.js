@@ -404,6 +404,34 @@ class StructuredDictionaryDatabase {
     });
   }
 
+  // Get all terms for a specific dictionary
+  async getAllTerms(dictName) {
+    if (!this.db) await this.open();
+
+    const transaction = this.db.transaction(['terms'], 'readonly');
+    const store = transaction.objectStore('terms');
+
+    return new Promise((resolve, reject) => {
+      const terms = [];
+      const request = store.openCursor();
+
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (cursor) {
+          // Check if this term belongs to our dictionary
+          if (cursor.value.dictionary === dictName) {
+            terms.push(cursor.value);
+          }
+          cursor.continue();
+        } else {
+          resolve(terms);
+        }
+      };
+
+      request.onerror = () => reject(request.error);
+    });
+  }
+
   // Get actual term counts for verification
   async getActualTermCounts() {
     if (!this.db) await this.open();

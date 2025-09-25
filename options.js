@@ -6,6 +6,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const navButtons = document.querySelectorAll('.nav button');
   const pages = document.querySelectorAll('.page');
 
+  // Backup/Restore elements
+  const exportSettingsBtn = document.getElementById('exportSettingsBtn');
+  const importSettingsBtn = document.getElementById('importSettingsBtn');
+  const importSettingsFile = document.getElementById('importSettingsFile');
+  const settingsStatus = document.getElementById('settingsStatus');
+
+  const exportDictBtn = document.getElementById('exportDictBtn');
+  const importDictBtn = document.getElementById('importDictBtn');
+  const importDictFile = document.getElementById('importDictFile');
+  const dictStatus = document.getElementById('dictStatus');
+
+  const exportAllBtn = document.getElementById('exportAllBtn');
+  const importAllBtn = document.getElementById('importAllBtn');
+  const importAllFile = document.getElementById('importAllFile');
+  const fullBackupStatus = document.getElementById('fullBackupStatus');
+
   // Main settings elements
   const darkModeCheckbox = document.getElementById('darkModeCheckbox');
   const hideGroupNamesCheckbox = document.getElementById('hideGroupNamesCheckbox');
@@ -845,4 +861,297 @@ document.addEventListener('DOMContentLoaded', () => {
       dictionarySelection.innerHTML = '<p style="color: #d9534f;">Error loading dictionaries.</p>';
     }
   }
+
+  // Backup/Restore functionality
+  function showBackupStatus(message, type, elementId) {
+    const statusDiv = document.getElementById(elementId);
+    statusDiv.textContent = message;
+    statusDiv.className = type;
+  }
+
+  // Settings export
+  exportSettingsBtn.addEventListener('click', async () => {
+    try {
+      showBackupStatus('Exporting settings...', 'info', 'settingsStatus');
+
+      const settings = await chrome.storage.local.get(null);
+      const exportData = {
+        version: '1.0',
+        type: 'settings',
+        timestamp: new Date().toISOString(),
+        data: settings
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `wordclick-settings-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showBackupStatus('Settings exported successfully!', 'success', 'settingsStatus');
+    } catch (error) {
+      showBackupStatus('Error exporting settings: ' + error.message, 'error', 'settingsStatus');
+    }
+  });
+
+  // Settings import
+  importSettingsBtn.addEventListener('click', () => {
+    importSettingsFile.click();
+  });
+
+  importSettingsFile.addEventListener('change', async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      showBackupStatus('Importing settings...', 'info', 'settingsStatus');
+
+      const text = await file.text();
+      const importData = JSON.parse(text);
+
+      if (importData.type !== 'settings') {
+        throw new Error('Invalid settings file format');
+      }
+
+      await chrome.storage.local.set(importData.data);
+
+      // Reload settings in UI
+      chrome.storage.local.get(['darkMode', 'hideGroupNames', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'tripleClickGroup'], (result) => {
+        darkModeCheckbox.checked = result.darkMode || false;
+        hideGroupNamesCheckbox.checked = result.hideGroupNames || false;
+        targetLanguageSelect.value = result.targetLanguage || 'en';
+        iconPlacementSelect.value = result.iconPlacement || 'word';
+        iconOffsetInput.value = result.iconOffset || 50;
+        iconSpacingInput.value = result.iconSpacing || 10;
+        rightSwipeGroupSelect.value = result.rightSwipeGroup || '';
+        tripleClickGroupSelect.value = result.tripleClickGroup || '';
+      });
+
+      // Reload query groups
+      loadQueryGroups();
+
+      showBackupStatus('Settings imported successfully!', 'success', 'settingsStatus');
+    } catch (error) {
+      showBackupStatus('Error importing settings: ' + error.message, 'error', 'settingsStatus');
+    }
+
+    // Reset file input
+    event.target.value = '';
+  });
+
+  // Dictionary export
+  exportDictBtn.addEventListener('click', async () => {
+    try {
+      showBackupStatus('Exporting dictionaries...', 'info', 'dictStatus');
+
+      const db = await getStructuredDB();
+      const dictionaries = await db.getAllDictionaries();
+
+      if (dictionaries.length === 0) {
+        throw new Error('No dictionaries to export');
+      }
+
+      // Convert to Yomitan-compatible format
+      const yomitanData = {
+        version: 3,
+        format: 'group',
+        timestamp: Date.now(),
+        id: 'wordclick-export',
+        title: 'WordClick Dictionary Export',
+        entries: []
+      };
+
+      for (const dict of dictionaries) {
+        // Get all terms from this dictionary
+        const terms = await db.getAllTerms(dict.title);
+
+        for (const term of terms) {
+          yomitanData.entries.push({
+            term: term.term,
+            reading: term.reading || '',
+            definitionTags: term.tags || [],
+            definitions: [{
+              type: 'text',
+              text: term.definition
+            }],
+            score: 0,
+            glossary: [term.definition],
+            sequence: term.sequence || 0,
+            termTags: []
+          });
+        }
+      }
+
+      const blob = new Blob([JSON.stringify(yomitanData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `wordclick-dictionaries-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showBackupStatus(`Dictionaries exported successfully! (${yomitanData.entries.length} terms)`, 'success', 'dictStatus');
+    } catch (error) {
+      showBackupStatus('Error exporting dictionaries: ' + error.message, 'error', 'dictStatus');
+    }
+  });
+
+  // Dictionary import
+  importDictBtn.addEventListener('click', () => {
+    importDictFile.click();
+  });
+
+  importDictFile.addEventListener('change', async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      showBackupStatus('Importing dictionaries...', 'info', 'dictStatus');
+
+      const text = await file.text();
+      const importData = JSON.parse(text);
+
+      // Check if it's a Yomitan format
+      if (importData.format === 'group' && importData.entries) {
+        // Convert Yomitan format to our structured format
+        const db = await getStructuredDB();
+        const dictName = importData.title || 'Imported Dictionary';
+
+        const structuredData = {
+          title: dictName,
+          format: 'StarDict',
+          revision: '1',
+          sequenced: true,
+          entries: importData.entries.map((entry, index) => ({
+            term: entry.term,
+            reading: entry.reading || '',
+            definition: entry.glossary ? entry.glossary.join('\n') : (entry.definitions ? entry.definitions.map(d => d.text).join('\n') : ''),
+            tags: entry.definitionTags || [],
+            sequence: entry.sequence || index
+          }))
+        };
+
+        await db.storeDictionary(structuredData, (message) => {
+          showBackupStatus(message, 'info', 'dictStatus');
+        });
+
+        showBackupStatus(`Dictionary "${dictName}" imported successfully! (${importData.entries.length} terms)`, 'success', 'dictStatus');
+
+        // Refresh dictionary list
+        loadCurrentDict();
+
+        // Notify background script to reload parser
+        chrome.runtime.sendMessage({ action: 'reloadParser' });
+      } else {
+        throw new Error('Unsupported dictionary format. Please use Yomitan-compatible JSON format.');
+      }
+    } catch (error) {
+      showBackupStatus('Error importing dictionaries: ' + error.message, 'error', 'dictStatus');
+    }
+
+    // Reset file input
+    event.target.value = '';
+  });
+
+  // Full backup export
+  exportAllBtn.addEventListener('click', async () => {
+    try {
+      showBackupStatus('Creating full backup...', 'info', 'fullBackupStatus');
+
+      // Get settings
+      const settings = await chrome.storage.local.get(null);
+
+      // Get dictionaries
+      const db = await getStructuredDB();
+      const dictionaries = await db.getAllDictionaries();
+
+      const backupData = {
+        version: '1.0',
+        type: 'full-backup',
+        timestamp: new Date().toISOString(),
+        settings: settings,
+        dictionaries: dictionaries
+      };
+
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `wordclick-full-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showBackupStatus('Full backup created successfully!', 'success', 'fullBackupStatus');
+    } catch (error) {
+      showBackupStatus('Error creating full backup: ' + error.message, 'error', 'fullBackupStatus');
+    }
+  });
+
+  // Full backup import
+  importAllBtn.addEventListener('click', () => {
+    importAllFile.click();
+  });
+
+  importAllFile.addEventListener('change', async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      showBackupStatus('Restoring full backup...', 'info', 'fullBackupStatus');
+
+      const text = await file.text();
+      const backupData = JSON.parse(text);
+
+      if (backupData.type !== 'full-backup') {
+        throw new Error('Invalid backup file format');
+      }
+
+      // Restore settings
+      await chrome.storage.local.set(backupData.settings);
+
+      // Restore dictionaries
+      const db = await getStructuredDB();
+      for (const dict of backupData.dictionaries || []) {
+        await db.storeDictionary(dict, (message) => {
+          showBackupStatus(message, 'info', 'fullBackupStatus');
+        });
+      }
+
+      // Reload UI
+      chrome.storage.local.get(['darkMode', 'hideGroupNames', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'tripleClickGroup'], (result) => {
+        darkModeCheckbox.checked = result.darkMode || false;
+        hideGroupNamesCheckbox.checked = result.hideGroupNames || false;
+        targetLanguageSelect.value = result.targetLanguage || 'en';
+        iconPlacementSelect.value = result.iconPlacement || 'word';
+        iconOffsetInput.value = result.iconOffset || 50;
+        iconSpacingInput.value = result.iconSpacing || 10;
+        rightSwipeGroupSelect.value = result.rightSwipeGroup || '';
+        tripleClickGroupSelect.value = result.tripleClickGroup || '';
+      });
+
+      loadQueryGroups();
+      loadCurrentDict();
+
+      // Notify background script to reload parser
+      chrome.runtime.sendMessage({ action: 'reloadParser' });
+
+      showBackupStatus('Full backup restored successfully!', 'success', 'fullBackupStatus');
+    } catch (error) {
+      showBackupStatus('Error restoring backup: ' + error.message, 'error', 'fullBackupStatus');
+    }
+
+    // Reset file input
+    event.target.value = '';
+  });
 });
