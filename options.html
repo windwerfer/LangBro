@@ -101,6 +101,15 @@
       <label for="iconSpacing">Space between icons (px): </label>
       <input type="number" id="iconSpacing" placeholder="10" value="10" min="5" max="50">
     </div>
+
+    <h4>Touch Gestures</h4>
+    <div class="form-group">
+      <label for="rightSwipeGroup">Right swipe executes: </label>
+      <select id="rightSwipeGroup">
+        <option value="">None</option>
+        <!-- Query groups will be loaded here -->
+      </select>
+    </div>
   </div>
 
   <!-- Import Dictionary Page -->
@@ -145,8 +154,8 @@
           <div class="icon-option" data-icon="📚">📚</div>
           <div class="icon-option" data-icon="💡">💡</div>
           <div class="icon-option" data-icon="🎯">🎯</div>
+          <input type="text" id="customIcon" placeholder="Or enter custom icon/text" style="margin-left: 10px; width: 150px;">
         </div>
-        <input type="text" id="customIcon" placeholder="Or enter custom icon/text" style="margin-left: 10px; width: 150px;">
       </div>
 
       <div class="form-group">

@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const iconPlacementSelect = document.getElementById('iconPlacement');
   const iconOffsetInput = document.getElementById('iconOffset');
   const iconSpacingInput = document.getElementById('iconSpacing');
+  const rightSwipeGroupSelect = document.getElementById('rightSwipeGroup');
 
   // Import page elements
   const filesInput = document.getElementById('filesInput');
@@ -58,13 +59,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Load settings
-  chrome.storage.local.get(['darkMode', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing'], (result) => {
+  chrome.storage.local.get(['darkMode', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup'], (result) => {
     console.log('Loaded settings:', result);
     darkModeCheckbox.checked = result.darkMode || false;
     targetLanguageSelect.value = result.targetLanguage || 'en';
     iconPlacementSelect.value = result.iconPlacement || 'word';
     iconOffsetInput.value = result.iconOffset || 50;
     iconSpacingInput.value = result.iconSpacing || 10;
+    rightSwipeGroupSelect.value = result.rightSwipeGroup || '';
   });
 
   // Save settings when changed
@@ -93,6 +95,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const spacing = parseInt(iconSpacingInput.value) || 10;
     console.log('Saving icon spacing setting:', spacing);
     chrome.storage.local.set({ iconSpacing: spacing });
+  });
+
+  rightSwipeGroupSelect.addEventListener('change', () => {
+    console.log('Saving right swipe group setting:', rightSwipeGroupSelect.value);
+    chrome.storage.local.set({ rightSwipeGroup: rightSwipeGroupSelect.value });
   });
 
 
@@ -410,6 +417,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderQueryGroups(groups) {
     groupsList.innerHTML = '';
+
+    // Update right swipe dropdown options
+    rightSwipeGroupSelect.innerHTML = '<option value="">None</option>';
+    groups.forEach(group => {
+      const option = document.createElement('option');
+      option.value = group.id;
+      option.textContent = `${group.icon} ${group.name}`;
+      rightSwipeGroupSelect.appendChild(option);
+    });
 
     if (groups.length === 0) {
       groupsList.innerHTML = '<p>No query groups configured. Click "Add Query Group" to create one.</p>';

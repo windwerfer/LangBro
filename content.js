@@ -15,6 +15,7 @@ let iconPlacement = 'word';
 let iconOffset = 50;
 let iconSpacing = 10;
 let boxIdCounter = 0;
+let rightSwipeGroupId = '';
 
 // Load settings and query groups on startup
 loadSettings();
@@ -172,16 +173,18 @@ function handleSelectionChange() {
 // Load settings from storage
 async function loadSettings() {
   try {
-    const result = await chrome.storage.local.get(['iconPlacement', 'iconOffset', 'iconSpacing']);
+    const result = await chrome.storage.local.get(['iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup']);
     iconPlacement = result.iconPlacement || 'word';
     iconOffset = result.iconOffset || 50;
     iconSpacing = result.iconSpacing || 10;
-    console.log('Loaded icon settings:', { iconPlacement, iconOffset, iconSpacing });
+    rightSwipeGroupId = result.rightSwipeGroup || '';
+    console.log('Loaded icon settings:', { iconPlacement, iconOffset, iconSpacing, rightSwipeGroupId });
   } catch (error) {
     console.error('Error loading settings:', error);
     iconPlacement = 'word';
     iconOffset = 50;
     iconSpacing = 10;
+    rightSwipeGroupId = '';
   }
 }
 
@@ -820,6 +823,109 @@ function createCloseButton(targetDiv, top = '-5px', right = '5px') {
   };
   return closeBtn;
 }
+
+// Touch gesture handling for swipe detection
+let touchStartX = 0;
+let touchStartY = 0;
+let touchStartTime = 0;
+let isTrackingSwipe = false;
+
+// Add touch event listeners to paragraphs for swipe gestures
+function addSwipeListeners() {
+  // Remove existing listeners first
+  document.querySelectorAll('p, div').forEach(element => {
+    element.removeEventListener('touchstart', handleTouchStart);
+    element.removeEventListener('touchend', handleTouchEnd);
+  });
+
+  // Add listeners to paragraphs and divs
+  document.querySelectorAll('p, div').forEach(element => {
+    element.addEventListener('touchstart', handleTouchStart, { passive: false });
+    element.addEventListener('touchend', handleTouchEnd, { passive: false });
+  });
+}
+
+function handleTouchStart(event) {
+  if (event.touches.length === 1) {
+    const touch = event.touches[0];
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    touchStartTime = Date.now();
+    isTrackingSwipe = true;
+  }
+}
+
+function handleTouchEnd(event) {
+  if (!isTrackingSwipe || !rightSwipeGroupId) return;
+
+  const touch = event.changedTouches[0];
+  const touchEndX = touch.clientX;
+  const touchEndY = touch.clientY;
+  const touchEndTime = Date.now();
+
+  const deltaX = touchEndX - touchStartX;
+  const deltaY = touchEndY - touchStartY;
+  const deltaTime = touchEndTime - touchStartTime;
+
+  // Check if it's a valid right swipe
+  const minSwipeDistance = 50; // Minimum distance for swipe
+  const maxVerticalMovement = 50; // Maximum vertical movement allowed
+  const maxSwipeTime = 500; // Maximum time for swipe gesture
+
+  if (deltaTime < maxSwipeTime &&
+      Math.abs(deltaX) > minSwipeDistance &&
+      Math.abs(deltaY) < maxVerticalMovement &&
+      deltaX > 0) { // Right swipe
+
+    // Find the paragraph that was swiped
+    const targetElement = event.target.closest('p, div');
+    if (targetElement && targetElement.textContent.trim()) {
+      // Execute the selected query group with the paragraph text
+      executeSwipeQuery(targetElement);
+    }
+  }
+
+  isTrackingSwipe = false;
+}
+
+function executeSwipeQuery(element) {
+  // Find the selected query group
+  const selectedGroup = queryGroups.find(group => group.id === rightSwipeGroupId);
+  if (!selectedGroup || !selectedGroup.enabled) return;
+
+  console.log(`Executing right swipe query for group: ${selectedGroup.name}`);
+
+  // Create a temporary selection object for the paragraph
+  const paragraphText = element.textContent.trim();
+  const tempSelection = {
+    selectedText: paragraphText,
+    wholeWord: paragraphText,
+    wholeParagraph: paragraphText
+  };
+
+  // Show loading state
+  const locationInfo = showSpinner(selectedGroup);
+
+  // Choose text based on group's textSelectionMethod (default to wholeParagraph for swipe)
+  const textSelectionMethod = selectedGroup.textSelectionMethod || 'wholeParagraph';
+  const word = tempSelection[textSelectionMethod] || tempSelection.selectedText || '';
+
+  console.log(`Swipe query text: ${word}`);
+  lookupWord(word, selectedGroup, locationInfo);
+}
+
+// Initialize swipe listeners when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', addSwipeListeners);
+} else {
+  addSwipeListeners();
+}
+
+// Re-add listeners when content changes (for dynamic content)
+const observer = new MutationObserver(() => {
+  setTimeout(addSwipeListeners, 100); // Small delay to avoid excessive updates
+});
+observer.observe(document.body, { childList: true, subtree: true });
 
 // Hide result divs when clicking elsewhere
 document.addEventListener('click', (e) => {
