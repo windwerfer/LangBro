@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "WordClick Dictionary",
+  "name": "LangBro",
   "version": "0.2",
-  "description": "Click words on pages to see StarDict definitions.",
+  "description": "Click words on pages to see StarDict definitions or Translations (AI or GoogleTranslate).",
   "permissions": [
     "storage",
     "activeTab"
