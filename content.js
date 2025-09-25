@@ -83,9 +83,10 @@ function handleSelectionChange() {
   console.log('Selected text:', selectedText);
 
   if (selectedText) {
-    // Check if it's a single word (no spaces)
-    if (!selectedText.includes(' ')) {
-      selectedWord = selectedText;
+    // Extract the first word from the selection (split by spaces and take first non-empty word)
+    const firstWord = selectedText.split(/\s+/)[0];
+    if (firstWord && firstWord.length > 0) {
+      selectedWord = firstWord;
       showLookupIcons(selection);
     } else {
       hideLookupIcons();
@@ -177,6 +178,24 @@ function showLookupIcons(selection) {
       } else {
         // 'word' (default): Position near the selected word, from right to left
         left = rect.right + window.scrollX + 5 - (index * iconSpacing);
+
+        // Ensure icons don't go off-screen to the left
+        const iconWidth = 20; // Approximate icon width
+        if (left < window.scrollX + 5) {
+          // If icon would go off-screen, reposition to the right side of the word
+          left = rect.right + window.scrollX + 5 + (index * iconSpacing);
+        }
+      }
+
+      // Ensure icons stay within viewport bounds
+      const iconWidth = 20;
+      const viewportLeft = window.scrollX;
+      const viewportRight = window.scrollX + window.innerWidth;
+
+      if (left < viewportLeft + 5) {
+        left = viewportLeft + 5;
+      } else if (left + iconWidth > viewportRight - 5) {
+        left = viewportRight - iconWidth - 5;
       }
 
       icon.style.left = left + 'px';
