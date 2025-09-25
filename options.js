@@ -471,8 +471,9 @@ document.addEventListener('DOMContentLoaded', () => {
       showQueryTypeSettings(group.queryType);
 
       // Populate type-specific settings
-      if (group.queryType === 'web') {
+      if (group.queryType === 'web' || group.queryType === 'google_translate') {
         document.getElementById('webUrl').value = group.settings?.url || '';
+        document.getElementById('webJsonPath').value = group.settings?.jsonPath || '';
         document.getElementById('webApiKey').value = group.settings?.apiKey || '';
       } else if (group.queryType === 'ai') {
         document.getElementById('aiProvider').value = group.settings?.provider || 'openai';
@@ -513,8 +514,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Show relevant settings
     if (queryType === 'offline') {
       offlineSettings.style.display = 'block';
-    } else if (queryType === 'web') {
+    } else if (queryType === 'web' || queryType === 'google_translate') {
       webSettings.style.display = 'block';
+      // Pre-fill Google Translate URL and JSON path if selected
+      if (queryType === 'google_translate') {
+        document.getElementById('webUrl').value = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={lang_short}&dt=t&q={text}';
+        document.getElementById('webJsonPath').value = '0[0][0]';
+      }
     } else if (queryType === 'ai') {
       aiSettings.style.display = 'block';
     }
@@ -552,14 +558,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       settings = { selectedDictionaries };
-    } else if (queryType === 'web') {
+    } else if (queryType === 'web' || queryType === 'google_translate') {
       const url = document.getElementById('webUrl').value.trim();
+      const jsonPath = document.getElementById('webJsonPath').value.trim();
       const apiKey = document.getElementById('webApiKey').value;
       if (!url) {
         alert('Please enter a valid API URL.');
         return;
       }
-      settings = { url, apiKey };
+      settings = { url, jsonPath: jsonPath || undefined, apiKey };
     } else if (queryType === 'ai') {
       const provider = document.getElementById('aiProvider').value;
       const apiKey = document.getElementById('aiApiKey').value;

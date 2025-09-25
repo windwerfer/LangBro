@@ -244,8 +244,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             definition = await db.lookupTermInDictionaries(request.word, selectedDictionaries);
             console.log('LOG', 'Selective offline lookup result:', definition);
           }
-        } else if (request.queryType === 'web') {
-          // Web API lookup
+        } else if (request.queryType === 'web' || request.queryType === 'google_translate') {
+          // Web API lookup (including Google Translate preset)
           definition = await performWebLookup(request.word, request.settings);
         } else if (request.queryType === 'ai') {
           // AI service lookup
@@ -329,6 +329,42 @@ const languageMap = {
   'vi': 'vietnamese'
 };
 
+// JSON path extraction function
+function extractJsonPath(data, path) {
+  if (!path || !path.trim()) return data;
+
+  try {
+    const parts = path.split(/[\.\[\]]+/).filter(p => p !== '');
+    let current = data;
+
+    for (const part of parts) {
+      if (current == null) return null;
+
+      // Handle array indices
+      if (/^\d+$/.test(part)) {
+        const index = parseInt(part, 10);
+        if (Array.isArray(current) && index < current.length) {
+          current = current[index];
+        } else {
+          return null;
+        }
+      } else {
+        // Handle object properties
+        if (typeof current === 'object' && current !== null && part in current) {
+          current = current[part];
+        } else {
+          return null;
+        }
+      }
+    }
+
+    return current;
+  } catch (error) {
+    console.error('JSON path extraction error:', error);
+    return null;
+  }
+}
+
 // Perform web API lookup
 async function performWebLookup(word, settings) {
   if (!settings || !settings.url) {
@@ -375,6 +411,16 @@ async function performWebLookup(word, settings) {
   if (contentType && contentType.includes('application/json')) {
     // JSON response
     const data = await response.json();
+
+    // If JSON path is specified, extract the specific data
+    if (settings.jsonPath) {
+      const extracted = extractJsonPath(data, settings.jsonPath);
+      if (extracted !== null) {
+        // Return the extracted value, converting to string if needed
+        return typeof extracted === 'string' ? extracted : JSON.stringify(extracted, null, 2);
+      }
+      // If extraction failed, fall back to common patterns
+    }
 
     // Try common response formats
     if (data.definition) return data.definition;

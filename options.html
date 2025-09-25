@@ -151,6 +151,7 @@
         <select id="queryType">
           <option value="offline">Offline (StarDict)</option>
           <option value="web">Web API</option>
+          <option value="google_translate">Google Translate</option>
           <option value="ai">AI Service</option>
         </select>
       </div>
@@ -176,6 +177,11 @@
           <br><small>Examples:</small>
           <br><small>• Dictionary API: https://api.dictionaryapi.dev/api/v2/entries/{lang_short}/{text}</small>
           <br><small>• Translation API: https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={lang_short}&dt=t&q={text}</small>
+        </div>
+        <div class="form-group">
+          <label for="webJsonPath">JSON Path (optional):</label>
+          <input type="text" id="webJsonPath" placeholder="data.translation or 0[0][1]">
+          <small>Extract specific data from JSON response (e.g., 'result.translation' or 'data[0].text')</small>
         </div>
         <div class="form-group">
           <label for="webApiKey">API Key (optional):</label>
