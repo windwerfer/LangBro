@@ -17,6 +17,7 @@ let iconSpacing = 10;
 let boxIdCounter = 0;
 let rightSwipeGroupId = '';
 let tripleClickGroupId = '';
+let hideGroupNames = false;
 
 // Load settings and query groups on startup
 loadSettings();
@@ -174,13 +175,14 @@ function handleSelectionChange() {
 // Load settings from storage
 async function loadSettings() {
   try {
-    const result = await chrome.storage.local.get(['iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'tripleClickGroup']);
+    const result = await chrome.storage.local.get(['iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'tripleClickGroup', 'hideGroupNames']);
     iconPlacement = result.iconPlacement || 'word';
     iconOffset = result.iconOffset || 50;
     iconSpacing = result.iconSpacing || 10;
     rightSwipeGroupId = result.rightSwipeGroup || '';
     tripleClickGroupId = result.tripleClickGroup || '';
-    console.log('Loaded icon settings:', { iconPlacement, iconOffset, iconSpacing, rightSwipeGroupId, tripleClickGroupId });
+    hideGroupNames = result.hideGroupNames || false;
+    console.log('Loaded icon settings:', { iconPlacement, iconOffset, iconSpacing, rightSwipeGroupId, tripleClickGroupId, hideGroupNames });
   } catch (error) {
     console.error('Error loading settings:', error);
     iconPlacement = 'word';
@@ -188,6 +190,7 @@ async function loadSettings() {
     iconSpacing = 10;
     rightSwipeGroupId = '';
     tripleClickGroupId = '';
+    hideGroupNames = false;
   }
 }
 
@@ -238,7 +241,6 @@ function showLookupIcons(selection) {
     enabledGroups.forEach((group, index) => {
       console.log(`Creating icon for group: ${group.name} (${group.icon})`);
       const icon = document.createElement('div');
-      icon.textContent = group.icon;
       icon.style.position = 'absolute';
       icon.style.borderRadius = '3px';
       icon.style.padding = '2px 4px';
@@ -248,6 +250,20 @@ function showLookupIcons(selection) {
       icon.style.fontWeight = 'bold';
       icon.dataset.groupId = group.id;
       icon.dataset.groupIndex = index;
+
+      // Handle image icons vs text icons
+      if (group.icon && group.icon.endsWith('.png')) {
+        // Image icon - create img element with proper extension URL
+        const img = document.createElement('img');
+        img.src = chrome.runtime.getURL(group.icon);
+        img.style.width = '16px';
+        img.style.height = '16px';
+        img.style.verticalAlign = 'middle';
+        icon.appendChild(img);
+      } else {
+        // Text icon
+        icon.textContent = group.icon;
+      }
 
       // Apply dark mode styling
       if (isDarkMode) {
@@ -365,11 +381,14 @@ function lookupWord(word, group, locationInfo) {
         return;
       }
       if (response && response.error) {
-        showResult(`Lookup error (${group.name}): ${response.error}`, group, locationInfo);
+        const groupLabel = hideGroupNames ? (group.icon.endsWith('.png') ? 'Image' : group.icon) : (group.icon.endsWith('.png') ? `Image ${group.name}` : `${group.icon} ${group.name}`);
+        showResult(`Lookup error (${groupLabel}): ${response.error}`, group, locationInfo);
       } else if (response && response.definition) {
-        showResult(`${group.icon} ${group.name}\n\n${response.definition}`, group, locationInfo);
+        const groupLabel = hideGroupNames ? (group.icon.endsWith('.png') ? 'Image' : group.icon) : (group.icon.endsWith('.png') ? `Image ${group.name}` : `${group.icon} ${group.name}`);
+        showResult(`${groupLabel}\n\n${response.definition}`, group, locationInfo);
       } else {
-        showResult(`No definition found for "${word}" in ${group.name}.`, group, locationInfo);
+        const groupLabel = hideGroupNames ? (group.icon.endsWith('.png') ? 'Image' : group.icon) : (group.icon.endsWith('.png') ? `Image ${group.name}` : `${group.icon} ${group.name}`);
+        showResult(`No definition found for "${word}" in ${groupLabel}.`, group, locationInfo);
       }
     });
   } catch (error) {

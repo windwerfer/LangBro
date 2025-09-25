@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Main settings elements
   const darkModeCheckbox = document.getElementById('darkModeCheckbox');
+  const hideGroupNamesCheckbox = document.getElementById('hideGroupNamesCheckbox');
   const targetLanguageSelect = document.getElementById('targetLanguage');
   const iconPlacementSelect = document.getElementById('iconPlacement');
   const iconOffsetInput = document.getElementById('iconOffset');
@@ -60,9 +61,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Load settings
-  chrome.storage.local.get(['darkMode', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'tripleClickGroup'], (result) => {
+  chrome.storage.local.get(['darkMode', 'hideGroupNames', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'tripleClickGroup'], (result) => {
     console.log('Loaded settings:', result);
     darkModeCheckbox.checked = result.darkMode || false;
+    hideGroupNamesCheckbox.checked = result.hideGroupNames || false;
     targetLanguageSelect.value = result.targetLanguage || 'en';
     iconPlacementSelect.value = result.iconPlacement || 'word';
     iconOffsetInput.value = result.iconOffset || 50;
@@ -75,6 +77,11 @@ document.addEventListener('DOMContentLoaded', () => {
   darkModeCheckbox.addEventListener('change', () => {
     console.log('Saving dark mode setting:', darkModeCheckbox.checked);
     chrome.storage.local.set({ darkMode: darkModeCheckbox.checked });
+  });
+
+  hideGroupNamesCheckbox.addEventListener('change', () => {
+    console.log('Saving hide group names setting:', hideGroupNamesCheckbox.checked);
+    chrome.storage.local.set({ hideGroupNames: hideGroupNamesCheckbox.checked });
   });
 
   targetLanguageSelect.addEventListener('change', () => {
@@ -369,13 +376,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Icon selector
   iconSelector.addEventListener('click', (e) => {
-    if (e.target.classList.contains('icon-option')) {
+    // Find the icon-option element (could be the target or a parent)
+    let iconOption = e.target;
+    while (iconOption && !iconOption.classList.contains('icon-option')) {
+      iconOption = iconOption.parentElement;
+    }
+
+    if (iconOption) {
       // Remove selected class from all options
       iconSelector.querySelectorAll('.icon-option').forEach(option => {
         option.classList.remove('selected');
       });
       // Add selected class to clicked option
-      e.target.classList.add('selected');
+      iconOption.classList.add('selected');
     }
   });
 
@@ -431,7 +444,9 @@ document.addEventListener('DOMContentLoaded', () => {
       groups.forEach(group => {
         const option = document.createElement('option');
         option.value = group.id;
-        option.textContent = `${group.icon} ${group.name}`;
+        // For image icons, show just the name; for text icons, show icon + name
+        const displayText = group.icon && group.icon.endsWith('.png') ? group.name : `${group.icon} ${group.name}`;
+        option.textContent = displayText;
         selectElement.appendChild(option);
       });
     };
@@ -459,8 +474,19 @@ document.addEventListener('DOMContentLoaded', () => {
       infoDiv.style.gap = '10px';
 
       const iconSpan = document.createElement('span');
-      iconSpan.textContent = group.icon;
-      iconSpan.style.fontSize = '18px';
+      if (group.icon && group.icon.endsWith('.png')) {
+        // Image icon - create img element
+        const img = document.createElement('img');
+        img.src = group.icon; // In options page, relative path works
+        img.style.width = '18px';
+        img.style.height = '18px';
+        img.style.verticalAlign = 'middle';
+        iconSpan.appendChild(img);
+      } else {
+        // Text icon
+        iconSpan.textContent = group.icon;
+        iconSpan.style.fontSize = '18px';
+      }
 
       const nameSpan = document.createElement('span');
       nameSpan.textContent = group.name;
