@@ -382,12 +382,16 @@ async function performWebLookup(word, settings) {
   const lang = languageMap[targetLanguage] || targetLanguage;
   const text = encodeURIComponent(word);
 
+  console.log('Web lookup - original word:', word, 'encoded text:', text);
+
   let url = settings.url;
   url = url.replace(/\{text\}/g, text);
   url = url.replace(/\{lang\}/g, lang);
   url = url.replace(/\{lang_short\}/g, langShort);
   // Keep {word} for backward compatibility
   url = url.replace(/\{word\}/g, text);
+
+  console.log('Web lookup - final URL:', url);
 
   const headers = {};
 
@@ -604,6 +608,7 @@ async function performAILookup(word, settings) {
   }
 
   const prompt = (settings.prompt || 'You are a Tutor, give a grammar breakdown for: {text}').replace('{text}', word);
+  // Note: For AI prompts, we don't URL encode {text} as it's not being sent in a URL
   const maxTokens = settings.maxTokens || 2048;
 
   let apiUrl, requestBody, headers;

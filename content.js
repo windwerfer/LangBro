@@ -4,13 +4,16 @@
 console.log('Content script loaded');
 
 let lookupIcons = [];
-let resultDiv = null;
+let resultDivs = [];
+let inlineDivs = [];
+let bottomDivs = [];
 let selectedWord = '';
 let queryGroups = [];
 let resultJustShown = false;
 let iconPlacement = 'word';
 let iconOffset = 50;
 let iconSpacing = 10;
+let boxIdCounter = 0;
 
 // Load settings and query groups on startup
 loadSettings();
@@ -44,6 +47,7 @@ async function ensureDefaultQueryGroup() {
         name: 'Dictionary',
         icon: '#',
         queryType: 'offline',
+        displayMethod: 'popup',
         settings: { selectedDictionaries: selectedDictionaries },
         enabled: true
       };
@@ -83,14 +87,9 @@ function handleSelectionChange() {
   // console.log('Selected text:', selectedText);
 
   if (selectedText) {
-    // Extract the first word from the selection (split by spaces and take first non-empty word)
-    const firstWord = selectedText.split(/\s+/)[0];
-    if (firstWord && firstWord.length > 0) {
-      selectedWord = firstWord;
-      showLookupIcons(selection);
-    } else {
-      hideLookupIcons();
-    }
+    // Use the full selected text for web APIs, but keep first word for dictionary lookups
+    selectedWord = selectedText.trim();
+    showLookupIcons(selection);
   } else {
     hideLookupIcons();
   }
@@ -116,7 +115,20 @@ async function loadSettings() {
 async function loadQueryGroups() {
   try {
     const result = await chrome.storage.local.get(['queryGroups']);
-    queryGroups = result.queryGroups || [];
+    let groups = result.queryGroups || [];
+
+    // Ensure all groups have displayMethod set
+    groups = groups.map(group => ({
+      ...group,
+      displayMethod: group.displayMethod || 'popup'
+    }));
+
+    // Save back if any groups were updated
+    if (groups.some((group, index) => !result.queryGroups[index]?.displayMethod)) {
+      await chrome.storage.local.set({ queryGroups: groups });
+    }
+
+    queryGroups = groups;
     console.log('Loaded query groups:', queryGroups);
   } catch (error) {
     console.error('Error loading query groups:', error);
@@ -232,14 +244,14 @@ function handleIconClick(event, group) {
   // console.log(selectedWord);
   if (selectedWord) {
     hideLookupIcons(); // Hide icons after click
-    // Show loading state immediately
-    // showResult(`${group.icon} ${group.name}\n\nWaiting for data...`);
-    lookupWord(selectedWord, group);
+    // Show loading state immediately and get the location info
+    const locationInfo = showSpinner(group);
+    lookupWord(selectedWord, group, locationInfo);
   }
 }
 
 // Lookup the word via background script for specific query group
-function lookupWord(word, group) {
+function lookupWord(word, group, locationInfo) {
   try {
     const message = {
       action: 'lookup',
@@ -255,22 +267,22 @@ function lookupWord(word, group) {
       if (chrome.runtime.lastError) {
         const errorMsg = chrome.runtime.lastError.message;
         if (errorMsg.includes('Extension context invalidated')) {
-          showResult('Dictionary updated! Please refresh this page to continue using word lookup.');
+          showResult('Dictionary updated! Please refresh this page to continue using word lookup.', group, locationInfo);
         } else {
-          showResult(`Extension error: ${errorMsg}`);
+          showResult(`Extension error: ${errorMsg}`, group, locationInfo);
         }
         return;
       }
       if (response && response.error) {
-        showResult(`Lookup error (${group.name}): ${response.error}`);
+        showResult(`Lookup error (${group.name}): ${response.error}`, group, locationInfo);
       } else if (response && response.definition) {
-        showResult(`${group.icon} ${group.name}\n\n${response.definition}`);
+        showResult(`${group.icon} ${group.name}\n\n${response.definition}`, group, locationInfo);
       } else {
-        showResult(`No definition found for "${text}" in ${group.name}.`);
+        showResult(`No definition found for "${word}" in ${group.name}.`, group, locationInfo);
       }
     });
   } catch (error) {
-    showResult(`Unable to query ${group.name}. Please refresh the page.`);
+    showResult(`Unable to query ${group.name}. Please refresh the page.`, group, locationInfo);
   }
 }
 
@@ -295,25 +307,205 @@ function sanitizeDictHTML(html) {
   return sanitized;
 }
 
-// Show the result in a div below the text
-function showResult(definition) {
-  resultJustShown = true;
-  if (!resultDiv) {
-    resultDiv = document.createElement('div');
-    resultDiv.style.setProperty('position', 'absolute', 'important');
-    resultDiv.style.setProperty('width', '300px', 'important');
-    resultDiv.style.setProperty('height', '300px', 'important');
-    resultDiv.style.setProperty('border-radius', '4px', 'important');
-    resultDiv.style.setProperty('padding', '10px', 'important');
-    resultDiv.style.setProperty('overflow-y', 'auto', 'important');
-    resultDiv.style.setProperty('z-index', '999999', 'important');
-    resultDiv.style.setProperty('font-size', '14px', 'important');
+// Show spinner based on group's display method
+function showSpinner(group) {
+  const displayMethod = group.displayMethod || 'popup';
+  const boxId = ++boxIdCounter;
 
-    // Add close button
-    resultDiv.appendChild(createCloseButton());
-
-    document.body.appendChild(resultDiv);
+  if (displayMethod === 'inline') {
+    return showInlineSpinner(group, boxId);
+  } else if (displayMethod === 'bottom') {
+    showBottomSpinner(group, boxId);
+    return { boxId, displayMethod };
+  } else {
+    // Default to popup
+    showPopupSpinner(group, boxId);
+    return { boxId, displayMethod };
   }
+}
+
+// Show popup spinner
+function showPopupSpinner(group, boxId) {
+  resultJustShown = true;
+  const resultDiv = document.createElement('div');
+  resultDiv.dataset.boxId = boxId;
+  resultDiv.style.setProperty('position', 'absolute', 'important');
+  resultDiv.style.setProperty('width', '300px', 'important');
+  resultDiv.style.setProperty('height', '100px', 'important');
+  resultDiv.style.setProperty('border-radius', '4px', 'important');
+  resultDiv.style.setProperty('padding', '10px', 'important');
+  resultDiv.style.setProperty('z-index', '999999', 'important');
+  resultDiv.style.setProperty('font-size', '14px', 'important');
+
+  document.body.appendChild(resultDiv);
+  resultDivs.push(resultDiv);
+
+  // Apply dark mode
+  chrome.storage.local.get(['darkMode'], (result) => {
+    const isDarkMode = result.darkMode || false;
+
+    if (isDarkMode) {
+      resultDiv.style.setProperty('background-color', '#2d2d2d', 'important');
+      resultDiv.style.setProperty('color', '#ffffff', 'important');
+      resultDiv.style.setProperty('border', '1px solid #555', 'important');
+      resultDiv.style.setProperty('box-shadow', '0 2px 8px rgba(0,0,0,0.3)', 'important');
+    } else {
+      resultDiv.style.setProperty('background-color', 'white', 'important');
+      resultDiv.style.setProperty('color', 'black', 'important');
+      resultDiv.style.setProperty('border', '1px solid #ccc', 'important');
+      resultDiv.style.setProperty('box-shadow', '0 2px 8px rgba(0,0,0,0.1)', 'important');
+    }
+  });
+
+  // Position near the original selection
+  const selection = window.getSelection();
+  if (selection.rangeCount > 0) {
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    let left = rect.left + window.scrollX;
+    let top = rect.bottom + window.scrollY + 5;
+
+    // Adjust if it would go off screen
+    if (left + 300 > window.innerWidth + window.scrollX) {
+      left = window.innerWidth + window.scrollX - 310;
+    }
+    if (top + 100 > window.innerHeight + window.scrollY) {
+      top = rect.top + window.scrollY - 110;
+    }
+
+    resultDiv.style.setProperty('left', left + 'px', 'important');
+    resultDiv.style.setProperty('top', top + 'px', 'important');
+  }
+
+  resultDiv.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; height: 100%;"><div style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 10px; height: 10px; animation: spin 2s linear infinite;"></div><span style="margin-left: 10px;">Loading ${group.name}...</span></div><style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>`;
+  resultDiv.style.setProperty('display', 'block', 'important');
+}
+
+// Show inline spinner
+function showInlineSpinner(group, boxId) {
+  // Find the parent text block of the selected text
+  const selection = window.getSelection();
+  if (selection.rangeCount === 0) return;
+
+  const range = selection.getRangeAt(0);
+  let parentElement = range.commonAncestorContainer;
+
+  // If it's a text node, get the parent element
+  if (parentElement.nodeType === Node.TEXT_NODE) {
+    parentElement = parentElement.parentElement;
+  }
+
+  // Find the closest p or div element
+  while (parentElement && parentElement !== document.body) {
+    if (parentElement.tagName === 'P' || parentElement.tagName === 'DIV') {
+      break;
+    }
+    parentElement = parentElement.parentElement;
+  }
+
+  if (!parentElement || parentElement === document.body) {
+    // Fallback to popup if no suitable parent found
+    showPopupSpinner(group, boxId);
+    return { boxId, displayMethod: 'popup' };
+  }
+
+  // Create a new inline div for this specific location and group
+  const inlineDiv = document.createElement('div');
+  inlineDiv.dataset.boxId = boxId;
+  inlineDiv.dataset.groupId = group.id;
+  inlineDiv.dataset.parentId = parentElement.id || 'no-id';
+  inlineDiv.style.setProperty('margin-top', '10px', 'important');
+  inlineDiv.style.setProperty('padding', '10px', 'important');
+  inlineDiv.style.setProperty('border-radius', '4px', 'important');
+  inlineDiv.style.setProperty('border', '1px solid #ccc', 'important');
+  inlineDiv.style.setProperty('font-size', '14px', 'important');
+  inlineDiv.style.setProperty('height', '35px', 'important');
+
+  // Apply dark mode
+  chrome.storage.local.get(['darkMode'], (result) => {
+    const isDarkMode = result.darkMode || false;
+
+    if (isDarkMode) {
+      inlineDiv.style.setProperty('background-color', '#2d2d2d', 'important');
+      inlineDiv.style.setProperty('color', '#ffffff', 'important');
+      inlineDiv.style.setProperty('border-color', '#555', 'important');
+    } else {
+      inlineDiv.style.setProperty('background-color', 'white', 'important');
+      inlineDiv.style.setProperty('color', 'black', 'important');
+      inlineDiv.style.setProperty('border-color', '#ccc', 'important');
+    }
+  });
+
+  inlineDiv.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; height: 100%;"><div style="border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; width: 10px; height: 10px; animation: spin 2s linear infinite;"></div><span style="margin-left: 6px;">Loading ${group.name}...</span></div><style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>`;
+
+  // Insert after the parent element
+  parentElement.parentNode.insertBefore(inlineDiv, parentElement.nextSibling);
+
+  // Store reference for later replacement
+  inlineDivs.push(inlineDiv);
+
+  inlineDiv.style.setProperty('display', 'block', 'important');
+
+  // Return location info for the result handler
+  return { boxId, displayMethod: 'inline' };
+}
+
+// Show bottom spinner
+function showBottomSpinner(group, boxId) {
+  const bottomDiv = document.createElement('div');
+  bottomDiv.dataset.boxId = boxId;
+  bottomDiv.style.setProperty('position', 'fixed', 'important');
+  bottomDiv.style.setProperty('bottom', '0', 'important');
+  bottomDiv.style.setProperty('left', '0', 'important');
+  bottomDiv.style.setProperty('width', '100%', 'important');
+  bottomDiv.style.setProperty('height', '30%', 'important');
+  bottomDiv.style.setProperty('border-top', '1px solid #ccc', 'important');
+  bottomDiv.style.setProperty('padding', '10px', 'important');
+  bottomDiv.style.setProperty('z-index', '999998', 'important');
+  bottomDiv.style.setProperty('font-size', '14px', 'important');
+
+  document.body.appendChild(bottomDiv);
+  bottomDivs.push(bottomDiv);
+
+  // Apply dark mode
+  chrome.storage.local.get(['darkMode'], (result) => {
+    const isDarkMode = result.darkMode || false;
+
+    if (isDarkMode) {
+      bottomDiv.style.setProperty('background-color', '#2d2d2d', 'important');
+      bottomDiv.style.setProperty('color', '#ffffff', 'important');
+      bottomDiv.style.setProperty('border-top-color', '#555', 'important');
+    } else {
+      bottomDiv.style.setProperty('background-color', 'white', 'important');
+      bottomDiv.style.setProperty('color', 'black', 'important');
+      bottomDiv.style.setProperty('border-top-color', '#ccc', 'important');
+    }
+  });
+
+  bottomDiv.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; height: 100%;"><div style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 10px; height: 10px; animation: spin 2s linear infinite;"></div><span style="margin-left: 10px;">Loading ${group.name}...</span></div><style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>`;
+  bottomDiv.style.setProperty('display', 'block', 'important');
+}
+
+// Show the result based on group's display method
+function showResult(definition, group, locationInfo) {
+  const displayMethod = locationInfo.displayMethod || group.displayMethod || 'popup';
+  const boxId = locationInfo.boxId;
+
+  if (displayMethod === 'inline') {
+    showInlineResult(definition, group, boxId);
+  } else if (displayMethod === 'bottom') {
+    showBottomResult(definition, group, boxId);
+  } else {
+    // Default to popup
+    showPopupResult(definition, group, boxId);
+  }
+}
+
+// Show the result in a popup div (original behavior)
+function showPopupResult(definition, group, boxId) {
+  resultJustShown = true;
+  const resultDiv = resultDivs.find(div => div.dataset.boxId == boxId);
+  if (!resultDiv) return;
 
   // Apply dark mode if enabled
   chrome.storage.local.get(['darkMode'], (result) => {
@@ -389,13 +581,129 @@ function showResult(definition) {
   resultDiv.insertBefore(styleElement, resultDiv.firstChild);
 
   // Re-add close button since innerHTML clears it
-  resultDiv.appendChild(createCloseButton());
+  resultDiv.appendChild(createCloseButton(resultDiv));
 
   resultDiv.style.setProperty('display', 'block', 'important');
 }
 
+// Show the result inline below the selected text
+function showInlineResult(definition, group, boxId) {
+  const inlineDiv = inlineDivs.find(div => div.dataset.boxId == boxId);
+  if (!inlineDiv) {
+    // Fallback to popup if div not found
+    showPopupResult(definition, group, boxId);
+    return;
+  }
+
+  // Clear existing content and apply dark mode
+  inlineDiv.innerHTML = '';
+
+  chrome.storage.local.get(['darkMode'], (result) => {
+    const isDarkMode = result.darkMode || false;
+
+    if (isDarkMode) {
+      inlineDiv.style.setProperty('background-color', '#2d2d2d', 'important');
+      inlineDiv.style.setProperty('color', '#ffffff', 'important');
+      inlineDiv.style.setProperty('border-color', '#555', 'important');
+    } else {
+      inlineDiv.style.setProperty('background-color', 'white', 'important');
+      inlineDiv.style.setProperty('color', 'black', 'important');
+      inlineDiv.style.setProperty('border-color', '#ccc', 'important');
+    }
+  });
+
+  // Sanitize and display HTML
+  const sanitizedHTML = sanitizeDictHTML(definition);
+
+  // Add CSS for dictionary classes
+  const styleElement = document.createElement('style');
+  styleElement.textContent = `
+    .dict-type { color: green; }
+    .dict-pron { color: brown; }
+    .dict-level { font-size: 0.7em; }
+  `;
+  inlineDiv.appendChild(styleElement);
+
+  inlineDiv.innerHTML += sanitizedHTML;
+
+  // Add close button
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = 'X';
+  closeBtn.style.position = 'absolute';
+  closeBtn.style.top = '5px';
+  closeBtn.style.right = '5px';
+  closeBtn.style.background = 'black';
+  closeBtn.style.color = 'gray';
+  closeBtn.style.border = 'none';
+  closeBtn.style.borderRadius = '3px';
+  closeBtn.style.cursor = 'pointer';
+  closeBtn.onclick = () => {
+    inlineDiv.style.display = 'none';
+  };
+  inlineDiv.appendChild(closeBtn);
+
+  inlineDiv.style.setProperty('display', 'block', 'important');
+}
+
+// Show the result in a bottom panel
+function showBottomResult(definition, group, boxId) {
+  const bottomDiv = bottomDivs.find(div => div.dataset.boxId == boxId);
+  if (!bottomDiv) return;
+
+  // Apply dark mode
+  chrome.storage.local.get(['darkMode'], (result) => {
+    const isDarkMode = result.darkMode || false;
+
+    if (isDarkMode) {
+      bottomDiv.style.setProperty('background-color', '#2d2d2d', 'important');
+      bottomDiv.style.setProperty('color', '#ffffff', 'important');
+      bottomDiv.style.setProperty('border-top-color', '#555', 'important');
+    } else {
+      bottomDiv.style.setProperty('background-color', 'white', 'important');
+      bottomDiv.style.setProperty('color', 'black', 'important');
+      bottomDiv.style.setProperty('border-top-color', '#ccc', 'important');
+    }
+  });
+
+  // Sanitize and display HTML
+  const sanitizedHTML = sanitizeDictHTML(definition);
+
+  // Add CSS for dictionary classes
+  let styleElement = bottomDiv.querySelector('style');
+  if (!styleElement) {
+    styleElement = document.createElement('style');
+    bottomDiv.appendChild(styleElement);
+  }
+  styleElement.textContent = `
+    .dict-type { color: green; }
+    .dict-pron { color: brown; }
+    .dict-level { font-size: 0.7em; }
+  `;
+
+  bottomDiv.innerHTML = sanitizedHTML;
+  bottomDiv.insertBefore(styleElement, bottomDiv.firstChild);
+
+  // Re-add close button
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = 'X';
+  closeBtn.style.position = 'absolute';
+  closeBtn.style.top = '5px';
+  closeBtn.style.right = '5px';
+  closeBtn.style.background = 'black';
+  closeBtn.style.color = 'gray';
+  closeBtn.style.border = 'none';
+  closeBtn.style.borderRadius = '3px';
+  closeBtn.style.cursor = 'pointer';
+  closeBtn.onclick = () => {
+    bottomDiv.style.display = 'none';
+  };
+  bottomDiv.appendChild(closeBtn);
+
+  bottomDiv.style.setProperty('display', 'block', 'important');
+}
+
 // Create close button for result div
-function createCloseButton() {
+function createCloseButton(targetDiv) {
   const closeBtn = document.createElement('button');
   closeBtn.textContent = 'X';
   closeBtn.style.position = 'absolute';
@@ -408,7 +716,7 @@ function createCloseButton() {
   closeBtn.style.cursor = 'pointer';
   closeBtn.style.zIndex = '1000000';
   closeBtn.onclick = () => {
-    resultDiv.style.display = 'none';
+    targetDiv.style.display = 'none';
   };
   return closeBtn;
 }

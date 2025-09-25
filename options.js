@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const offlineSettings = document.getElementById('offlineSettings');
   const webSettings = document.getElementById('webSettings');
   const aiSettings = document.getElementById('aiSettings');
+  const displayMethodSelect = document.getElementById('displayMethod');
 
   let currentEditingGroup = null;
 
@@ -478,6 +479,7 @@ document.addEventListener('DOMContentLoaded', () => {
         option.classList.toggle('selected', option.dataset.icon === group.icon);
       });
       queryTypeSelect.value = group.queryType;
+      displayMethodSelect.value = group.displayMethod || 'popup';
       showQueryTypeSettings(group.queryType);
 
       // Populate type-specific settings
@@ -503,6 +505,7 @@ document.addEventListener('DOMContentLoaded', () => {
         option.classList.toggle('selected', index === 0);
       });
       queryTypeSelect.value = 'offline';
+      displayMethodSelect.value = 'popup';
       showQueryTypeSettings('offline');
       // Load available dictionaries for new offline groups
       loadAvailableDictionaries();
@@ -597,6 +600,7 @@ document.addEventListener('DOMContentLoaded', () => {
       name,
       icon,
       queryType,
+      displayMethod: displayMethodSelect.value,
       settings,
       enabled: currentEditingGroup ? currentEditingGroup.enabled : true
     };
