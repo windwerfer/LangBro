@@ -230,6 +230,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Handle async operation properly
     (async () => {
       try {
+        const word = request.word || '';
+
         let definition = null;
 
         if (request.queryType === 'offline') {
@@ -241,15 +243,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             definition = 'No dictionaries selected for this query group.';
           } else {
             // Query only selected dictionaries
-            definition = await db.lookupTermInDictionaries(request.word, selectedDictionaries);
-            console.log('LOG', 'Selective offline lookup result:', definition);
+            definition = await db.lookupTermInDictionaries(word, selectedDictionaries);
+            console.log('LOG', 'Selective offline lookup result:', word, ' -> ',  definition);
           }
         } else if (request.queryType === 'web' || request.queryType === 'google_translate') {
           // Web API lookup (including Google Translate preset)
-          definition = await performWebLookup(request.word, request.settings);
+          definition = await performWebLookup(word, request.settings);
         } else if (request.queryType === 'ai') {
           // AI service lookup
-          definition = await performAILookup(request.word, request.settings);
+          definition = await performAILookup(word, request.settings);
         } else {
           throw new Error(`Unknown query type: ${request.queryType}`);
         }

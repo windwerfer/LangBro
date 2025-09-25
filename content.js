@@ -8,6 +8,7 @@ let resultDivs = [];
 let inlineDivs = [];
 let bottomDivs = [];
 let selectedWord = '';
+let currentSelection = null;
 let queryGroups = [];
 let resultJustShown = false;
 let iconPlacement = 'word';
@@ -79,18 +80,91 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 document.addEventListener('selectionchange', handleSelectionChange);
 document.addEventListener('keyup', handleSelectionChange);
 
+// Function to extract selected text
+function getSelectedText(selection) {
+  return selection.toString().trim();
+}
+
+// Function to extract whole word around selection
+function getWholeWord(selection) {
+  if (selection.rangeCount === 0) return '';
+
+  const range = selection.getRangeAt(0);
+  const text = range.toString().trim();
+  if (!text) return '';
+
+  // Get the parent text node
+  let node = range.startContainer;
+  if (node.nodeType !== Node.TEXT_NODE) {
+    // If not a text node, find the first text node descendant
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    node = walker.nextNode();
+    if (!node) return text;
+  }
+
+  const fullText = node.textContent;
+  const startOffset = range.startOffset;
+  const endOffset = range.endOffset;
+
+  // Find word boundaries (space characters)
+  let wordStart = startOffset;
+  let wordEnd = endOffset;
+
+  // Expand left until space or start
+  while (wordStart > 0 && !/\s/.test(fullText[wordStart - 1])) {
+    wordStart--;
+  }
+
+  // Expand right until space or end
+  while (wordEnd < fullText.length && !/\s/.test(fullText[wordEnd])) {
+    wordEnd++;
+  }
+
+  return fullText.substring(wordStart, wordEnd).trim();
+}
+
+// Function to extract whole paragraph around selection
+function getWholeParagraph(selection) {
+  if (selection.rangeCount === 0) return '';
+
+  const range = selection.getRangeAt(0);
+  let element = range.commonAncestorContainer;
+
+  // If it's a text node, get the parent element
+  if (element.nodeType === Node.TEXT_NODE) {
+    element = element.parentElement;
+  }
+
+  // Find the closest P or DIV element
+  while (element && element !== document.body) {
+    if (element.tagName === 'P' || element.tagName === 'DIV') {
+      return element.textContent.trim();
+    }
+    element = element.parentElement;
+  }
+
+  // Fallback: return selected text if no suitable paragraph found
+  return selection.toString().trim();
+}
+
 // Function to handle selection changes
 function handleSelectionChange() {
-  // console.log('Selection change detected');
+  console.log('Selection change detected');
   const selection = window.getSelection();
-  const selectedText = selection.toString().trim();
-  // console.log('Selected text:', selectedText);
+  const selectedText = getSelectedText(selection);
+  console.log('Selected text:', selectedText);
 
   if (selectedText) {
-    // Use the full selected text for web APIs, but keep first word for dictionary lookups
-    selectedWord = selectedText.trim();
+    // Store the selection for later use
+    currentSelection = {
+      selectedText: selectedText,
+      wholeWord: getWholeWord(selection),
+      wholeParagraph: getWholeParagraph(selection)
+    };
+    console.log('Current selection object:', currentSelection);
     showLookupIcons(selection);
   } else {
+    currentSelection = null;
     hideLookupIcons();
   }
 }
@@ -143,6 +217,7 @@ function showLookupIcons(selection) {
 
   // Filter enabled groups
   const enabledGroups = queryGroups.filter(group => group.enabled);
+  console.log('Enabled query groups:', enabledGroups.length);
   if (enabledGroups.length === 0) return;
 
   // Apply dark mode styling
@@ -155,6 +230,7 @@ function showLookupIcons(selection) {
     const baseTop = rect.top + window.scrollY - 5;
 
     enabledGroups.forEach((group, index) => {
+      console.log(`Creating icon for group: ${group.name} (${group.icon})`);
       const icon = document.createElement('div');
       icon.textContent = group.icon;
       icon.style.position = 'absolute';
@@ -239,19 +315,28 @@ function hideLookupIcons() {
 
 // Handle icon click for specific group
 function handleIconClick(event, group) {
+  console.log(`Icon clicked for group: ${group.name} (${group.icon})`);
   event.preventDefault();
   event.stopPropagation();
-  // console.log(selectedWord);
-  if (selectedWord) {
+  // console.log(currentSelection);console.log('xxx');
+  if (currentSelection) {
     hideLookupIcons(); // Hide icons after click
     // Show loading state immediately and get the location info
     const locationInfo = showSpinner(group);
-    lookupWord(selectedWord, group, locationInfo);
+
+    // Choose text based on group's textSelectionMethod
+    const textSelectionMethod = group.textSelectionMethod || 'selectedText';
+    console.log(`Using text selection method: ${textSelectionMethod}`);
+    console.log(currentSelection);
+    const word = currentSelection[textSelectionMethod] || currentSelection.selectedText || '';
+    console.log(`Sending Text: ${word}`);
+    lookupWord(word, group, locationInfo);
   }
 }
 
 // Lookup the word via background script for specific query group
 function lookupWord(word, group, locationInfo) {
+  console.log(word);
   try {
     const message = {
       action: 'lookup',
@@ -721,13 +806,31 @@ function createCloseButton(targetDiv) {
   return closeBtn;
 }
 
-// Hide result div when clicking elsewhere
+// Hide result divs when clicking elsewhere
 document.addEventListener('click', (e) => {
   if (resultJustShown) {
     resultJustShown = false;
     return;
   }
-  if (resultDiv && !resultDiv.contains(e.target)) {
-    resultDiv.style.display = 'none';
-  }
+
+  // Hide popup result divs if clicked outside
+  resultDivs.forEach(div => {
+    if (div && !div.contains(e.target)) {
+      div.style.display = 'none';
+    }
+  });
+
+  // Hide inline result divs if clicked outside
+  inlineDivs.forEach(div => {
+    if (div && !div.contains(e.target)) {
+      div.style.display = 'none';
+    }
+  });
+
+  // Hide bottom result divs if clicked outside
+  bottomDivs.forEach(div => {
+    if (div && !div.contains(e.target)) {
+      div.style.display = 'none';
+    }
+  });
 });

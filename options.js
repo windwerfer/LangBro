@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const webSettings = document.getElementById('webSettings');
   const aiSettings = document.getElementById('aiSettings');
   const displayMethodSelect = document.getElementById('displayMethod');
+  const textSelectionMethodSelect = document.getElementById('textSelectionMethod');
 
   let currentEditingGroup = null;
 
@@ -480,6 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       queryTypeSelect.value = group.queryType;
       displayMethodSelect.value = group.displayMethod || 'popup';
+      textSelectionMethodSelect.value = group.textSelectionMethod || 'selectedText';
       showQueryTypeSettings(group.queryType);
 
       // Populate type-specific settings
@@ -601,6 +603,7 @@ document.addEventListener('DOMContentLoaded', () => {
       icon,
       queryType,
       displayMethod: displayMethodSelect.value,
+      textSelectionMethod: textSelectionMethodSelect.value,
       settings,
       enabled: currentEditingGroup ? currentEditingGroup.enabled : true
     };
