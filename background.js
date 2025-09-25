@@ -509,6 +509,94 @@ async function performWebLookup(word, settings) {
   }
 }
 
+// Parse common markup notations in AI responses (lightweight Markdown-like parser)
+function parseAIMarkup(text) {
+  if (!text || typeof text !== 'string') return text;
+
+  let html = text;
+
+  // Escape HTML entities first
+  html = html.replace(/&/g, '&')
+             .replace(/</g, '<')
+             .replace(/>/g, '>');
+
+  // Headers (# ## ###)
+  html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+  html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+  html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+  // Bold (**text** or __text__)
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
+
+  // Italic (*text* or _text_)
+  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  html = html.replace(/_(.*?)_/g, '<em>$1</em>');
+
+  // Inline code (`code`)
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  // Code blocks (```code```)
+  html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+
+  // Unordered lists (- item or * item)
+  html = html.replace(/^[\s]*[-*]\s+(.*)$/gm, '<li>$1</li>');
+  // Wrap consecutive <li> elements in <ul>
+  html = html.replace(/(<li>.*<\/li>\s*)+/g, '<ul>$&</ul>');
+
+  // Ordered lists (1. item, 2. item, etc.)
+  html = html.replace(/^[\s]*\d+\.\s+(.*)$/gm, '<li>$1</li>');
+  // Wrap consecutive numbered <li> elements in <ol>
+  // This is trickier - we'll use a more specific pattern
+  const lines = html.split('\n');
+  let inOrderedList = false;
+  let result = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const nextLine = lines[i + 1];
+
+    if (line.includes('<li>') && /^\d+\./.test(lines[i - 1] || '')) {
+      if (!inOrderedList) {
+        result.push('<ol>');
+        inOrderedList = true;
+      }
+      result.push(line);
+      // Check if next line continues the list
+      if (!nextLine || !nextLine.includes('<li>') || !/^\d+\./.test(lines[i + 1] || '')) {
+        result.push('</ol>');
+        inOrderedList = false;
+      }
+    } else {
+      if (inOrderedList) {
+        result.push('</ol>');
+        inOrderedList = false;
+      }
+      result.push(line);
+    }
+  }
+
+  if (inOrderedList) {
+    result.push('</ol>');
+  }
+
+  html = result.join('\n');
+
+  // Links [text](url)
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+  // Line breaks (double newline to <p>, single to <br>)
+  html = html.replace(/\n\n+/g, '</p><p>');
+  html = html.replace(/\n/g, '<br>');
+
+  // Wrap in paragraph if not already wrapped
+  if (!html.includes('<p>') && !html.includes('<h') && !html.includes('<ul') && !html.includes('<ol')) {
+    html = '<p>' + html + '</p>';
+  }
+
+  return html;
+}
+
 // Perform AI service lookup
 async function performAILookup(word, settings) {
   if (!settings || !settings.apiKey || !settings.model) {
@@ -576,17 +664,21 @@ async function performAILookup(word, settings) {
   const data = await response.json();
 
   // Extract response based on provider
+  let rawResponse;
   switch (settings.provider) {
     case 'openai':
-      return data.choices?.[0]?.message?.content || 'No response from OpenAI';
-
+      rawResponse = data.choices?.[0]?.message?.content || 'No response from OpenAI';
+      break;
     case 'anthropic':
-      return data.content?.[0]?.text || 'No response from Anthropic';
-
+      rawResponse = data.content?.[0]?.text || 'No response from Anthropic';
+      break;
     case 'google':
-      return data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response from Google AI';
-
+      rawResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response from Google AI';
+      break;
     default:
       return JSON.stringify(data, null, 2);
   }
+
+  // Parse markup in AI response
+  return parseAIMarkup(rawResponse);
 }

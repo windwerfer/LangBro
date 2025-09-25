@@ -77,10 +77,10 @@ document.addEventListener('keyup', handleSelectionChange);
 
 // Function to handle selection changes
 function handleSelectionChange() {
-  console.log('Selection change detected');
+  // console.log('Selection change detected');
   const selection = window.getSelection();
   const selectedText = selection.toString().trim();
-  console.log('Selected text:', selectedText);
+  // console.log('Selected text:', selectedText);
 
   if (selectedText) {
     // Extract the first word from the selection (split by spaces and take first non-empty word)
@@ -232,6 +232,8 @@ function handleIconClick(event, group) {
   // console.log(selectedWord);
   if (selectedWord) {
     hideLookupIcons(); // Hide icons after click
+    // Show loading state immediately
+    // showResult(`${group.icon} ${group.name}\n\nWaiting for data...`);
     lookupWord(selectedWord, group);
   }
 }
