@@ -355,6 +355,7 @@ class StarDictParser {
 // Export for use
 if (typeof module !== 'undefined') {
   module.exports = StarDictParser;
-} else {
+} else if (typeof window !== 'undefined') {
   window.StarDictParser = StarDictParser;
 }
+

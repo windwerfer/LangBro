@@ -1,7 +1,7 @@
 // Background script for WordClick Dictionary
 // Manages StarDictParser instance and message passing
 
-console.log('BACKGROUND SCRIPT LOADED - WordClick Dictionary v2.0');
+
 console.log('Background script initialization starting...');
 
 // StarDict Parser for Chrome Extension

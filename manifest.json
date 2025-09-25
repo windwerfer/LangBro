@@ -15,7 +15,7 @@
   },
   "options_page": "options.html",
   "background": {
-    "scripts": ["structured-db.js", "background.js"]
+    "scripts": ["background.js", "structured-db.js"]
   },
   "web_accessible_resources": [{"resources": ["pako.min.js"], "matches": ["<all_urls>"]}],
   "content_scripts": [

@@ -454,4 +454,4 @@ class StructuredDictionaryDatabase {
 }
 
 // Export for use
-window.StructuredDictionaryDatabase = StructuredDictionaryDatabase;
+// window.StructuredDictionaryDatabase = StructuredDictionaryDatabase;

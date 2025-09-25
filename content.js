@@ -7,6 +7,7 @@ let lookupIcons = [];
 let resultDiv = null;
 let selectedWord = '';
 let queryGroups = [];
+let resultJustShown = false;
 
 // Load query groups on startup
 loadQueryGroups();
@@ -179,7 +180,7 @@ function hideLookupIcons() {
 function handleIconClick(event, group) {
   event.preventDefault();
   event.stopPropagation();
-
+  // console.log(selectedWord);
   if (selectedWord) {
     hideLookupIcons(); // Hide icons after click
     lookupWord(selectedWord, group);
@@ -198,6 +199,7 @@ function lookupWord(word, group) {
     };
 
     chrome.runtime.sendMessage(message, (response) => {
+      // console.log(message);
       console.log('Content script received response:', response);
       if (chrome.runtime.lastError) {
         const errorMsg = chrome.runtime.lastError.message;
