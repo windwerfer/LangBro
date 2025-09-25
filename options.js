@@ -530,7 +530,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (group.queryType === 'web' || group.queryType === 'google_translate') {
         document.getElementById('webUrl').value = group.settings?.url || '';
         document.getElementById('webJsonPath').value = group.settings?.jsonPath || '';
-        document.getElementById('webApiKey').value = group.settings?.apiKey || '';
       } else if (group.queryType === 'ai') {
         document.getElementById('aiProvider').value = group.settings?.provider || 'google';
         document.getElementById('aiApiKey').value = group.settings?.apiKey || '';
@@ -648,12 +647,11 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (queryType === 'web' || queryType === 'google_translate') {
       const url = document.getElementById('webUrl').value.trim();
       const jsonPath = document.getElementById('webJsonPath').value.trim();
-      const apiKey = document.getElementById('webApiKey').value;
       if (!url) {
         alert('Please enter a valid API URL.');
         return;
       }
-      settings = { url, jsonPath: jsonPath || undefined, apiKey };
+      settings = { url, jsonPath: jsonPath || undefined };
     } else if (queryType === 'ai') {
       const provider = document.getElementById('aiProvider').value;
       const apiKey = document.getElementById('aiApiKey').value;
