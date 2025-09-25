@@ -515,7 +515,7 @@ async function performAILookup(word, settings) {
     throw new Error('AI settings not configured');
   }
 
-  const prompt = (settings.prompt || 'Define the meaning of: {text}').replace('{text}', word);
+  const prompt = (settings.prompt || 'You are a Tutor, give a grammar breakdown for: {text}').replace('{text}', word);
   const maxTokens = settings.maxTokens || 2048;
 
   let apiUrl, requestBody, headers;

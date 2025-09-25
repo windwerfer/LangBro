@@ -22,6 +22,8 @@
     .icon-option { padding: 5px; border: 1px solid #ddd; cursor: pointer; border-radius: 3px; }
     .icon-option.selected { background: #007bff; color: white; }
     .form-group { margin: 10px 0; }
+    .form-group .lPrompt { display: block; }
+    .form-group #aiPrompt { width: 300px; height: 300px;}
     .form-group label { margin-bottom: 5px; }
     .form-group input, .form-group select { padding: 5px; }
   </style>
@@ -213,8 +215,8 @@
           <small>Maximum number of tokens to generate in the response</small>
         </div>
         <div class="form-group">
-          <label for="aiPrompt">Prompt Template:</label>
-          <textarea id="aiPrompt" rows="3" placeholder="Give a grammar breakdown of: {text}">Give a grammar breakdown of: {text}</textarea>
+          <label class="lPrompt" for="aiPrompt">Prompt Template:</label>
+          <textarea id="aiPrompt" rows="3" placeholder="You are a Tutor, give a grammar breakdown for: {text}">You are a Tutor, give a grammar breakdown for: {text}</textarea>
         </div>
       </div>
 
