@@ -369,9 +369,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function deleteDict(dictName) {
     try {
+      showStatus(`Deleting dictionary "${dictName}"...`, 'info');
       const db = await getStructuredDB();
-      await db.deleteDictionary(dictName); // Delete only the specific dictionary
-      showStatus(`Dictionary "${dictName}" deleted.`, 'info');
+      await db.deleteDictionary(dictName, (message) => {
+        showStatus(message, 'info');
+      }); // Delete only the specific dictionary with progress callback
+      showStatus(`Dictionary "${dictName}" deleted successfully.`, 'success');
       loadCurrentDict(); // Refresh list
 
       // Notify background script to reload parser

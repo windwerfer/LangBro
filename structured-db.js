@@ -326,11 +326,14 @@ class StructuredDictionaryDatabase {
   }
 
   // Delete a specific dictionary and all its data
-  async deleteDictionary(dictName) {
+  async deleteDictionary(dictName, progressCallback = null) {
     if (!this.db) await this.open();
 
     const stores = ['dictionaries', 'terms', 'kanji', 'media', 'tagMeta'];
     const transaction = this.db.transaction(stores, 'readwrite');
+
+    let totalDeleted = 0;
+    let lastProgressTime = Date.now();
 
     // Delete dictionary metadata
     const dictStore = transaction.objectStore('dictionaries');
@@ -346,6 +349,17 @@ class StructuredDictionaryDatabase {
       const cursor = event.target.result;
       if (cursor) {
         cursor.delete(); // Delete this term
+        totalDeleted++;
+
+        // Send progress update every 2 seconds
+        if (progressCallback) {
+          const currentTime = Date.now();
+          if (currentTime - lastProgressTime >= 2000) {
+            progressCallback(`Deleted ${totalDeleted} entries so far...`);
+            lastProgressTime = currentTime;
+          }
+        }
+
         cursor.continue();
       }
     };
@@ -359,6 +373,16 @@ class StructuredDictionaryDatabase {
       if (cursor) {
         if (cursor.value.dictionary === dictName) {
           cursor.delete();
+          totalDeleted++;
+
+          // Send progress update
+          if (progressCallback) {
+            const currentTime = Date.now();
+            if (currentTime - lastProgressTime >= 2000) {
+              progressCallback(`Deleted ${totalDeleted} entries so far...`);
+              lastProgressTime = currentTime;
+            }
+          }
         }
         cursor.continue();
       }
@@ -373,6 +397,16 @@ class StructuredDictionaryDatabase {
       if (cursor) {
         if (cursor.value.dictionary === dictName) {
           cursor.delete();
+          totalDeleted++;
+
+          // Send progress update
+          if (progressCallback) {
+            const currentTime = Date.now();
+            if (currentTime - lastProgressTime >= 2000) {
+              progressCallback(`Deleted ${totalDeleted} entries so far...`);
+              lastProgressTime = currentTime;
+            }
+          }
         }
         cursor.continue();
       }
@@ -387,6 +421,16 @@ class StructuredDictionaryDatabase {
       if (cursor) {
         if (cursor.value.dictionary === dictName) {
           cursor.delete();
+          totalDeleted++;
+
+          // Send progress update
+          if (progressCallback) {
+            const currentTime = Date.now();
+            if (currentTime - lastProgressTime >= 2000) {
+              progressCallback(`Deleted ${totalDeleted} entries so far...`);
+              lastProgressTime = currentTime;
+            }
+          }
         }
         cursor.continue();
       }
@@ -394,7 +438,7 @@ class StructuredDictionaryDatabase {
 
     return new Promise((resolve, reject) => {
       transaction.oncomplete = () => {
-        console.log(`Dictionary "${dictName}" and all its data deleted successfully`);
+        console.log(`Dictionary "${dictName}" and all its data deleted successfully (${totalDeleted} entries)`);
         resolve();
       };
       transaction.onerror = () => {
