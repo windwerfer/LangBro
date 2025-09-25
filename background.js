@@ -1,6 +1,11 @@
 // Background script for WordClick Dictionary
 // Manages StarDictParser instance and message passing
-
+try {
+  importScripts('structured-db.js');
+} catch (e) {
+  // Fallback: Assume it's loaded via manifest (for Firefox)
+  console.log('firefox detected');
+}
 
 console.log('Background script initialization starting...');
 

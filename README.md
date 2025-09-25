@@ -6,11 +6,7 @@ A Chrome/Firefox extension for looking up StarDict dictionary definitions by sel
 
 ### For Chrome/Brave/Edge:
 Change `manifest.json` line 11-13 from:
-```json
-"background": {
-  "scripts": ["background.js"]
-}
-```
+
 to:
 ```json
 "background": {
@@ -22,7 +18,7 @@ to:
 Keep the manifest as-is with:
 ```json
 "background": {
-  "scripts": ["background.js"]
+  "scripts": ["background.js", "structured-db.js"]
 }
 ```
 
