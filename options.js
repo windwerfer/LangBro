@@ -373,6 +373,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Display method change
+  displayMethodSelect.addEventListener('change', () => {
+    showDisplayMethodSettings(displayMethodSelect.value);
+  });
+
   // AI provider change - set default model
   document.getElementById('aiProvider').addEventListener('change', () => {
     const provider = document.getElementById('aiProvider').value;
@@ -483,6 +488,12 @@ document.addEventListener('DOMContentLoaded', () => {
       displayMethodSelect.value = group.displayMethod || 'popup';
       textSelectionMethodSelect.value = group.textSelectionMethod || 'selectedText';
       showQueryTypeSettings(group.queryType);
+      showDisplayMethodSettings(group.displayMethod || 'popup');
+
+      // Populate popup settings
+      document.getElementById('popupWidth').value = group.popupSettings?.width || '40%';
+      document.getElementById('popupHeight').value = group.popupSettings?.height || '30%';
+      document.getElementById('popupHideOnClickOutside').checked = group.popupSettings?.hideOnClickOutside || false;
 
       // Populate type-specific settings
       if (group.queryType === 'web' || group.queryType === 'google_translate') {
@@ -490,9 +501,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('webJsonPath').value = group.settings?.jsonPath || '';
         document.getElementById('webApiKey').value = group.settings?.apiKey || '';
       } else if (group.queryType === 'ai') {
-        document.getElementById('aiProvider').value = group.settings?.provider || 'openai';
+        document.getElementById('aiProvider').value = group.settings?.provider || 'google';
         document.getElementById('aiApiKey').value = group.settings?.apiKey || '';
-        document.getElementById('aiModel').value = group.settings?.model || '';
+        document.getElementById('aiModel').value = group.settings?.model || 'gemini-2.5-flash';
         document.getElementById('aiMaxTokens').value = group.settings?.maxTokens || 2048;
         document.getElementById('aiPrompt').value = group.settings?.prompt || '';
       } else if (group.queryType === 'offline') {
@@ -509,8 +520,18 @@ document.addEventListener('DOMContentLoaded', () => {
       queryTypeSelect.value = 'offline';
       displayMethodSelect.value = 'popup';
       showQueryTypeSettings('offline');
+      showDisplayMethodSettings('popup');
       // Load available dictionaries for new offline groups
       loadAvailableDictionaries();
+
+      // Reset popup settings to defaults
+      document.getElementById('popupWidth').value = '40%';
+      document.getElementById('popupHeight').value = '30%';
+      document.getElementById('popupHideOnClickOutside').checked = false;
+
+      // Set AI defaults for new groups
+      document.getElementById('aiProvider').value = 'google';
+      document.getElementById('aiModel').value = 'gemini-2.5-flash';
     }
 
     groupForm.style.display = 'block';
@@ -539,6 +560,16 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } else if (queryType === 'ai') {
       aiSettings.style.display = 'block';
+    }
+  }
+
+  function showDisplayMethodSettings(displayMethod) {
+    // Hide popup settings by default
+    document.getElementById('popupSettings').style.display = 'none';
+
+    // Show popup settings if display method is popup
+    if (displayMethod === 'popup') {
+      document.getElementById('popupSettings').style.display = 'block';
     }
   }
 
@@ -597,6 +628,16 @@ document.addEventListener('DOMContentLoaded', () => {
       settings = { provider, apiKey, model, maxTokens, prompt };
     }
 
+    // Build popup settings if display method is popup
+    let popupSettings = {};
+    if (displayMethodSelect.value === 'popup') {
+      popupSettings = {
+        width: document.getElementById('popupWidth').value || '40%',
+        height: document.getElementById('popupHeight').value || '30%',
+        hideOnClickOutside: document.getElementById('popupHideOnClickOutside').checked
+      };
+    }
+
     const group = {
       id: currentEditingGroup !== null ? currentEditingGroup.id : Date.now().toString(),
       name,
@@ -604,6 +645,7 @@ document.addEventListener('DOMContentLoaded', () => {
       queryType,
       displayMethod: displayMethodSelect.value,
       textSelectionMethod: textSelectionMethodSelect.value,
+      popupSettings,
       settings,
       enabled: currentEditingGroup ? currentEditingGroup.enabled : true
     };

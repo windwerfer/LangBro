@@ -167,6 +167,26 @@
         </select>
       </div>
 
+      <!-- Popup Settings (only shown when display method is popup) -->
+      <div id="popupSettings" class="query-type-settings" style="display: none;">
+        <div class="form-group">
+          <label for="popupWidth">Popup Width (px or %):</label>
+          <input type="text" id="popupWidth" placeholder="40%" value="40%">
+          <small>Width of popup window (e.g., "400px" or "40%")</small>
+        </div>
+        <div class="form-group">
+          <label for="popupHeight">Popup Height (px or %):</label>
+          <input type="text" id="popupHeight" placeholder="30%" value="30%">
+          <small>Height of popup window (e.g., "200px" or "30%")</small>
+        </div>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="popupHideOnClickOutside" />
+            Hide popup when clicking outside
+          </label>
+        </div>
+      </div>
+
       <div class="form-group">
         <label for="textSelectionMethod">Text Selection Method:</label>
         <select id="textSelectionMethod">

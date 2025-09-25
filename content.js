@@ -499,12 +499,13 @@ function showInlineSpinner(group, boxId) {
   inlineDiv.dataset.boxId = boxId;
   inlineDiv.dataset.groupId = group.id;
   inlineDiv.dataset.parentId = parentElement.id || 'no-id';
+  inlineDiv.style.setProperty('position', 'relative', 'important');
   inlineDiv.style.setProperty('margin-top', '10px', 'important');
   inlineDiv.style.setProperty('padding', '10px', 'important');
   inlineDiv.style.setProperty('border-radius', '4px', 'important');
   inlineDiv.style.setProperty('border', '1px solid #ccc', 'important');
   inlineDiv.style.setProperty('font-size', '14px', 'important');
-  inlineDiv.style.setProperty('height', '35px', 'important');
+  inlineDiv.style.setProperty('min-height', '35px', 'important');
 
   // Apply dark mode
   chrome.storage.local.get(['darkMode'], (result) => {
@@ -548,6 +549,7 @@ function showBottomSpinner(group, boxId) {
   bottomDiv.style.setProperty('padding', '10px', 'important');
   bottomDiv.style.setProperty('z-index', '999998', 'important');
   bottomDiv.style.setProperty('font-size', '14px', 'important');
+  bottomDiv.style.setProperty('box-sizing', 'border-box', 'important');
 
   document.body.appendChild(bottomDiv);
   bottomDivs.push(bottomDiv);
@@ -592,6 +594,9 @@ function showPopupResult(definition, group, boxId) {
   const resultDiv = resultDivs.find(div => div.dataset.boxId == boxId);
   if (!resultDiv) return;
 
+  // Get popup settings
+  const popupSettings = group.popupSettings || { width: '40%', height: '30%', hideOnClickOutside: false };
+
   // Apply dark mode if enabled
   chrome.storage.local.get(['darkMode'], (result) => {
     const isDarkMode = result.darkMode || false;
@@ -607,6 +612,11 @@ function showPopupResult(definition, group, boxId) {
       resultDiv.style.setProperty('border', '1px solid #ccc', 'important');
       resultDiv.style.setProperty('box-shadow', '0 2px 8px rgba(0,0,0,0.1)', 'important');
     }
+
+    // Set width and height from popup settings
+    resultDiv.style.setProperty('width', popupSettings.width, 'important');
+    resultDiv.style.setProperty('height', popupSettings.height, 'important');
+    resultDiv.style.setProperty('overflow-y', 'auto', 'important'); // Add scroll if content is too tall
 
     // Update CSS for dictionary classes based on mode
     const styleElement = resultDiv.querySelector('style');
@@ -636,11 +646,18 @@ function showPopupResult(definition, group, boxId) {
     let top = rect.bottom + window.scrollY + 5;
 
     // Adjust if it would go off screen
-    if (left + 300 > window.innerWidth + window.scrollX) {
-      left = window.innerWidth + window.scrollX - 310;
+    const divWidth = popupSettings.width.includes('%') ?
+      (parseFloat(popupSettings.width) / 100) * window.innerWidth :
+      parseFloat(popupSettings.width);
+    const divHeight = popupSettings.height.includes('%') ?
+      (parseFloat(popupSettings.height) / 100) * window.innerHeight :
+      parseFloat(popupSettings.height);
+
+    if (left + divWidth > window.innerWidth + window.scrollX) {
+      left = window.innerWidth + window.scrollX - divWidth - 10;
     }
-    if (top + 300 > window.innerHeight + window.scrollY) {
-      top = rect.top + window.scrollY - 310;
+    if (top + divHeight > window.innerHeight + window.scrollY) {
+      top = rect.top + window.scrollY - divHeight - 10;
     }
 
     resultDiv.style.setProperty('left', left + 'px', 'important');
@@ -667,6 +684,9 @@ function showPopupResult(definition, group, boxId) {
 
   // Re-add close button since innerHTML clears it
   resultDiv.appendChild(createCloseButton(resultDiv));
+
+  // Store hide on click outside setting for later use
+  resultDiv.dataset.hideOnClickOutside = popupSettings.hideOnClickOutside;
 
   resultDiv.style.setProperty('display', 'block', 'important');
 }
@@ -772,13 +792,18 @@ function showBottomResult(definition, group, boxId) {
   const closeBtn = document.createElement('button');
   closeBtn.textContent = 'X';
   closeBtn.style.position = 'absolute';
-  closeBtn.style.top = '5px';
-  closeBtn.style.right = '5px';
+  closeBtn.style.top = '15px'; // Account for 10px padding
+  closeBtn.style.right = '15px'; // Account for 10px padding
   closeBtn.style.background = 'black';
-  closeBtn.style.color = 'gray';
-  closeBtn.style.border = 'none';
+  closeBtn.style.color = 'white'; // Better contrast
+  closeBtn.style.border = '1px solid #666';
   closeBtn.style.borderRadius = '3px';
   closeBtn.style.cursor = 'pointer';
+  closeBtn.style.width = '20px';
+  closeBtn.style.height = '20px';
+  closeBtn.style.fontSize = '12px';
+  closeBtn.style.lineHeight = '1';
+  closeBtn.style.zIndex = '1000001'; // Higher than content
   closeBtn.onclick = () => {
     bottomDiv.style.display = 'none';
   };
@@ -813,24 +838,13 @@ document.addEventListener('click', (e) => {
     return;
   }
 
-  // Hide popup result divs if clicked outside
+  // Hide popup result divs if clicked outside and hideOnClickOutside is enabled
   resultDivs.forEach(div => {
-    if (div && !div.contains(e.target)) {
+    if (div && !div.contains(e.target) && div.dataset.hideOnClickOutside === 'true') {
       div.style.display = 'none';
     }
   });
 
-  // Hide inline result divs if clicked outside
-  inlineDivs.forEach(div => {
-    if (div && !div.contains(e.target)) {
-      div.style.display = 'none';
-    }
-  });
-
-  // Hide bottom result divs if clicked outside
-  bottomDivs.forEach(div => {
-    if (div && !div.contains(e.target)) {
-      div.style.display = 'none';
-    }
-  });
+  // Note: Inline and bottom panel result divs do not auto-hide on click outside
+  // They only hide when the X button is clicked
 });
