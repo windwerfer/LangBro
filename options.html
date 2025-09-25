@@ -146,6 +146,7 @@
           <div class="icon-option" data-icon="💡">💡</div>
           <div class="icon-option" data-icon="🎯">🎯</div>
         </div>
+        <input type="text" id="customIcon" placeholder="Or enter custom icon/text" style="margin-left: 10px; width: 150px;">
       </div>
 
       <div class="form-group">
@@ -183,6 +184,16 @@
           <label>
             <input type="checkbox" id="popupHideOnClickOutside" />
             Hide popup when clicking outside
+          </label>
+        </div>
+      </div>
+
+      <!-- Inline Settings (only shown when display method is inline) -->
+      <div id="inlineSettings" class="query-type-settings" style="display: none;">
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="inlineFlexibleHeight" checked />
+            Flexible height (grows with content, otherwise shows scrollbars)
           </label>
         </div>
       </div>

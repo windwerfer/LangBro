@@ -495,6 +495,9 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('popupHeight').value = group.popupSettings?.height || '30%';
       document.getElementById('popupHideOnClickOutside').checked = group.popupSettings?.hideOnClickOutside || false;
 
+      // Populate inline settings
+      document.getElementById('inlineFlexibleHeight').checked = group.inlineSettings?.flexibleHeight !== false;
+
       // Populate type-specific settings
       if (group.queryType === 'web' || group.queryType === 'google_translate') {
         document.getElementById('webUrl').value = group.settings?.url || '';
@@ -564,12 +567,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function showDisplayMethodSettings(displayMethod) {
-    // Hide popup settings by default
+    // Hide all display method settings by default
     document.getElementById('popupSettings').style.display = 'none';
+    document.getElementById('inlineSettings').style.display = 'none';
 
-    // Show popup settings if display method is popup
+    // Show relevant settings based on display method
     if (displayMethod === 'popup') {
       document.getElementById('popupSettings').style.display = 'block';
+    } else if (displayMethod === 'inline') {
+      document.getElementById('inlineSettings').style.display = 'block';
     }
   }
 
@@ -581,13 +587,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const selectedIcon = iconSelector.querySelector('.selected');
-    if (!selectedIcon) {
-      alert('Please select an icon.');
+    const customIcon = document.getElementById('customIcon').value.trim();
+
+    let icon;
+    if (customIcon) {
+      icon = customIcon;
+    } else if (selectedIcon) {
+      icon = selectedIcon.dataset.icon;
+    } else {
+      alert('Please select an icon or enter custom icon/text.');
       return;
     }
 
     const queryType = queryTypeSelect.value;
-    const icon = selectedIcon.dataset.icon;
 
     // Build settings based on query type
     let settings = {};
@@ -638,6 +650,14 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     }
 
+    // Build inline settings if display method is inline
+    let inlineSettings = {};
+    if (displayMethodSelect.value === 'inline') {
+      inlineSettings = {
+        flexibleHeight: document.getElementById('inlineFlexibleHeight').checked
+      };
+    }
+
     const group = {
       id: currentEditingGroup !== null ? currentEditingGroup.id : Date.now().toString(),
       name,
@@ -646,6 +666,7 @@ document.addEventListener('DOMContentLoaded', () => {
       displayMethod: displayMethodSelect.value,
       textSelectionMethod: textSelectionMethodSelect.value,
       popupSettings,
+      inlineSettings,
       settings,
       enabled: currentEditingGroup ? currentEditingGroup.enabled : true
     };

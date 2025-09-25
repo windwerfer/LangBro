@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "WordClick Dictionary",
-  "version": "2.0",
+  "version": "0.2",
   "description": "Click words on pages to see StarDict definitions.",
   "permissions": [
     "storage",

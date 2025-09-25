@@ -703,6 +703,9 @@ function showInlineResult(definition, group, boxId) {
   // Clear existing content and apply dark mode
   inlineDiv.innerHTML = '';
 
+  // Check if flexible height is enabled
+  const flexibleHeight = group.inlineSettings?.flexibleHeight !== false;
+
   chrome.storage.local.get(['darkMode'], (result) => {
     const isDarkMode = result.darkMode || false;
 
@@ -714,6 +717,17 @@ function showInlineResult(definition, group, boxId) {
       inlineDiv.style.setProperty('background-color', 'white', 'important');
       inlineDiv.style.setProperty('color', 'black', 'important');
       inlineDiv.style.setProperty('border-color', '#ccc', 'important');
+    }
+
+    // Apply flexible height settings
+    if (flexibleHeight) {
+      // Flexible height: allow content to expand, no max height
+      inlineDiv.style.setProperty('max-height', 'none', 'important');
+      inlineDiv.style.setProperty('overflow-y', 'visible', 'important');
+    } else {
+      // Fixed height: show scrollbars if content is too tall
+      inlineDiv.style.setProperty('max-height', '200px', 'important');
+      inlineDiv.style.setProperty('overflow-y', 'auto', 'important');
     }
   });
 
@@ -731,20 +745,8 @@ function showInlineResult(definition, group, boxId) {
 
   inlineDiv.innerHTML += sanitizedHTML;
 
-  // Add close button
-  const closeBtn = document.createElement('button');
-  closeBtn.textContent = 'X';
-  closeBtn.style.position = 'absolute';
-  closeBtn.style.top = '5px';
-  closeBtn.style.right = '5px';
-  closeBtn.style.background = 'black';
-  closeBtn.style.color = 'gray';
-  closeBtn.style.border = 'none';
-  closeBtn.style.borderRadius = '3px';
-  closeBtn.style.cursor = 'pointer';
-  closeBtn.onclick = () => {
-    inlineDiv.style.display = 'none';
-  };
+  // Add close button above the box
+  const closeBtn = createCloseButton(inlineDiv, '-40px', '5px');
   inlineDiv.appendChild(closeBtn);
 
   inlineDiv.style.setProperty('display', 'block', 'important');
@@ -789,13 +791,21 @@ function showBottomResult(definition, group, boxId) {
   bottomDiv.insertBefore(styleElement, bottomDiv.firstChild);
 
   // Re-add close button
+  const closeBtn = createCloseButton(bottomDiv, '-40px', '15px'); // Account for 10px padding
+  bottomDiv.appendChild(closeBtn);
+
+  bottomDiv.style.setProperty('display', 'block', 'important');
+}
+
+// Create close button for result div
+function createCloseButton(targetDiv, top = '-5px', right = '5px') {
   const closeBtn = document.createElement('button');
   closeBtn.textContent = 'X';
   closeBtn.style.position = 'absolute';
-  closeBtn.style.top = '15px'; // Account for 10px padding
-  closeBtn.style.right = '15px'; // Account for 10px padding
+  closeBtn.style.top = top;
+  closeBtn.style.right = right;
   closeBtn.style.background = 'black';
-  closeBtn.style.color = 'white'; // Better contrast
+  closeBtn.style.color = 'white';
   closeBtn.style.border = '1px solid #666';
   closeBtn.style.borderRadius = '3px';
   closeBtn.style.cursor = 'pointer';
@@ -803,28 +813,8 @@ function showBottomResult(definition, group, boxId) {
   closeBtn.style.height = '20px';
   closeBtn.style.fontSize = '12px';
   closeBtn.style.lineHeight = '1';
-  closeBtn.style.zIndex = '1000001'; // Higher than content
-  closeBtn.onclick = () => {
-    bottomDiv.style.display = 'none';
-  };
-  bottomDiv.appendChild(closeBtn);
-
-  bottomDiv.style.setProperty('display', 'block', 'important');
-}
-
-// Create close button for result div
-function createCloseButton(targetDiv) {
-  const closeBtn = document.createElement('button');
-  closeBtn.textContent = 'X';
-  closeBtn.style.position = 'absolute';
-  closeBtn.style.top = '5px';
-  closeBtn.style.right = '5px';
-  closeBtn.style.background = 'black';
-  closeBtn.style.color = 'gray';
-  closeBtn.style.border = 'none';
-  closeBtn.style.borderRadius = '3px';
-  closeBtn.style.cursor = 'pointer';
-  closeBtn.style.zIndex = '1000000';
+  closeBtn.style.padding = '0px';
+  closeBtn.style.zIndex = '1000001';
   closeBtn.onclick = () => {
     targetDiv.style.display = 'none';
   };
