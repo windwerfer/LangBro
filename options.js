@@ -371,6 +371,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // AI provider change - set default model
+  document.getElementById('aiProvider').addEventListener('change', () => {
+    const provider = document.getElementById('aiProvider').value;
+    const modelInput = document.getElementById('aiModel');
+
+    if (provider === 'google' && !modelInput.value) {
+      modelInput.value = 'gemini-2.5-flash';
+    }
+  });
+
   // Save group button
   saveGroupBtn.addEventListener('click', () => {
     saveQueryGroup();
@@ -479,6 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('aiProvider').value = group.settings?.provider || 'openai';
         document.getElementById('aiApiKey').value = group.settings?.apiKey || '';
         document.getElementById('aiModel').value = group.settings?.model || '';
+        document.getElementById('aiMaxTokens').value = group.settings?.maxTokens || 2048;
         document.getElementById('aiPrompt').value = group.settings?.prompt || '';
       } else if (group.queryType === 'offline') {
         // Load selected dictionaries for offline groups
@@ -571,13 +582,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const provider = document.getElementById('aiProvider').value;
       const apiKey = document.getElementById('aiApiKey').value;
       const model = document.getElementById('aiModel').value.trim();
+      const maxTokens = parseInt(document.getElementById('aiMaxTokens').value) || 2048;
       const prompt = document.getElementById('aiPrompt').value.trim();
 
       if (!apiKey || !model || !prompt) {
         alert('Please fill in all AI settings.');
         return;
       }
-      settings = { provider, apiKey, model, prompt };
+      settings = { provider, apiKey, model, maxTokens, prompt };
     }
 
     const group = {

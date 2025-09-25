@@ -172,7 +172,7 @@
       <div id="webSettings" class="query-type-settings" style="display: none;">
         <div class="form-group">
           <label for="webUrl">API URL:</label>
-          <input type="url" id="webUrl" placeholder="https://api.example.com/lookup?word={word}">
+          <input type="url" id="webUrl" placeholder="https://api.example.com/lookup?word={text}">
           <small>Use {text} for selected text, {lang} for full language name, {lang_short} for 2-letter code</small>
           <br><small>Examples:</small>
           <br><small>• Dictionary API: https://api.dictionaryapi.dev/api/v2/entries/{lang_short}/{text}</small>
@@ -208,8 +208,13 @@
           <input type="text" id="aiModel" placeholder="gpt-3.5-turbo" required>
         </div>
         <div class="form-group">
+          <label for="aiMaxTokens">Max Tokens:</label>
+          <input type="number" id="aiMaxTokens" placeholder="2048" value="2048" min="1" max="10000">
+          <small>Maximum number of tokens to generate in the response</small>
+        </div>
+        <div class="form-group">
           <label for="aiPrompt">Prompt Template:</label>
-          <textarea id="aiPrompt" rows="3" placeholder="Define the meaning of: {word}">Define the meaning of: {word}</textarea>
+          <textarea id="aiPrompt" rows="3" placeholder="Give a grammar breakdown of: {text}">Give a grammar breakdown of: {text}</textarea>
         </div>
       </div>
 

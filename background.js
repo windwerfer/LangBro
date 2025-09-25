@@ -515,7 +515,8 @@ async function performAILookup(word, settings) {
     throw new Error('AI settings not configured');
   }
 
-  const prompt = (settings.prompt || 'Define the meaning of: {word}').replace('{word}', word);
+  const prompt = (settings.prompt || 'Define the meaning of: {text}').replace('{text}', word);
+  const maxTokens = settings.maxTokens || 2048;
 
   let apiUrl, requestBody, headers;
 
@@ -525,7 +526,7 @@ async function performAILookup(word, settings) {
       requestBody = {
         model: settings.model,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 500
+        max_tokens: maxTokens
       };
       headers = {
         'Authorization': `Bearer ${settings.apiKey}`,
@@ -537,7 +538,7 @@ async function performAILookup(word, settings) {
       apiUrl = 'https://api.anthropic.com/v1/messages';
       requestBody = {
         model: settings.model,
-        max_tokens: 500,
+        max_tokens: maxTokens,
         messages: [{ role: 'user', content: prompt }]
       };
       headers = {
@@ -551,7 +552,7 @@ async function performAILookup(word, settings) {
       apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`;
       requestBody = {
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: 500 }
+        generationConfig: { maxOutputTokens: maxTokens }
       };
       headers = {
         'Content-Type': 'application/json'

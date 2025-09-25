@@ -245,7 +245,7 @@ function lookupWord(word, group) {
       } else if (response && response.definition) {
         showResult(`${group.icon} ${group.name}\n\n${response.definition}`);
       } else {
-        showResult(`No definition found for "${word}" in ${group.name}.`);
+        showResult(`No definition found for "${text}" in ${group.name}.`);
       }
     });
   } catch (error) {
