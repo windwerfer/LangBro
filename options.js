@@ -8,6 +8,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Main settings elements
   const darkModeCheckbox = document.getElementById('darkModeCheckbox');
+  const iconPlacementSelect = document.getElementById('iconPlacement');
+  const iconOffsetInput = document.getElementById('iconOffset');
+  const iconSpacingInput = document.getElementById('iconSpacing');
 
   // Import page elements
   const filesInput = document.getElementById('filesInput');
@@ -51,16 +54,36 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('nav-' + pageId.replace('page-', '')).classList.add('active');
   }
 
-  // Load dark mode setting
-  chrome.storage.local.get(['darkMode'], (result) => {
-    console.log('Loaded dark mode setting:', result.darkMode);
+  // Load settings
+  chrome.storage.local.get(['darkMode', 'iconPlacement', 'iconOffset', 'iconSpacing'], (result) => {
+    console.log('Loaded settings:', result);
     darkModeCheckbox.checked = result.darkMode || false;
+    iconPlacementSelect.value = result.iconPlacement || 'word';
+    iconOffsetInput.value = result.iconOffset || 50;
+    iconSpacingInput.value = result.iconSpacing || 10;
   });
 
-  // Save dark mode setting when changed
+  // Save settings when changed
   darkModeCheckbox.addEventListener('change', () => {
     console.log('Saving dark mode setting:', darkModeCheckbox.checked);
     chrome.storage.local.set({ darkMode: darkModeCheckbox.checked });
+  });
+
+  iconPlacementSelect.addEventListener('change', () => {
+    console.log('Saving icon placement setting:', iconPlacementSelect.value);
+    chrome.storage.local.set({ iconPlacement: iconPlacementSelect.value });
+  });
+
+  iconOffsetInput.addEventListener('input', () => {
+    const offset = parseInt(iconOffsetInput.value) || 0;
+    console.log('Saving icon offset setting:', offset);
+    chrome.storage.local.set({ iconOffset: offset });
+  });
+
+  iconSpacingInput.addEventListener('input', () => {
+    const spacing = parseInt(iconSpacingInput.value) || 10;
+    console.log('Saving icon spacing setting:', spacing);
+    chrome.storage.local.set({ iconSpacing: spacing });
   });
 
 

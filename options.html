@@ -22,7 +22,7 @@
     .icon-option { padding: 5px; border: 1px solid #ddd; cursor: pointer; border-radius: 3px; }
     .icon-option.selected { background: #007bff; color: white; }
     .form-group { margin: 10px 0; }
-    .form-group label { display: block; margin-bottom: 5px; }
+    .form-group label { margin-bottom: 5px; }
     .form-group input, .form-group select { padding: 5px; }
   </style>
 </head>
@@ -42,6 +42,24 @@
       <input type="checkbox" id="darkModeCheckbox" />
       Enable dark mode for dictionary popup
     </label>
+
+    <h4>Query Button Placement</h4>
+    <div class="form-group">
+      <label for="iconPlacement">Placement: </label>
+      <select id="iconPlacement">
+        <option value="right">Right</option>
+        <option value="left">Left</option>
+        <option value="word">Word (default)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="iconOffset">Vertical offset (px): </label>
+      <input type="number" id="iconOffset" placeholder="-50" value="50">
+    </div>
+    <div class="form-group">
+      <label for="iconSpacing">Space between icons (px): </label>
+      <input type="number" id="iconSpacing" placeholder="10" value="10" min="5" max="50">
+    </div>
   </div>
 
   <!-- Import Dictionary Page -->

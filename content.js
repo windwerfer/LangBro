@@ -8,8 +8,12 @@ let resultDiv = null;
 let selectedWord = '';
 let queryGroups = [];
 let resultJustShown = false;
+let iconPlacement = 'word';
+let iconOffset = 50;
+let iconSpacing = 10;
 
-// Load query groups on startup
+// Load settings and query groups on startup
+loadSettings();
 loadQueryGroups();
 ensureDefaultQueryGroup();
 
@@ -91,6 +95,22 @@ function handleSelectionChange() {
   }
 }
 
+// Load settings from storage
+async function loadSettings() {
+  try {
+    const result = await chrome.storage.local.get(['iconPlacement', 'iconOffset', 'iconSpacing']);
+    iconPlacement = result.iconPlacement || 'word';
+    iconOffset = result.iconOffset || 50;
+    iconSpacing = result.iconSpacing || 10;
+    console.log('Loaded icon settings:', { iconPlacement, iconOffset, iconSpacing });
+  } catch (error) {
+    console.error('Error loading settings:', error);
+    iconPlacement = 'word';
+    iconOffset = 50;
+    iconSpacing = 10;
+  }
+}
+
 // Load query groups from storage
 async function loadQueryGroups() {
   try {
@@ -120,7 +140,6 @@ function showLookupIcons(selection) {
     const range = selection.getRangeAt(0);
     const rect = range.getBoundingClientRect();
     const baseTop = rect.top + window.scrollY - 5;
-    const iconSpacing = 35; // Space between icons
 
     enabledGroups.forEach((group, index) => {
       const icon = document.createElement('div');
@@ -146,9 +165,20 @@ function showLookupIcons(selection) {
         icon.style.border = '1px solid #ccc';
       }
 
-      // Position icons horizontally from right to left
-      const left = window.innerWidth + window.scrollX - 30 - 5 - (index * iconSpacing);
-      const top = baseTop;
+      // Calculate position based on placement setting
+      let left, top = baseTop + iconOffset;
+
+      if (iconPlacement === 'right') {
+        // Position on right side of screen, from right to left
+        left = window.innerWidth + window.scrollX - 30 - 5 - (index * iconSpacing);
+      } else if (iconPlacement === 'left') {
+        // Position on left side of screen, from left to right
+        left = window.scrollX + 5 + (index * iconSpacing);
+      } else {
+        // 'word' (default): Position near the selected word, from right to left
+        left = rect.right + window.scrollX + 5 - (index * iconSpacing);
+      }
+
       icon.style.left = left + 'px';
       icon.style.top = top + 'px';
       icon.style.display = 'block';
