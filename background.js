@@ -293,13 +293,66 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return false;
 });
 
+// Language mappings for {lang} and {lang_short} placeholders (sorted alphabetically by full language name)
+const languageMap = {
+  'ar': 'arabic',
+  'bn': 'bengali',
+  'zh': 'chinese',
+  'hr': 'croatian',
+  'cs': 'czech',
+  'da': 'danish',
+  'nl': 'dutch',
+  'en': 'english',
+  'fi': 'finnish',
+  'fr': 'french',
+  'de': 'german',
+  'el': 'greek',
+  'he': 'hebrew',
+  'hi': 'hindi',
+  'hu': 'hungarian',
+  'it': 'italian',
+  'ja': 'japanese',
+  'jv': 'javanese',
+  'ko': 'korean',
+  'no': 'norwegian',
+  'pa': 'punjabi',
+  'pl': 'polish',
+  'pt': 'portuguese',
+  'ro': 'romanian',
+  'ru': 'russian',
+  'sk': 'slovak',
+  'sl': 'slovenian',
+  'es': 'spanish',
+  'sv': 'swedish',
+  'th': 'thai',
+  'tr': 'turkish',
+  'vi': 'vietnamese'
+};
+
 // Perform web API lookup
 async function performWebLookup(word, settings) {
   if (!settings || !settings.url) {
     throw new Error('Web API settings not configured');
   }
 
-  const url = settings.url.replace('{word}', encodeURIComponent(word)).replace('{text}', encodeURIComponent(word));
+  // Get target language setting
+  const targetLanguage = await new Promise(resolve => {
+    chrome.storage.local.get(['targetLanguage'], (result) => {
+      resolve(result.targetLanguage || 'en');
+    });
+  });
+
+  const langShort = targetLanguage;
+  const lang = languageMap[targetLanguage] || targetLanguage;
+  const text = encodeURIComponent(word);
+
+  let url = settings.url;
+  url = url.replace(/\{text\}/g, text);
+  url = url.replace(/\{lang\}/g, lang);
+  url = url.replace(/\{lang_short\}/g, langShort);
+  // Keep {word} for backward compatibility
+  url = url.replace(/\{word\}/g, text);
+
   const headers = {};
 
   if (settings.apiKey) {

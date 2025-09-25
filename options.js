@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Main settings elements
   const darkModeCheckbox = document.getElementById('darkModeCheckbox');
+  const targetLanguageSelect = document.getElementById('targetLanguage');
   const iconPlacementSelect = document.getElementById('iconPlacement');
   const iconOffsetInput = document.getElementById('iconOffset');
   const iconSpacingInput = document.getElementById('iconSpacing');
@@ -55,9 +56,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Load settings
-  chrome.storage.local.get(['darkMode', 'iconPlacement', 'iconOffset', 'iconSpacing'], (result) => {
+  chrome.storage.local.get(['darkMode', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing'], (result) => {
     console.log('Loaded settings:', result);
     darkModeCheckbox.checked = result.darkMode || false;
+    targetLanguageSelect.value = result.targetLanguage || 'en';
     iconPlacementSelect.value = result.iconPlacement || 'word';
     iconOffsetInput.value = result.iconOffset || 50;
     iconSpacingInput.value = result.iconSpacing || 10;
@@ -67,6 +69,11 @@ document.addEventListener('DOMContentLoaded', () => {
   darkModeCheckbox.addEventListener('change', () => {
     console.log('Saving dark mode setting:', darkModeCheckbox.checked);
     chrome.storage.local.set({ darkMode: darkModeCheckbox.checked });
+  });
+
+  targetLanguageSelect.addEventListener('change', () => {
+    console.log('Saving target language setting:', targetLanguageSelect.value);
+    chrome.storage.local.set({ targetLanguage: targetLanguageSelect.value });
   });
 
   iconPlacementSelect.addEventListener('change', () => {
