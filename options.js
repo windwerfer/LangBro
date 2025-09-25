@@ -462,6 +462,8 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       queryTypeSelect.value = 'offline';
       showQueryTypeSettings('offline');
+      // Load available dictionaries for new offline groups
+      loadAvailableDictionaries();
     }
 
     groupForm.style.display = 'block';
