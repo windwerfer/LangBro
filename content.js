@@ -585,6 +585,7 @@ function showBottomSpinner(group, boxId) {
   bottomDiv.style.setProperty('z-index', '999998', 'important');
   bottomDiv.style.setProperty('font-size', '14px', 'important');
   bottomDiv.style.setProperty('box-sizing', 'border-box', 'important');
+  bottomDiv.style.setProperty('overflow-y', 'auto', 'important');
 
   document.body.appendChild(bottomDiv);
   bottomDivs.push(bottomDiv);
@@ -1034,24 +1035,27 @@ function executeTripleClickQuery(element) {
 }
 
 // Initialize listeners when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    addSwipeListeners();
-    addClickListeners();
-  });
-} else {
+function initializeListeners() {
   addSwipeListeners();
   addClickListeners();
+
+  // Re-add listeners when content changes (for dynamic content)
+  if (document.body) {
+    const observer = new MutationObserver(() => {
+      setTimeout(() => {
+        addSwipeListeners();
+        addClickListeners();
+      }, 100); // Small delay to avoid excessive updates
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
 }
 
-// Re-add listeners when content changes (for dynamic content)
-const observer = new MutationObserver(() => {
-  setTimeout(() => {
-    addSwipeListeners();
-    addClickListeners();
-  }, 100); // Small delay to avoid excessive updates
-});
-observer.observe(document.body, { childList: true, subtree: true });
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeListeners);
+} else {
+  initializeListeners();
+}
 
 // Hide result divs when clicking elsewhere
 document.addEventListener('click', (e) => {
