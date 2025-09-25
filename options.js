@@ -1028,18 +1028,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const db = await getStructuredDB();
         const dictName = importData.title || 'Imported Dictionary';
 
+        // Convert entries to the format expected by storeDictionary
+        const terms = importData.entries.map((entry, index) => ({
+          dictionary: dictName,
+          expression: entry.term,
+          reading: entry.reading || '',
+          glossary: entry.glossary || (entry.definitions ? entry.definitions.map(d => d.text) : ['']),
+          definitionTags: entry.definitionTags || [],
+          termTags: entry.termTags || [],
+          score: entry.score || 0,
+          sequence: entry.sequence || index
+        }));
+
         const structuredData = {
-          title: dictName,
-          format: 'StarDict',
-          revision: '1',
-          sequenced: true,
-          entries: importData.entries.map((entry, index) => ({
-            term: entry.term,
-            reading: entry.reading || '',
-            definition: entry.glossary ? entry.glossary.join('\n') : (entry.definitions ? entry.definitions.map(d => d.text).join('\n') : ''),
-            tags: entry.definitionTags || [],
-            sequence: entry.sequence || index
-          }))
+          metadata: {
+            title: dictName,
+            format: 'StarDict',
+            revision: '1',
+            sequenced: true,
+            counts: {
+              terms: { total: terms.length },
+              kanji: { total: 0 },
+              media: { total: 0 }
+            }
+          },
+          terms: terms,
+          kanji: [],
+          media: []
         };
 
         await db.storeDictionary(structuredData, (message) => {

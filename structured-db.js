@@ -339,102 +339,63 @@ class StructuredDictionaryDatabase {
     const dictStore = transaction.objectStore('dictionaries');
     dictStore.delete(dictName);
 
-    // Delete all terms for this dictionary
+    // Helper function to delete with range queries where possible
+    const deleteWithCursor = (store, indexName, keyRange, description) => {
+      return new Promise((resolve) => {
+        let localDeleted = 0;
+        const request = indexName ?
+          store.index(indexName).openCursor(keyRange) :
+          store.openCursor(keyRange);
+
+        request.onsuccess = (event) => {
+          const cursor = event.target.result;
+          if (cursor) {
+            cursor.delete();
+            localDeleted++;
+            totalDeleted++;
+
+            // Send progress update every 2 seconds
+            if (progressCallback) {
+              const currentTime = Date.now();
+              if (currentTime - lastProgressTime >= 2000) {
+                progressCallback(`Deleted ${totalDeleted} entries so far...`);
+                lastProgressTime = currentTime;
+              }
+            }
+
+            cursor.continue();
+          } else {
+            console.log(`Deleted ${localDeleted} ${description} entries`);
+            resolve();
+          }
+        };
+
+        request.onerror = () => {
+          console.error(`Error deleting ${description} entries`);
+          resolve(); // Continue with other deletions
+        };
+      });
+    };
+
+    // Delete all terms for this dictionary using efficient range query
+    console.log(`Starting deletion of terms for dictionary: ${dictName}`);
     const termStore = transaction.objectStore('terms');
-    const termIndex = termStore.index('expression');
-    // Use a cursor to delete all terms for this dictionary
-    const termCursorRequest = termIndex.openCursor(IDBKeyRange.bound([dictName, ''], [dictName, '\uffff']));
+    await deleteWithCursor(termStore, 'expression', IDBKeyRange.bound([dictName, ''], [dictName, '\uffff']), 'term');
 
-    termCursorRequest.onsuccess = (event) => {
-      const cursor = event.target.result;
-      if (cursor) {
-        cursor.delete(); // Delete this term
-        totalDeleted++;
-
-        // Send progress update every 2 seconds
-        if (progressCallback) {
-          const currentTime = Date.now();
-          if (currentTime - lastProgressTime >= 2000) {
-            progressCallback(`Deleted ${totalDeleted} entries so far...`);
-            lastProgressTime = currentTime;
-          }
-        }
-
-        cursor.continue();
-      }
-    };
-
-    // Delete kanji for this dictionary (if any)
+    // Delete kanji for this dictionary (scan all since kanji is less common)
+    console.log(`Starting deletion of kanji for dictionary: ${dictName}`);
     const kanjiStore = transaction.objectStore('kanji');
-    const kanjiCursorRequest = kanjiStore.openCursor();
+    await deleteWithCursor(kanjiStore, null, null, 'kanji');
 
-    kanjiCursorRequest.onsuccess = (event) => {
-      const cursor = event.target.result;
-      if (cursor) {
-        if (cursor.value.dictionary === dictName) {
-          cursor.delete();
-          totalDeleted++;
-
-          // Send progress update
-          if (progressCallback) {
-            const currentTime = Date.now();
-            if (currentTime - lastProgressTime >= 2000) {
-              progressCallback(`Deleted ${totalDeleted} entries so far...`);
-              lastProgressTime = currentTime;
-            }
-          }
-        }
-        cursor.continue();
-      }
-    };
-
-    // Delete media for this dictionary (if any)
+    // Delete media for this dictionary (scan all since media is less common)
+    console.log(`Starting deletion of media for dictionary: ${dictName}`);
     const mediaStore = transaction.objectStore('media');
-    const mediaCursorRequest = mediaStore.openCursor();
+    await deleteWithCursor(mediaStore, null, null, 'media');
 
-    mediaCursorRequest.onsuccess = (event) => {
-      const cursor = event.target.result;
-      if (cursor) {
-        if (cursor.value.dictionary === dictName) {
-          cursor.delete();
-          totalDeleted++;
-
-          // Send progress update
-          if (progressCallback) {
-            const currentTime = Date.now();
-            if (currentTime - lastProgressTime >= 2000) {
-              progressCallback(`Deleted ${totalDeleted} entries so far...`);
-              lastProgressTime = currentTime;
-            }
-          }
-        }
-        cursor.continue();
-      }
-    };
-
-    // Delete tag metadata for this dictionary (if any)
+    // Delete tag metadata for this dictionary (scan all since tags are less common)
+    console.log(`Starting deletion of tag metadata for dictionary: ${dictName}`);
     const tagStore = transaction.objectStore('tagMeta');
-    const tagCursorRequest = tagStore.openCursor();
-
-    tagCursorRequest.onsuccess = (event) => {
-      const cursor = event.target.result;
-      if (cursor) {
-        if (cursor.value.dictionary === dictName) {
-          cursor.delete();
-          totalDeleted++;
-
-          // Send progress update
-          if (progressCallback) {
-            const currentTime = Date.now();
-            if (currentTime - lastProgressTime >= 2000) {
-              progressCallback(`Deleted ${totalDeleted} entries so far...`);
-              lastProgressTime = currentTime;
-            }
-          }
-        }
-        cursor.continue();
-      }
-    };
+    await deleteWithCursor(tagStore, null, null, 'tag');
 
     return new Promise((resolve, reject) => {
       transaction.oncomplete = () => {
