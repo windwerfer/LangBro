@@ -267,6 +267,9 @@ function showLookupIcons(selection) {
         icon.textContent = group.icon;
       }
 
+      // Mark as interactive to prevent single-click delegation
+      icon.classList.add('lookup-icon');
+
       // Apply dark mode styling
       if (isDarkMode) {
         icon.style.backgroundColor = 'black';
@@ -490,6 +493,11 @@ function showPopupResult(definition, group, boxId, initialWord = '') {
     });
 
     // Add event delegation for single-click gestures on popup content
+    let clickStartTime = 0;
+    let clickStartX = 0;
+    let clickStartY = 0;
+    let clickTargetElement = null;
+
     resultDiv.addEventListener('mousedown', (event) => {
       // Only handle if single-click is enabled
       if (!singleClickGroupId) return;
@@ -504,12 +512,40 @@ function showPopupResult(definition, group, boxId, initialWord = '') {
           targetElement.tagName === 'TEXTAREA' ||
           targetElement.tagName === 'SELECT' ||
           targetElement.tagName === 'A' ||
-          targetElement.closest('button, input, textarea, select, a')) {
+          targetElement.closest('button, input, textarea, select, a') ||
+          targetElement.classList.contains('lookup-icon') ||
+          targetElement.closest('.popupResultHeader, .inlineResultHeader, .bottomResultHeader')) {
         return;
       }
 
-      // Delegate to single-click handler
-      executeSingleClickQuery(targetElement, event);
+      // Record click start for tap detection
+      clickStartTime = Date.now();
+      clickStartX = event.clientX;
+      clickStartY = event.clientY;
+      clickTargetElement = targetElement;
+    });
+
+    resultDiv.addEventListener('mouseup', (event) => {
+      // Only handle if we have a recorded mousedown
+      if (!clickStartTime || !clickTargetElement) return;
+
+      const clickDuration = Date.now() - clickStartTime;
+      const clickDistance = Math.sqrt(
+        Math.pow(event.clientX - clickStartX, 2) +
+        Math.pow(event.clientY - clickStartY, 2)
+      );
+
+      // Check if this was a quick tap (not a selection or drag)
+      if (clickDuration < 250 && clickDistance < 5) {
+        // It's a tap! Trigger single-click
+        executeSingleClickQuery(clickTargetElement, event);
+      }
+
+      // Reset tracking
+      clickStartTime = 0;
+      clickStartX = 0;
+      clickStartY = 0;
+      clickTargetElement = null;
     });
 
     // Position near the original selection
@@ -672,6 +708,11 @@ function showInlineResult(definition, group, boxId, initialWord = '') {
     });
 
     // Add event delegation for single-click gestures on inline content
+    let clickStartTime = 0;
+    let clickStartX = 0;
+    let clickStartY = 0;
+    let clickTargetElement = null;
+
     inlineDiv.addEventListener('mousedown', (event) => {
       // Only handle if single-click is enabled
       if (!singleClickGroupId) return;
@@ -686,12 +727,40 @@ function showInlineResult(definition, group, boxId, initialWord = '') {
           targetElement.tagName === 'TEXTAREA' ||
           targetElement.tagName === 'SELECT' ||
           targetElement.tagName === 'A' ||
-          targetElement.closest('button, input, textarea, select, a')) {
+          targetElement.closest('button, input, textarea, select, a') ||
+          targetElement.classList.contains('lookup-icon') ||
+          targetElement.closest('.popupResultHeader, .inlineResultHeader, .bottomResultHeader')) {
         return;
       }
 
-      // Delegate to single-click handler
-      executeSingleClickQuery(targetElement, event);
+      // Record click start for tap detection
+      clickStartTime = Date.now();
+      clickStartX = event.clientX;
+      clickStartY = event.clientY;
+      clickTargetElement = targetElement;
+    });
+
+    inlineDiv.addEventListener('mouseup', (event) => {
+      // Only handle if we have a recorded mousedown
+      if (!clickStartTime || !clickTargetElement) return;
+
+      const clickDuration = Date.now() - clickStartTime;
+      const clickDistance = Math.sqrt(
+        Math.pow(event.clientX - clickStartX, 2) +
+        Math.pow(event.clientY - clickStartY, 2)
+      );
+
+      // Check if this was a quick tap (not a selection or drag)
+      if (clickDuration < 250 && clickDistance < 5) {
+        // It's a tap! Trigger single-click
+        executeSingleClickQuery(clickTargetElement, event);
+      }
+
+      // Reset tracking
+      clickStartTime = 0;
+      clickStartX = 0;
+      clickStartY = 0;
+      clickTargetElement = null;
     });
 
     // Create header div for close button and search field
@@ -826,6 +895,11 @@ function showBottomResult(definition, group, boxId, initialWord = '') {
     });
 
     // Add event delegation for single-click gestures on bottom content
+    let clickStartTime = 0;
+    let clickStartX = 0;
+    let clickStartY = 0;
+    let clickTargetElement = null;
+
     bottomDiv.addEventListener('mousedown', (event) => {
       // Only handle if single-click is enabled
       if (!singleClickGroupId) return;
@@ -840,12 +914,40 @@ function showBottomResult(definition, group, boxId, initialWord = '') {
           targetElement.tagName === 'TEXTAREA' ||
           targetElement.tagName === 'SELECT' ||
           targetElement.tagName === 'A' ||
-          targetElement.closest('button, input, textarea, select, a')) {
+          targetElement.closest('button, input, textarea, select, a') ||
+          targetElement.classList.contains('lookup-icon') ||
+          targetElement.closest('.popupResultHeader, .inlineResultHeader, .bottomResultHeader')) {
         return;
       }
 
-      // Delegate to single-click handler
-      executeSingleClickQuery(targetElement, event);
+      // Record click start for tap detection
+      clickStartTime = Date.now();
+      clickStartX = event.clientX;
+      clickStartY = event.clientY;
+      clickTargetElement = targetElement;
+    });
+
+    bottomDiv.addEventListener('mouseup', (event) => {
+      // Only handle if we have a recorded mousedown
+      if (!clickStartTime || !clickTargetElement) return;
+
+      const clickDuration = Date.now() - clickStartTime;
+      const clickDistance = Math.sqrt(
+        Math.pow(event.clientX - clickStartX, 2) +
+        Math.pow(event.clientY - clickStartY, 2)
+      );
+
+      // Check if this was a quick tap (not a selection or drag)
+      if (clickDuration < 250 && clickDistance < 5) {
+        // It's a tap! Trigger single-click
+        executeSingleClickQuery(clickTargetElement, event);
+      }
+
+      // Reset tracking
+      clickStartTime = 0;
+      clickStartX = 0;
+      clickStartY = 0;
+      clickTargetElement = null;
     });
 
     // Create header div for close button and search field
@@ -1489,6 +1591,101 @@ function executeSingleClickQuery(element, clickEvent) {
       // Show lookup icons
       showLookupIcons(selection);
     }
+  } else if (singleClickGroupId === 'selectWord') {
+    // Only select word and show icons, no auto search
+    let clickedWord = '';
+
+    if (clickEvent) {
+      // Get the text node and position from click coordinates
+      let textNode = null;
+      let clickOffset = 0;
+
+      try {
+        // Try caretRangeFromPoint first (WebKit/Safari)
+        if (document.caretRangeFromPoint) {
+          const range = document.caretRangeFromPoint(clickEvent.clientX, clickEvent.clientY);
+          if (range) {
+            textNode = range.startContainer;
+            clickOffset = range.startOffset;
+          }
+        }
+        // Fallback to caretPositionFromPoint (Firefox/Chrome)
+        else if (document.caretPositionFromPoint) {
+          const caretPosition = document.caretPositionFromPoint(clickEvent.clientX, clickEvent.clientY);
+          if (caretPosition) {
+            textNode = caretPosition.offsetNode;
+            clickOffset = caretPosition.offset;
+          }
+        }
+      } catch (error) {
+        console.error('Error getting caret position:', error);
+      }
+
+      if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+        const textContent = textNode.textContent;
+
+        // Use Intl.Segmenter to segment the text
+        try {
+          const segmenter = new Intl.Segmenter('th', { granularity: 'word' });
+          const segments = segmenter.segment(textContent);
+
+          // Find the segment that contains the click position
+          for (const segment of segments) {
+            if (segment.index <= clickOffset && clickOffset < segment.index + segment.segment.length) {
+              clickedWord = segment.segment.trim();
+              break;
+            }
+          }
+        } catch (error) {
+          console.error('Intl.Segmenter error:', error);
+          // Fallback: use the whole paragraph
+          clickedWord = element.textContent.trim();
+        }
+      }
+    }
+
+    // If we couldn't detect a word, use the whole paragraph
+    if (!clickedWord) {
+      clickedWord = element.textContent.trim();
+    }
+
+    // Create a selection for the detected word
+    if (clickedWord) {
+      try {
+        // Try to create a selection for the clicked word
+        if (document.caretRangeFromPoint) {
+          const range = document.caretRangeFromPoint(clickEvent.clientX, clickEvent.clientY);
+          if (range) {
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+        } else if (document.caretPositionFromPoint) {
+          const caretPosition = document.caretPositionFromPoint(clickEvent.clientX, clickEvent.clientY);
+          if (caretPosition && caretPosition.offsetNode.nodeType === Node.TEXT_NODE) {
+            const range = document.createRange();
+            range.setStart(caretPosition.offsetNode, caretPosition.offset);
+            range.setEnd(caretPosition.offsetNode, caretPosition.offset);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+        }
+      } catch (error) {
+        console.error('Error creating selection for word:', error);
+      }
+    }
+
+    // Update global currentSelection for consistency
+    currentSelection = {
+      selectedText: clickedWord,
+      wholeWord: clickedWord,
+      wholeParagraph: element.textContent.trim()
+    };
+
+    console.log(`Selected word: ${clickedWord}`);
+    // Show lookup icons (but don't perform any automatic lookup)
+    showLookupIcons(window.getSelection());
   } else {
     // Execute specific query group
     const selectedGroup = queryGroups.find(group => group.id === singleClickGroupId);

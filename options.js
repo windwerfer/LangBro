@@ -490,7 +490,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Update gesture dropdown options
     const updateDropdown = (selectElement) => {
-      selectElement.innerHTML = '<option value="">None</option>';
+      selectElement.innerHTML = '<option value="">None</option><option value="selectWord">Only select word</option>';
       groups.forEach(group => {
         const option = document.createElement('option');
         option.value = group.id;
