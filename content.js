@@ -394,7 +394,7 @@ function showLookupIcons(selection) {
     const baseTop = rect.top + window.scrollY - 5;
 
     enabledGroups.forEach((group, index) => {
-      console.log(`Creating icon for group: ${group.name} (${group.icon})`);
+      // console.log(`Creating icon for group: ${group.name} (${group.icon})`);
       const icon = document.createElement('div');
       icon.style.position = 'absolute';
       icon.style.borderRadius = '3px';
@@ -1714,6 +1714,12 @@ function handleMouseDown(event) {
 function handleMouseUp(event) {
   if (isUserSelecting) return; // Guard against manual selection
 
+  // Skip gesture if user has an active selection (they were manually selecting text)
+  if (window.getSelection().toString().trim()) {
+    console.log('Skipping gesture - user has active selection');
+    return;
+  }
+
   // Check if element should be excluded from gestures
   if (shouldExcludeFromGestures(event.target)) {
     return;
@@ -2028,6 +2034,12 @@ function addWordSegmentationListener() {
 }
 
 function handleWordSegmentationClick(event) {
+  // Skip if user has an active selection (they were manually selecting text)
+  if (window.getSelection().toString().trim()) {
+    console.log('Skipping word segmentation - user has active selection');
+    return;
+  }
+
   // Only process clicks on text content, not on interactive elements
   if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' ||
       event.target.tagName === 'BUTTON' || event.target.tagName === 'A' ||
