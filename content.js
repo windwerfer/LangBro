@@ -956,7 +956,7 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
 
             if (response.suggestions && response.suggestions.length > 0) {
               console.log('CONTENT: Showing suggestions:', response.suggestions);
-              showSuggestions(response.suggestions, searchInput, resultDiv);
+              showSuggestions(response.suggestions, searchInput, resultDiv, group, boxId);
             } else {
               console.log('CONTENT: No suggestions to show, hiding dropdown');
               hideSuggestions(resultDiv);
@@ -1001,7 +1001,7 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
 
             if (response.suggestions && response.suggestions.length > 0) {
               console.log('CONTENT: Showing suggestions:', response.suggestions);
-              showSuggestions(response.suggestions, searchInput, resultDiv);
+              showSuggestions(response.suggestions, searchInput, resultDiv, group, boxId);
             } else {
               console.log('CONTENT: No suggestions to show, hiding dropdown');
               hideSuggestions(resultDiv);
@@ -1028,77 +1028,74 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
 }
 
 // Show suggestions dropdown below search input
-function showSuggestions(suggestions, searchInput, resultDiv) {
+function showSuggestions(suggestions, searchInput, resultDiv, group, boxId) {
   // Remove existing suggestions
   hideSuggestions(resultDiv);
 
-  // Create suggestions container
-  const suggestionsDiv = document.createElement('div');
-  suggestionsDiv.className = 'search-suggestions';
-  suggestionsDiv.style.setProperty('position', 'absolute', 'important');
-  suggestionsDiv.style.setProperty('top', '100%', 'important');
-  suggestionsDiv.style.setProperty('left', '0', 'important');
-  suggestionsDiv.style.setProperty('right', '0', 'important');
-  suggestionsDiv.style.setProperty('max-height', '200px', 'important');
-  suggestionsDiv.style.setProperty('overflow-y', 'auto', 'important');
-  suggestionsDiv.style.setProperty('border', '1px solid #ccc', 'important');
-  suggestionsDiv.style.setProperty('border-top', 'none', 'important');
-  suggestionsDiv.style.setProperty('border-radius', '0 0 3px 3px', 'important');
-  suggestionsDiv.style.setProperty('z-index', '1000000', 'important');
-  suggestionsDiv.style.setProperty('background', 'white', 'important');
-
-  // Apply dark mode
+  // Get dark mode setting once for the entire function
   chrome.storage.local.get(['darkMode'], (result) => {
     const isDarkMode = result.darkMode || false;
+
+    // Create suggestions container
+    const suggestionsDiv = document.createElement('div');
+    suggestionsDiv.className = 'search-suggestions';
+    suggestionsDiv.style.setProperty('position', 'absolute', 'important');
+    suggestionsDiv.style.setProperty('top', '100%', 'important');
+    suggestionsDiv.style.setProperty('left', '0', 'important');
+    suggestionsDiv.style.setProperty('right', '0', 'important');
+    suggestionsDiv.style.setProperty('max-height', '200px', 'important');
+    suggestionsDiv.style.setProperty('overflow-y', 'auto', 'important');
+    suggestionsDiv.style.setProperty('border', '1px solid #ccc', 'important');
+    suggestionsDiv.style.setProperty('border-top', 'none', 'important');
+    suggestionsDiv.style.setProperty('border-radius', '0 0 3px 3px', 'important');
+    suggestionsDiv.style.setProperty('z-index', '1000000', 'important');
+    suggestionsDiv.style.setProperty('background', 'white', 'important');
+
+    // Apply dark mode
     if (isDarkMode) {
       suggestionsDiv.style.setProperty('background-color', '#1e1e1e', 'important');
       suggestionsDiv.style.setProperty('border-color', '#555', 'important');
       suggestionsDiv.style.setProperty('color', '#ffffff', 'important');
     }
-  });
 
-  // Add suggestions
-  suggestions.forEach(suggestion => {
-    const suggestionItem = document.createElement('div');
-    suggestionItem.textContent = suggestion;
-    suggestionItem.style.setProperty('padding', '4px 8px', 'important');
-    suggestionItem.style.setProperty('cursor', 'pointer', 'important');
-    suggestionItem.style.setProperty('border-bottom', '1px solid #eee', 'important');
+    // Add suggestions
+    suggestions.forEach(suggestion => {
+      const suggestionItem = document.createElement('div');
+      suggestionItem.textContent = suggestion;
+      suggestionItem.style.setProperty('padding', '4px 8px', 'important');
+      suggestionItem.style.setProperty('cursor', 'pointer', 'important');
+      suggestionItem.style.setProperty('border-bottom', '1px solid #eee', 'important');
 
-    // Apply dark mode to items
-    chrome.storage.local.get(['darkMode'], (result) => {
-      const isDarkMode = result.darkMode || false;
+      // Apply dark mode to items
       if (isDarkMode) {
         suggestionItem.style.setProperty('border-bottom-color', '#333', 'important');
       }
+
+      suggestionItem.addEventListener('mouseenter', () => {
+        const bgColor = isDarkMode ? '#333' : '#f0f0f0';
+        suggestionItem.style.setProperty('background-color', bgColor, 'important');
+      });
+
+      suggestionItem.addEventListener('mouseleave', () => {
+        suggestionItem.style.setProperty('background-color', 'transparent', 'important');
+      });
+
+      suggestionItem.addEventListener('click', () => {
+        searchInput.value = suggestion;
+        searchInput.focus();
+        hideSuggestions(resultDiv);
+        // Trigger search directly without dispatching input event to avoid showing suggestions again
+        performSearch(suggestion, group, resultDiv, boxId);
+      });
+
+      suggestionsDiv.appendChild(suggestionItem);
     });
 
-    suggestionItem.addEventListener('mouseenter', () => {
-      suggestionItem.style.setProperty('background-color', '#f0f0f0', 'important');
-      if (chrome.storage.local.get(['darkMode'], (result) => result.darkMode)) {
-        suggestionItem.style.setProperty('background-color', '#333', 'important');
-      }
-    });
-
-    suggestionItem.addEventListener('mouseleave', () => {
-      suggestionItem.style.setProperty('background-color', 'transparent', 'important');
-    });
-
-    suggestionItem.addEventListener('click', () => {
-      searchInput.value = suggestion;
-      searchInput.focus();
-      hideSuggestions(resultDiv);
-      // Trigger search
-      searchInput.dispatchEvent(new Event('input'));
-    });
-
-    suggestionsDiv.appendChild(suggestionItem);
+    // Find the search container and append suggestions
+    const searchContainer = searchInput.parentElement;
+    searchContainer.style.setProperty('position', 'relative', 'important');
+    searchContainer.appendChild(suggestionsDiv);
   });
-
-  // Find the search container and append suggestions
-  const searchContainer = searchInput.parentElement;
-  searchContainer.style.setProperty('position', 'relative', 'important');
-  searchContainer.appendChild(suggestionsDiv);
 }
 
 // Hide suggestions dropdown
