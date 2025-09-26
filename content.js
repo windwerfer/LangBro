@@ -453,9 +453,12 @@ function showPopupSpinner(group, boxId) {
   resultDiv.style.setProperty('width', '300px', 'important');
   resultDiv.style.setProperty('height', '100px', 'important');
   resultDiv.style.setProperty('border-radius', '4px', 'important');
-  resultDiv.style.setProperty('padding', '10px', 'important');
+  resultDiv.style.setProperty('padding', '0px', 'important'); // Add padding to parent
   resultDiv.style.setProperty('z-index', '999999', 'important');
   resultDiv.style.setProperty('font-size', '14px', 'important');
+  resultDiv.style.setProperty('display', 'flex', 'important');
+  resultDiv.style.setProperty('flex-direction', 'column', 'important');
+  resultDiv.style.setProperty('box-sizing', 'border-box', 'important'); // Include padding in width calculation
 
   document.body.appendChild(resultDiv);
   resultDivs.push(resultDiv);
@@ -497,8 +500,33 @@ function showPopupSpinner(group, boxId) {
     resultDiv.style.setProperty('top', top + 'px', 'important');
   }
 
-  resultDiv.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; height: 100%;"><div style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 10px; height: 10px; animation: spin 2s linear infinite;"></div><span style="margin-left: 10px;">Loading ${group.name}...</span></div><style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>`;
-  resultDiv.style.setProperty('display', 'block', 'important');
+  // Create header div for close button
+  const headerDiv = document.createElement('div');
+  headerDiv.className = 'popupResultHeader';
+  // headerDiv.style.setProperty('width', '100%', 'important');
+  headerDiv.style.setProperty('position', 'relative', 'important');
+  headerDiv.style.setProperty('flex-shrink', '0', 'important');
+  // headerDiv.style.setProperty('margin', '0px', 'important'); // Negative margin to counteract parent padding
+  headerDiv.style.setProperty('padding', '10px', 'important');
+
+  // Create content div for spinner
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'popupResultContent';
+  // contentDiv.style.setProperty('width', '100%', 'important');
+  contentDiv.style.setProperty('flex', '1', 'important');
+  contentDiv.style.setProperty('display', 'flex', 'important');
+  contentDiv.style.setProperty('align-items', 'center', 'important');
+  contentDiv.style.setProperty('justify-content', 'center', 'important');
+  contentDiv.style.setProperty('min-height', '70px', 'important');
+  contentDiv.style.setProperty('padding', '0px 10px', 'important');
+
+  contentDiv.innerHTML = `<div style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 10px; height: 10px; animation: spin 2s linear infinite;"></div><span style="margin-left: 10px;">Loading ${group.name}...</span><style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>`;
+
+  // Assemble the structure
+  resultDiv.appendChild(headerDiv);
+  resultDiv.appendChild(contentDiv);
+
+  resultDiv.style.setProperty('display', 'flex', 'important');
 }
 
 // Show inline spinner
@@ -536,11 +564,13 @@ function showInlineSpinner(group, boxId) {
   inlineDiv.dataset.parentId = parentElement.id || 'no-id';
   inlineDiv.style.setProperty('position', 'relative', 'important');
   inlineDiv.style.setProperty('margin-top', '10px', 'important');
-  inlineDiv.style.setProperty('padding', '10px', 'important');
+  inlineDiv.style.setProperty('padding', '10px', 'important'); // Remove padding, let child divs handle it
   inlineDiv.style.setProperty('border-radius', '4px', 'important');
   inlineDiv.style.setProperty('border', '1px solid #ccc', 'important');
   inlineDiv.style.setProperty('font-size', '14px', 'important');
   inlineDiv.style.setProperty('min-height', '35px', 'important');
+  inlineDiv.style.setProperty('display', 'flex', 'important');
+  inlineDiv.style.setProperty('flex-direction', 'column', 'important');
 
   // Apply dark mode
   chrome.storage.local.get(['darkMode'], (result) => {
@@ -557,7 +587,30 @@ function showInlineSpinner(group, boxId) {
     }
   });
 
-  inlineDiv.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; height: 100%;"><div style="border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; width: 10px; height: 10px; animation: spin 2s linear infinite;"></div><span style="margin-left: 6px;">Loading ${group.name}...</span></div><style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>`;
+  // Create header div for close button (will be added later in showInlineResult)
+  const headerDiv = document.createElement('div');
+  headerDiv.className = 'inlineResultHeader';
+  headerDiv.style.setProperty('width', '100%', 'important');
+  headerDiv.style.setProperty('position', 'relative', 'important');
+  headerDiv.style.setProperty('flex-shrink', '0', 'important');
+  headerDiv.style.setProperty('padding', '5px 10px', 'important'); // Add padding to header
+
+  // Create content div for spinner
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'inlineResultContent';
+  contentDiv.style.setProperty('width', '100%', 'important');
+  contentDiv.style.setProperty('flex', '1', 'important');
+  contentDiv.style.setProperty('padding', '5px 10px', 'important'); // Add padding to content
+  contentDiv.style.setProperty('display', 'flex', 'important');
+  contentDiv.style.setProperty('align-items', 'center', 'important');
+  contentDiv.style.setProperty('justify-content', 'center', 'important');
+  contentDiv.style.setProperty('min-height', '25px', 'important');
+
+  contentDiv.innerHTML = `<div style="border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; width: 10px; height: 10px; animation: spin 2s linear infinite;"></div><span style="margin-left: 6px;">Loading ${group.name}...</span><style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>`;
+
+  // Assemble the structure
+  inlineDiv.appendChild(headerDiv);
+  inlineDiv.appendChild(contentDiv);
 
   // Insert after the parent element
   parentElement.parentNode.insertBefore(inlineDiv, parentElement.nextSibling);
@@ -565,7 +618,7 @@ function showInlineSpinner(group, boxId) {
   // Store reference for later replacement
   inlineDivs.push(inlineDiv);
 
-  inlineDiv.style.setProperty('display', 'block', 'important');
+  inlineDiv.style.setProperty('display', 'flex', 'important');
 
   // Return location info for the result handler
   return { boxId, displayMethod: 'inline' };
@@ -581,11 +634,13 @@ function showBottomSpinner(group, boxId) {
   bottomDiv.style.setProperty('width', '100%', 'important');
   bottomDiv.style.setProperty('height', '30%', 'important');
   bottomDiv.style.setProperty('border-top', '1px solid #ccc', 'important');
-  bottomDiv.style.setProperty('padding', '10px', 'important');
+  bottomDiv.style.setProperty('padding', '0', 'important'); // Remove padding, let child divs handle it
   bottomDiv.style.setProperty('z-index', '999998', 'important');
   bottomDiv.style.setProperty('font-size', '14px', 'important');
   bottomDiv.style.setProperty('box-sizing', 'border-box', 'important');
-  bottomDiv.style.setProperty('overflow-y', 'auto', 'important');
+  bottomDiv.style.setProperty('display', 'flex', 'important');
+  bottomDiv.style.setProperty('flex-direction', 'column', 'important');
+  bottomDiv.style.setProperty('overflow-y', 'visible', 'important'); // Main div doesn't scroll
 
   document.body.appendChild(bottomDiv);
   bottomDivs.push(bottomDiv);
@@ -605,8 +660,32 @@ function showBottomSpinner(group, boxId) {
     }
   });
 
-  bottomDiv.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; height: 100%;"><div style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 10px; height: 10px; animation: spin 2s linear infinite;"></div><span style="margin-left: 10px;">Loading ${group.name}...</span></div><style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>`;
-  bottomDiv.style.setProperty('display', 'block', 'important');
+  // Create header div for close button
+  const headerDiv = document.createElement('div');
+  headerDiv.className = 'bottomResultHeader';
+  headerDiv.style.setProperty('width', '100%', 'important');
+  headerDiv.style.setProperty('position', 'relative', 'important');
+  headerDiv.style.setProperty('flex-shrink', '0', 'important');
+  headerDiv.style.setProperty('padding', '10px 15px', 'important'); // Keep original padding for header
+
+  // Create content div for spinner
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'bottomResultContent';
+  contentDiv.style.setProperty('width', '100%', 'important');
+  contentDiv.style.setProperty('flex', '1', 'important');
+  contentDiv.style.setProperty('padding', '0 15px 10px 15px', 'important'); // Bottom padding
+  contentDiv.style.setProperty('display', 'flex', 'important');
+  contentDiv.style.setProperty('align-items', 'center', 'important');
+  contentDiv.style.setProperty('justify-content', 'center', 'important');
+  contentDiv.style.setProperty('min-height', 'calc(100% - 40px)', 'important'); // Account for header
+
+  contentDiv.innerHTML = `<div style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 10px; height: 10px; animation: spin 2s linear infinite;"></div><span style="margin-left: 10px;">Loading ${group.name}...</span><style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>`;
+
+  // Assemble the structure
+  bottomDiv.appendChild(headerDiv);
+  bottomDiv.appendChild(contentDiv);
+
+  bottomDiv.style.setProperty('display', 'flex', 'important');
 }
 
 // Show the result based on group's display method
@@ -633,6 +712,9 @@ function showPopupResult(definition, group, boxId) {
   // Get popup settings
   const popupSettings = group.popupSettings || { width: '40%', height: '30%', hideOnClickOutside: false };
 
+  // Clear existing content
+  resultDiv.innerHTML = '';
+
   // Apply dark mode if enabled
   chrome.storage.local.get(['darkMode'], (result) => {
     const isDarkMode = result.darkMode || false;
@@ -652,25 +734,7 @@ function showPopupResult(definition, group, boxId) {
     // Set width and height from popup settings
     resultDiv.style.setProperty('width', popupSettings.width, 'important');
     resultDiv.style.setProperty('height', popupSettings.height, 'important');
-    resultDiv.style.setProperty('overflow-y', 'auto', 'important'); // Add scroll if content is too tall
-
-    // Update CSS for dictionary classes based on mode
-    const styleElement = resultDiv.querySelector('style');
-    if (styleElement) {
-      if (isDarkMode) {
-        styleElement.textContent = `
-          .dict-type { color: #90EE90; }
-          .dict-pron { color: #D2B48C; }
-          .dict-level { font-size: 0.7em; color: #cccccc; }
-        `;
-      } else {
-        styleElement.textContent = `
-          .dict-type { color: green; }
-          .dict-pron { color: brown; }
-          .dict-level { font-size: 0.7em; }
-        `;
-      }
-    }
+    resultDiv.style.setProperty('overflow-y', 'visible', 'important'); // Main div doesn't scroll
   });
 
   // Position near the original selection
@@ -700,31 +764,51 @@ function showPopupResult(definition, group, boxId) {
     resultDiv.style.setProperty('top', top + 'px', 'important');
   }
 
-  // Sanitize and display HTML
+  // Create header div for close button
+  const headerDiv = document.createElement('div');
+  headerDiv.className = 'popupResultHeader';
+  // headerDiv.style.setProperty('width', '100%', 'important');
+  headerDiv.style.setProperty('position', 'relative', 'important');
+  headerDiv.style.setProperty('flex-shrink', '0', 'important');
+  headerDiv.style.setProperty('padding', '5px 10px', 'important');
+
+  // Create content div for scrollable content
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'popupResultContent';
+  // contentDiv.style.setProperty('width', '100%', 'important');
+  contentDiv.style.setProperty('flex', '1', 'important');
+  contentDiv.style.setProperty('overflow-y', 'auto', 'important');
+  contentDiv.style.setProperty('padding', '5px 10px', 'important');
+
+  // Set main div to flexbox
+  resultDiv.style.setProperty('display', 'flex', 'important');
+  resultDiv.style.setProperty('flex-direction', 'column', 'important');
+
+  // Sanitize and display HTML in content div
   const sanitizedHTML = sanitizeDictHTML(definition);
 
   // Add CSS for dictionary classes
-  let styleElement = resultDiv.querySelector('style');
-  if (!styleElement) {
-    styleElement = document.createElement('style');
-    resultDiv.appendChild(styleElement);
-  }
+  const styleElement = document.createElement('style');
   styleElement.textContent = `
     .dict-type { color: green; }
     .dict-pron { color: brown; }
     .dict-level { font-size: 0.7em; }
   `;
+  contentDiv.appendChild(styleElement);
+  contentDiv.innerHTML += sanitizedHTML;
 
-  resultDiv.innerHTML = sanitizedHTML;
-  resultDiv.insertBefore(styleElement, resultDiv.firstChild);
+  // Add close button to header
+  const closeBtn = createCloseButton(resultDiv, '5px', '5px');
+  headerDiv.appendChild(closeBtn);
 
-  // Re-add close button since innerHTML clears it
-  resultDiv.appendChild(createCloseButton(resultDiv));
+  // Assemble the structure
+  resultDiv.appendChild(headerDiv);
+  resultDiv.appendChild(contentDiv);
 
   // Store hide on click outside setting for later use
   resultDiv.dataset.hideOnClickOutside = popupSettings.hideOnClickOutside;
 
-  resultDiv.style.setProperty('display', 'block', 'important');
+  resultDiv.style.setProperty('display', 'flex', 'important');
 }
 
 // Show the result inline below the selected text
@@ -763,11 +847,36 @@ function showInlineResult(definition, group, boxId) {
     } else {
       // Fixed height: show scrollbars if content is too tall
       inlineDiv.style.setProperty('max-height', '200px', 'important');
-      inlineDiv.style.setProperty('overflow-y', 'auto', 'important');
+      inlineDiv.style.setProperty('overflow-y', 'visible', 'important'); // Main div doesn't scroll
     }
   });
 
-  // Sanitize and display HTML
+  // Create header div for close button
+  const headerDiv = document.createElement('div');
+  headerDiv.className = 'inlineResultHeader';
+  headerDiv.style.setProperty('width', '100%', 'important');
+  headerDiv.style.setProperty('position', 'relative', 'important');
+  headerDiv.style.setProperty('flex-shrink', '0', 'important');
+
+  // Create content div for scrollable content
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'inlineResultContent';
+  contentDiv.style.setProperty('width', '100%', 'important');
+  contentDiv.style.setProperty('flex', '1', 'important');
+  contentDiv.style.setProperty('overflow-y', 'auto', 'important');
+
+  // Apply flexible height settings to content div
+  if (flexibleHeight) {
+    contentDiv.style.setProperty('max-height', 'none', 'important');
+  } else {
+    contentDiv.style.setProperty('max-height', '180px', 'important'); // Account for header
+  }
+
+  // Set main div to flexbox
+  inlineDiv.style.setProperty('display', 'flex', 'important');
+  inlineDiv.style.setProperty('flex-direction', 'column', 'important');
+
+  // Sanitize and display HTML in content div
   const sanitizedHTML = sanitizeDictHTML(definition);
 
   // Add CSS for dictionary classes
@@ -777,21 +886,27 @@ function showInlineResult(definition, group, boxId) {
     .dict-pron { color: brown; }
     .dict-level { font-size: 0.7em; }
   `;
-  inlineDiv.appendChild(styleElement);
+  contentDiv.appendChild(styleElement);
+  contentDiv.innerHTML += sanitizedHTML;
 
-  inlineDiv.innerHTML += sanitizedHTML;
-
-  // Add close button above the box
+  // Add close button to header
   const closeBtn = createCloseButton(inlineDiv, '-40px', '5px');
-  inlineDiv.appendChild(closeBtn);
+  headerDiv.appendChild(closeBtn);
 
-  inlineDiv.style.setProperty('display', 'block', 'important');
+  // Assemble the structure
+  inlineDiv.appendChild(headerDiv);
+  inlineDiv.appendChild(contentDiv);
+
+  inlineDiv.style.setProperty('display', 'flex', 'important');
 }
 
 // Show the result in a bottom panel
 function showBottomResult(definition, group, boxId) {
   const bottomDiv = bottomDivs.find(div => div.dataset.boxId == boxId);
   if (!bottomDiv) return;
+
+  // Clear existing content
+  bottomDiv.innerHTML = '';
 
   // Apply dark mode
   chrome.storage.local.get(['darkMode'], (result) => {
@@ -808,33 +923,54 @@ function showBottomResult(definition, group, boxId) {
     }
   });
 
-  // Sanitize and display HTML
+  // Set main div to flexbox and remove old padding
+  bottomDiv.style.setProperty('display', 'flex', 'important');
+  bottomDiv.style.setProperty('flex-direction', 'column', 'important');
+  bottomDiv.style.setProperty('padding', '10px', 'important'); // Remove padding, let child divs handle it
+  bottomDiv.style.setProperty('overflow-y', 'visible', 'important'); // Main div doesn't scroll
+
+  // Create header div for close button
+  const headerDiv = document.createElement('div');
+  headerDiv.className = 'bottomResultHeader';
+  headerDiv.style.setProperty('width', '100%', 'important');
+  headerDiv.style.setProperty('position', 'relative', 'important');
+  headerDiv.style.setProperty('flex-shrink', '0', 'important');
+  headerDiv.style.setProperty('padding', '0px', 'important'); // Keep original padding for header
+
+  // Create content div for scrollable content
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'bottomResultContent';
+  contentDiv.style.setProperty('width', '100%', 'important');
+  contentDiv.style.setProperty('flex', '1', 'important');
+  contentDiv.style.setProperty('overflow-y', 'auto', 'important');
+  contentDiv.style.setProperty('padding', '10px 0px', 'important'); // Bottom padding
+
+  // Sanitize and display HTML in content div
   const sanitizedHTML = sanitizeDictHTML(definition);
 
   // Add CSS for dictionary classes
-  let styleElement = bottomDiv.querySelector('style');
-  if (!styleElement) {
-    styleElement = document.createElement('style');
-    bottomDiv.appendChild(styleElement);
-  }
+  const styleElement = document.createElement('style');
   styleElement.textContent = `
     .dict-type { color: green; }
     .dict-pron { color: brown; }
     .dict-level { font-size: 0.7em; }
   `;
+  contentDiv.appendChild(styleElement);
+  contentDiv.innerHTML += sanitizedHTML;
 
-  bottomDiv.innerHTML = sanitizedHTML;
-  bottomDiv.insertBefore(styleElement, bottomDiv.firstChild);
+  // Add close button to header
+  const closeBtn = createCloseButton(bottomDiv, '-40px', '15px');
+  headerDiv.appendChild(closeBtn);
 
-  // Re-add close button
-  const closeBtn = createCloseButton(bottomDiv, '-40px', '15px'); // Account for 10px padding
-  bottomDiv.appendChild(closeBtn);
+  // Assemble the structure
+  bottomDiv.appendChild(headerDiv);
+  bottomDiv.appendChild(contentDiv);
 
-  bottomDiv.style.setProperty('display', 'block', 'important');
+  bottomDiv.style.setProperty('display', 'flex', 'important');
 }
 
 // Create close button for result div
-function createCloseButton(targetDiv, top = '-5px', right = '5px') {
+function createCloseButton(targetDiv, top = '10px', right = '10px') {
   const closeBtn = document.createElement('button');
   closeBtn.textContent = 'X';
   closeBtn.style.position = 'absolute';
@@ -851,7 +987,8 @@ function createCloseButton(targetDiv, top = '-5px', right = '5px') {
   closeBtn.style.lineHeight = '1';
   closeBtn.style.padding = '0px';
   closeBtn.style.zIndex = '1000001';
-  closeBtn.onclick = () => {
+  closeBtn.onclick = (e) => {
+    e.stopPropagation(); // Prevent event bubbling
     targetDiv.style.display = 'none';
   };
   return closeBtn;
