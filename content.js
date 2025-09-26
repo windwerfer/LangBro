@@ -3,6 +3,159 @@
 
 console.log('Content script loaded');
 
+// Selection state management constants
+const SELECTION_STATES = {
+  IDLE: 'idle',
+  PROGRAMMATIC: 'programmatic',  // Extension-created selections
+  USER_INITIATED: 'user_initiated'  // User mouse/text selections
+};
+
+// Centralized Event Manager for robust event handling
+class EventManager {
+  constructor() {
+    this.listeners = new Map();
+    this.selectionState = SELECTION_STATES.IDLE;
+    this.debounceTimers = new Map();
+    this.eventFilters = new Map();
+  }
+
+  // Set current selection state to prevent conflicts
+  setSelectionState(state) {
+    console.log(`EventManager: Selection state changed from ${this.selectionState} to ${state}`);
+    this.selectionState = state;
+
+    // Auto-reset to idle after a short delay for programmatic selections
+    if (state === SELECTION_STATES.PROGRAMMATIC) {
+      setTimeout(() => {
+        if (this.selectionState === SELECTION_STATES.PROGRAMMATIC) {
+          this.setSelectionState(SELECTION_STATES.IDLE);
+        }
+      }, 100);
+    }
+  }
+
+  // Add event listener with optional filtering
+  addListener(element, eventType, handler, options = {}) {
+    const key = `${eventType}-${Date.now()}`;
+
+    const wrappedHandler = (event) => {
+      // Apply event filtering based on current state
+      if (options.filter && !this.shouldHandleEvent(event, options.filter)) {
+        return;
+      }
+
+      // Debounce if requested
+      if (options.debounce) {
+        this.debounceEvent(key, () => handler(event), options.debounce);
+        return;
+      }
+
+      handler(event);
+    };
+
+    element.addEventListener(eventType, wrappedHandler, options.passive ? { passive: true } : undefined);
+    this.listeners.set(key, { element, eventType, wrappedHandler });
+
+    return key; // Return key for removal
+  }
+
+  // Add delegated event listener (more efficient for dynamic content)
+  addDelegatedListener(eventType, selector, handler, options = {}) {
+    const key = `delegated-${eventType}-${selector}-${Date.now()}`;
+
+    const wrappedHandler = (event) => {
+      const target = event.target.closest(selector);
+      if (!target) return;
+
+      // Apply event filtering
+      if (options.filter && !this.shouldHandleEvent(event, options.filter)) {
+        return;
+      }
+
+      // Debounce if requested
+      if (options.debounce) {
+        this.debounceEvent(key, () => handler(event, target), options.debounce);
+        return;
+      }
+
+      handler(event, target);
+    };
+
+    document.addEventListener(eventType, wrappedHandler, options.passive ? { passive: true } : undefined);
+    this.listeners.set(key, { element: document, eventType, wrappedHandler, delegated: true, selector });
+
+    return key;
+  }
+
+  // Determine if event should be handled based on current state
+  shouldHandleEvent(event, filter) {
+    if (!filter) return true;
+
+    switch (filter) {
+      case 'ignoreProgrammaticSelections':
+        return this.selectionState !== SELECTION_STATES.PROGRAMMATIC;
+      case 'onlyUserSelections':
+        return this.selectionState === SELECTION_STATES.USER_INITIATED;
+      case 'ignoreDuringGestures':
+        return !this.isGestureInProgress();
+      default:
+        return true;
+    }
+  }
+
+  // Check if any gesture is currently in progress
+  isGestureInProgress() {
+    // Could be extended to track various gesture states
+    return false; // For now, always allow
+  }
+
+  // Debounce event handling
+  debounceEvent(key, callback, delay = 100) {
+    if (this.debounceTimers.has(key)) {
+      clearTimeout(this.debounceTimers.get(key));
+    }
+
+    const timer = setTimeout(() => {
+      this.debounceTimers.delete(key);
+      callback();
+    }, delay);
+
+    this.debounceTimers.set(key, timer);
+  }
+
+  // Remove specific listener
+  removeListener(key) {
+    const listener = this.listeners.get(key);
+    if (listener) {
+      listener.element.removeEventListener(listener.eventType, listener.wrappedHandler);
+      this.listeners.delete(key);
+
+      // Clear any pending debounce timer
+      if (this.debounceTimers.has(key)) {
+        clearTimeout(this.debounceTimers.get(key));
+        this.debounceTimers.delete(key);
+      }
+    }
+  }
+
+  // Remove all listeners (cleanup)
+  destroy() {
+    for (const [key, listener] of this.listeners) {
+      listener.element.removeEventListener(listener.eventType, listener.wrappedHandler);
+    }
+    this.listeners.clear();
+
+    // Clear all debounce timers
+    for (const timer of this.debounceTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.debounceTimers.clear();
+  }
+}
+
+// Global event manager instance
+const eventManager = new EventManager();
+
 let lookupIcons = [];
 let resultDivs = [];
 let inlineDivs = [];
@@ -80,9 +233,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// Listen for text selection
-document.addEventListener('selectionchange', handleSelectionChange);
-document.addEventListener('keyup', handleSelectionChange);
+// Listen for text selection using EventManager
+eventManager.addListener(document, 'selectionchange', handleSelectionChange);
+eventManager.addListener(document, 'keyup', handleSelectionChange);
 
 // Function to extract selected text
 function getSelectedText(selection) {
@@ -317,9 +470,9 @@ function showLookupIcons(selection) {
       icon.style.top = top + 'px';
       icon.style.display = 'block';
 
-      // Add event listeners
-      icon.addEventListener('click', (e) => handleIconClick(e, group));
-      icon.addEventListener('mousedown', (e) => {
+      // Add event listeners using EventManager
+      eventManager.addListener(icon, 'click', (e) => handleIconClick(e, group));
+      eventManager.addListener(icon, 'mousedown', (e) => {
         e.preventDefault();
         e.stopPropagation();
       });
@@ -492,18 +645,11 @@ function showPopupResult(definition, group, boxId, initialWord = '') {
       }
     });
 
-    // Add event delegation for single-click gestures on popup content
-    let clickStartTime = 0;
-    let clickStartX = 0;
-    let clickStartY = 0;
-    let clickTargetElement = null;
-
-    resultDiv.addEventListener('mousedown', (event) => {
+    // Add event delegation for single-click gestures on popup content using EventManager
+    eventManager.addDelegatedListener('mousedown', '.popupResultContent p, .popupResultContent div, .popupResultContent span, .popupResultContent em, .popupResultContent strong, .popupResultContent b, .popupResultContent i', (event, targetElement) => {
       // Only handle if single-click is enabled
       if (!singleClickGroupId) return;
 
-      // Find the closest text-containing element (p, div, span, etc.)
-      const targetElement = event.target.closest('p, div, span, em, strong, b, i');
       if (!targetElement || !targetElement.textContent.trim()) return;
 
       // Don't trigger on interactive elements
@@ -518,34 +664,34 @@ function showPopupResult(definition, group, boxId, initialWord = '') {
         return;
       }
 
-      // Record click start for tap detection
-      clickStartTime = Date.now();
-      clickStartX = event.clientX;
-      clickStartY = event.clientY;
-      clickTargetElement = targetElement;
+      // Store click data on the result div for mouseup to access
+      resultDiv._clickStartTime = Date.now();
+      resultDiv._clickStartX = event.clientX;
+      resultDiv._clickStartY = event.clientY;
+      resultDiv._clickTargetElement = targetElement;
     });
 
-    resultDiv.addEventListener('mouseup', (event) => {
+    eventManager.addDelegatedListener('mouseup', '.popupResultContent', (event) => {
       // Only handle if we have a recorded mousedown
-      if (!clickStartTime || !clickTargetElement) return;
+      if (!resultDiv._clickStartTime || !resultDiv._clickTargetElement) return;
 
-      const clickDuration = Date.now() - clickStartTime;
+      const clickDuration = Date.now() - resultDiv._clickStartTime;
       const clickDistance = Math.sqrt(
-        Math.pow(event.clientX - clickStartX, 2) +
-        Math.pow(event.clientY - clickStartY, 2)
+        Math.pow(event.clientX - resultDiv._clickStartX, 2) +
+        Math.pow(event.clientY - resultDiv._clickStartY, 2)
       );
 
       // Check if this was a quick tap (not a selection or drag)
       if (clickDuration < 250 && clickDistance < 5) {
         // It's a tap! Trigger single-click
-        executeSingleClickQuery(clickTargetElement, event);
+        executeSingleClickQuery(resultDiv._clickTargetElement, event);
       }
 
       // Reset tracking
-      clickStartTime = 0;
-      clickStartX = 0;
-      clickStartY = 0;
-      clickTargetElement = null;
+      resultDiv._clickStartTime = 0;
+      resultDiv._clickStartX = 0;
+      resultDiv._clickStartY = 0;
+      resultDiv._clickTargetElement = null;
     });
 
     // Position near the original selection
@@ -707,18 +853,11 @@ function showInlineResult(definition, group, boxId, initialWord = '') {
       }
     });
 
-    // Add event delegation for single-click gestures on inline content
-    let clickStartTime = 0;
-    let clickStartX = 0;
-    let clickStartY = 0;
-    let clickTargetElement = null;
-
-    inlineDiv.addEventListener('mousedown', (event) => {
+    // Add event delegation for single-click gestures on inline content using EventManager
+    eventManager.addDelegatedListener('mousedown', '.inlineResultContent p, .inlineResultContent div, .inlineResultContent span, .inlineResultContent em, .inlineResultContent strong, .inlineResultContent b, .inlineResultContent i', (event, targetElement) => {
       // Only handle if single-click is enabled
       if (!singleClickGroupId) return;
 
-      // Find the closest text-containing element (p, div, span, etc.)
-      const targetElement = event.target.closest('p, div, span, em, strong, b, i');
       if (!targetElement || !targetElement.textContent.trim()) return;
 
       // Don't trigger on interactive elements
@@ -733,34 +872,34 @@ function showInlineResult(definition, group, boxId, initialWord = '') {
         return;
       }
 
-      // Record click start for tap detection
-      clickStartTime = Date.now();
-      clickStartX = event.clientX;
-      clickStartY = event.clientY;
-      clickTargetElement = targetElement;
+      // Store click data on the inline div for mouseup to access
+      inlineDiv._clickStartTime = Date.now();
+      inlineDiv._clickStartX = event.clientX;
+      inlineDiv._clickStartY = event.clientY;
+      inlineDiv._clickTargetElement = targetElement;
     });
 
-    inlineDiv.addEventListener('mouseup', (event) => {
+    eventManager.addDelegatedListener('mouseup', '.inlineResultContent', (event) => {
       // Only handle if we have a recorded mousedown
-      if (!clickStartTime || !clickTargetElement) return;
+      if (!inlineDiv._clickStartTime || !inlineDiv._clickTargetElement) return;
 
-      const clickDuration = Date.now() - clickStartTime;
+      const clickDuration = Date.now() - inlineDiv._clickStartTime;
       const clickDistance = Math.sqrt(
-        Math.pow(event.clientX - clickStartX, 2) +
-        Math.pow(event.clientY - clickStartY, 2)
+        Math.pow(event.clientX - inlineDiv._clickStartX, 2) +
+        Math.pow(event.clientY - inlineDiv._clickStartY, 2)
       );
 
       // Check if this was a quick tap (not a selection or drag)
       if (clickDuration < 250 && clickDistance < 5) {
         // It's a tap! Trigger single-click
-        executeSingleClickQuery(clickTargetElement, event);
+        executeSingleClickQuery(inlineDiv._clickTargetElement, event);
       }
 
       // Reset tracking
-      clickStartTime = 0;
-      clickStartX = 0;
-      clickStartY = 0;
-      clickTargetElement = null;
+      inlineDiv._clickStartTime = 0;
+      inlineDiv._clickStartX = 0;
+      inlineDiv._clickStartY = 0;
+      inlineDiv._clickTargetElement = null;
     });
 
     // Create header div for close button and search field
@@ -894,18 +1033,11 @@ function showBottomResult(definition, group, boxId, initialWord = '') {
       }
     });
 
-    // Add event delegation for single-click gestures on bottom content
-    let clickStartTime = 0;
-    let clickStartX = 0;
-    let clickStartY = 0;
-    let clickTargetElement = null;
-
-    bottomDiv.addEventListener('mousedown', (event) => {
+    // Add event delegation for single-click gestures on bottom content using EventManager
+    eventManager.addDelegatedListener('mousedown', '.bottomResultContent p, .bottomResultContent div, .bottomResultContent span, .bottomResultContent em, .bottomResultContent strong, .bottomResultContent b, .bottomResultContent i', (event, targetElement) => {
       // Only handle if single-click is enabled
       if (!singleClickGroupId) return;
 
-      // Find the closest text-containing element (p, div, span, etc.)
-      const targetElement = event.target.closest('p, div, span, em, strong, b, i');
       if (!targetElement || !targetElement.textContent.trim()) return;
 
       // Don't trigger on interactive elements
@@ -920,34 +1052,34 @@ function showBottomResult(definition, group, boxId, initialWord = '') {
         return;
       }
 
-      // Record click start for tap detection
-      clickStartTime = Date.now();
-      clickStartX = event.clientX;
-      clickStartY = event.clientY;
-      clickTargetElement = targetElement;
+      // Store click data on the bottom div for mouseup to access
+      bottomDiv._clickStartTime = Date.now();
+      bottomDiv._clickStartX = event.clientX;
+      bottomDiv._clickStartY = event.clientY;
+      bottomDiv._clickTargetElement = targetElement;
     });
 
-    bottomDiv.addEventListener('mouseup', (event) => {
+    eventManager.addDelegatedListener('mouseup', '.bottomResultContent', (event) => {
       // Only handle if we have a recorded mousedown
-      if (!clickStartTime || !clickTargetElement) return;
+      if (!bottomDiv._clickStartTime || !bottomDiv._clickTargetElement) return;
 
-      const clickDuration = Date.now() - clickStartTime;
+      const clickDuration = Date.now() - bottomDiv._clickStartTime;
       const clickDistance = Math.sqrt(
-        Math.pow(event.clientX - clickStartX, 2) +
-        Math.pow(event.clientY - clickStartY, 2)
+        Math.pow(event.clientX - bottomDiv._clickStartX, 2) +
+        Math.pow(event.clientY - bottomDiv._clickStartY, 2)
       );
 
       // Check if this was a quick tap (not a selection or drag)
       if (clickDuration < 250 && clickDistance < 5) {
         // It's a tap! Trigger single-click
-        executeSingleClickQuery(clickTargetElement, event);
+        executeSingleClickQuery(bottomDiv._clickTargetElement, event);
       }
 
       // Reset tracking
-      clickStartTime = 0;
-      clickStartX = 0;
-      clickStartY = 0;
-      clickTargetElement = null;
+      bottomDiv._clickStartTime = 0;
+      bottomDiv._clickStartX = 0;
+      bottomDiv._clickStartY = 0;
+      bottomDiv._clickTargetElement = null;
     });
 
     // Create header div for close button and search field
@@ -1095,8 +1227,8 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
     searchButton.onclick = () => performSearch(searchInput.value.trim(), group, resultDiv, boxId);
     searchContainer.appendChild(searchButton);
 
-    // Handle Enter key
-    searchInput.addEventListener('keydown', (e) => {
+    // Handle Enter key using EventManager
+    eventManager.addListener(searchInput, 'keydown', (e) => {
       if (e.key === 'Enter') {
         performSearch(searchInput.value.trim(), group, resultDiv, boxId);
       }
@@ -1107,11 +1239,10 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
   const suggestionsEnabled = group.queryType === 'offline' && (group.displaySuggestions || 20) > 0;
 
   if (group.showSearchField === 'liveResults') {
-    // Live results - add debounced input handler
-    let debounceTimer;
-    searchInput.addEventListener('input', () => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(async () => {
+    // Live results - add debounced input handler using EventManager
+    eventManager.addListener(searchInput, 'input', () => {
+      // Use the EventManager's debounce functionality
+      eventManager.debounceEvent(`search-${boxId}`, async () => {
         const query = searchInput.value.trim();
         performSearch(query, group, resultDiv, boxId);
 
@@ -1174,21 +1305,20 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
         }
       };
 
-      searchInput.addEventListener('focus', showSuggestionsIfContent);
-      searchInput.addEventListener('click', showSuggestionsIfContent);
+      eventManager.addListener(searchInput, 'focus', showSuggestionsIfContent);
+      eventManager.addListener(searchInput, 'click', showSuggestionsIfContent);
 
       // Hide suggestions when input loses focus
-      searchInput.addEventListener('blur', () => {
+      eventManager.addListener(searchInput, 'blur', () => {
         // Delay hiding to allow clicking on suggestions
         setTimeout(() => hideSuggestions(resultDiv), 150);
       });
     }
   } else if (suggestionsEnabled) {
     // Show suggestions for onPressingEnter mode, but don't auto-search
-    let debounceTimer;
-    searchInput.addEventListener('input', () => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(async () => {
+    eventManager.addListener(searchInput, 'input', () => {
+      // Use the EventManager's debounce functionality
+      eventManager.debounceEvent(`suggestions-${boxId}`, async () => {
         const query = searchInput.value.trim();
 
         // Only get suggestions, don't perform search
@@ -1249,11 +1379,11 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
       }
     };
 
-    searchInput.addEventListener('focus', showSuggestionsIfContent);
-    searchInput.addEventListener('click', showSuggestionsIfContent);
+    eventManager.addListener(searchInput, 'focus', showSuggestionsIfContent);
+    eventManager.addListener(searchInput, 'click', showSuggestionsIfContent);
 
     // Hide suggestions when input loses focus
-    searchInput.addEventListener('blur', () => {
+    eventManager.addListener(searchInput, 'blur', () => {
       // Delay hiding to allow clicking on suggestions
       setTimeout(() => hideSuggestions(resultDiv), 150);
     });
@@ -1306,16 +1436,16 @@ function showSuggestions(suggestions, searchInput, resultDiv, group, boxId) {
         suggestionItem.style.setProperty('border-bottom-color', '#333', 'important');
       }
 
-      suggestionItem.addEventListener('mouseenter', () => {
+      eventManager.addListener(suggestionItem, 'mouseenter', () => {
         const bgColor = isDarkMode ? '#333' : '#f0f0f0';
         suggestionItem.style.setProperty('background-color', bgColor, 'important');
       });
 
-      suggestionItem.addEventListener('mouseleave', () => {
+      eventManager.addListener(suggestionItem, 'mouseleave', () => {
         suggestionItem.style.setProperty('background-color', 'transparent', 'important');
       });
 
-      suggestionItem.addEventListener('click', () => {
+      eventManager.addListener(suggestionItem, 'click', () => {
         searchInput.value = suggestion;
         searchInput.focus();
         hideSuggestions(resultDiv);
@@ -1396,19 +1526,11 @@ let touchStartY = 0;
 let touchStartTime = 0;
 let isTrackingSwipe = false;
 
-// Add touch event listeners to paragraphs for swipe gestures
+// Add touch event listeners to paragraphs for swipe gestures using EventManager
 function addSwipeListeners() {
-  // Remove existing listeners first
-  document.querySelectorAll('p, div').forEach(element => {
-    element.removeEventListener('touchstart', handleTouchStart);
-    element.removeEventListener('touchend', handleTouchEnd);
-  });
-
-  // Add listeners to paragraphs and divs
-  document.querySelectorAll('p, div').forEach(element => {
-    element.addEventListener('touchstart', handleTouchStart, { passive: false });
-    element.addEventListener('touchend', handleTouchEnd, { passive: false });
-  });
+  // Use event delegation for better performance and centralized management
+  eventManager.addDelegatedListener('touchstart', 'p, div', handleTouchStart, { passive: false });
+  eventManager.addDelegatedListener('touchend', 'p, div', handleTouchEnd, { passive: false });
 }
 
 function handleTouchStart(event) {
@@ -1485,16 +1607,11 @@ let clickCount = 0;
 let clickTimer = null;
 let lastClickElement = null;
 
-// Add mousedown event listeners to paragraphs for triple click gestures
+// Add mousedown event listeners to paragraphs for triple click gestures using EventManager
 function addClickListeners() {
-  // Remove existing listeners first
-  document.querySelectorAll('p, div').forEach(element => {
-    element.removeEventListener('mousedown', handleMouseDown);
-  });
-
-  // Add listeners to paragraphs and divs
-  document.querySelectorAll('p, div').forEach(element => {
-    element.addEventListener('mousedown', handleMouseDown);
+  // Use event delegation for better performance and centralized management
+  eventManager.addDelegatedListener('mousedown', 'p, div', handleMouseDown, {
+    filter: 'ignoreProgrammaticSelections'
   });
 }
 
@@ -1536,29 +1653,41 @@ function handleMouseDown(event) {
     clearTimeout(clickTimer);
   }
 
-  // Set timer to reset click count after 500ms
+  // Set timer to handle click detection after 500ms
   clickTimer = setTimeout(() => {
-    // If we only got a single click and singleClickGroupId is set, execute single click action
+    // If we got exactly 3 clicks, triple-click was already handled
+    if (clickCount >= 3) {
+      // Triple-click already executed, just reset
+      clickCount = 0;
+      lastClickElement = null;
+      return;
+    }
+
+    // If we got exactly 1 click and single-click is enabled, execute single click action
     if (clickCount === 1 && singleClickGroupId) {
       executeSingleClickQuery(lastClickElement, event);
     }
-    clickCount = 0;
-    lastClickElement = null;
-  }, 500);
-
-  // Check for triple click
-  if (clickCount === 3) {
-    // Prevent default behavior and execute query
-    event.preventDefault();
-    event.stopPropagation();
 
     // Reset click tracking
     clickCount = 0;
     lastClickElement = null;
+  }, 500);
+
+  // Check for triple click immediately when we reach 3 clicks
+  if (clickCount === 3 && tripleClickGroupId) {
+    // Prevent default behavior and execute query
+    event.preventDefault();
+    event.stopPropagation();
+
+    // Clear the timer since we're handling the triple-click now
     if (clickTimer) {
       clearTimeout(clickTimer);
       clickTimer = null;
     }
+
+    // Reset click tracking
+    clickCount = 0;
+    lastClickElement = null;
 
     // Execute the selected query group with the paragraph text
     executeTripleClickQuery(targetElement);
@@ -1827,9 +1956,9 @@ function executeTripleClickQuery(element) {
   lookupWord(word, selectedGroup, locationInfo);
 }
 
-// Add click listener for word segmentation POC
+// Add click listener for word segmentation POC using EventManager
 function addWordSegmentationListener() {
-  document.addEventListener('click', handleWordSegmentationClick, true);
+  eventManager.addListener(document, 'click', handleWordSegmentationClick, { capture: true });
 }
 
 function handleWordSegmentationClick(event) {
@@ -1929,13 +2058,13 @@ function initializeListeners() {
 }
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializeListeners);
+  eventManager.addListener(document, 'DOMContentLoaded', initializeListeners);
 } else {
   initializeListeners();
 }
 
-// Hide result divs when clicking elsewhere
-document.addEventListener('click', (e) => {
+// Hide result divs when clicking elsewhere using EventManager
+eventManager.addListener(document, 'click', (e) => {
   if (resultJustShown) {
     resultJustShown = false;
     return;
