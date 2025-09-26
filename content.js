@@ -972,8 +972,36 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
       }, 300); // 0.3 second delay for faster suggestions
     });
 
-    // Hide suggestions when input loses focus
+    // Show suggestions when input gains focus (if it has content)
     if (suggestionsEnabled) {
+      searchInput.addEventListener('focus', async () => {
+        const query = searchInput.value.trim();
+        if (query.length > 0) {
+          try {
+            console.log('CONTENT: Requesting suggestions on focus for word:', query, 'dictionaries:', group.settings?.selectedDictionaries);
+            const response = await chrome.runtime.sendMessage({
+              action: 'getSuggestions',
+              word: query,
+              maxResults: group.displaySuggestions || 20,
+              selectedDictionaries: group.settings?.selectedDictionaries || []
+            });
+            console.log('CONTENT: Received suggestions response on focus:', response);
+
+            if (response.suggestions && response.suggestions.length > 0) {
+              console.log('CONTENT: Showing suggestions on focus:', response.suggestions);
+              showSuggestions(response.suggestions, searchInput, resultDiv, group, boxId);
+            } else {
+              console.log('CONTENT: No suggestions to show on focus, hiding dropdown');
+              hideSuggestions(resultDiv);
+            }
+          } catch (error) {
+            console.error('CONTENT: Error getting suggestions on focus:', error);
+            hideSuggestions(resultDiv);
+          }
+        }
+      });
+
+      // Hide suggestions when input loses focus
       searchInput.addEventListener('blur', () => {
         // Delay hiding to allow clicking on suggestions
         setTimeout(() => hideSuggestions(resultDiv), 150);
@@ -1015,6 +1043,34 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
           hideSuggestions(resultDiv);
         }
       }, 300); // 0.3 second delay for suggestions only
+    });
+
+    // Show suggestions when input gains focus (if it has content)
+    searchInput.addEventListener('focus', async () => {
+      const query = searchInput.value.trim();
+      if (query.length > 0) {
+        try {
+          console.log('CONTENT: Requesting suggestions on focus for word:', query, 'dictionaries:', group.settings?.selectedDictionaries);
+          const response = await chrome.runtime.sendMessage({
+            action: 'getSuggestions',
+            word: query,
+            maxResults: group.displaySuggestions || 20,
+            selectedDictionaries: group.settings?.selectedDictionaries || []
+          });
+          console.log('CONTENT: Received suggestions response on focus:', response);
+
+          if (response.suggestions && response.suggestions.length > 0) {
+            console.log('CONTENT: Showing suggestions on focus:', response.suggestions);
+            showSuggestions(response.suggestions, searchInput, resultDiv, group, boxId);
+          } else {
+            console.log('CONTENT: No suggestions to show on focus, hiding dropdown');
+            hideSuggestions(resultDiv);
+          }
+        } catch (error) {
+          console.error('CONTENT: Error getting suggestions on focus:', error);
+          hideSuggestions(resultDiv);
+        }
+      }
     });
 
     // Hide suggestions when input loses focus
