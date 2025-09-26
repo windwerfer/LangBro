@@ -343,8 +343,8 @@ function handleIconClick(event, group) {
   // console.log(currentSelection);console.log('xxx');
   if (currentSelection) {
     hideLookupIcons(); // Hide icons after click
-    // Show loading state immediately and get the location info
-    const locationInfo = showSpinner(group);
+    // Show result window immediately with spinner
+    const locationInfo = showResult(null, group);
 
     // Choose text based on group's textSelectionMethod
     const textSelectionMethod = group.textSelectionMethod || 'selectedText';
@@ -427,271 +427,12 @@ function sanitizeDictHTML(html) {
   return sanitized;
 }
 
-// Show spinner based on group's display method
-function showSpinner(group) {
-  const displayMethod = group.displayMethod || 'popup';
-  const boxId = ++boxIdCounter;
 
-  if (displayMethod === 'inline') {
-    return showInlineSpinner(group, boxId);
-  } else if (displayMethod === 'bottom') {
-    showBottomSpinner(group, boxId);
-    return { boxId, displayMethod };
-  } else {
-    // Default to popup
-    showPopupSpinner(group, boxId);
-    return { boxId, displayMethod };
-  }
-}
-
-// Show popup spinner
-function showPopupSpinner(group, boxId) {
-  resultJustShown = true;
-  const resultDiv = document.createElement('div');
-  resultDiv.dataset.boxId = boxId;
-  resultDiv.style.setProperty('position', 'absolute', 'important');
-  resultDiv.style.setProperty('width', '300px', 'important');
-  resultDiv.style.setProperty('height', '100px', 'important');
-  resultDiv.style.setProperty('border-radius', '4px', 'important');
-  resultDiv.style.setProperty('padding', '0px', 'important'); // Add padding to parent
-  resultDiv.style.setProperty('z-index', '999999', 'important');
-  resultDiv.style.setProperty('font-size', '14px', 'important');
-  resultDiv.style.setProperty('display', 'flex', 'important');
-  resultDiv.style.setProperty('flex-direction', 'column', 'important');
-  resultDiv.style.setProperty('box-sizing', 'border-box', 'important'); // Include padding in width calculation
-
-  document.body.appendChild(resultDiv);
-  resultDivs.push(resultDiv);
-
-  // Apply dark mode
-  chrome.storage.local.get(['darkMode'], (result) => {
-    const isDarkMode = result.darkMode || false;
-
-    if (isDarkMode) {
-      resultDiv.style.setProperty('background-color', '#2d2d2d', 'important');
-      resultDiv.style.setProperty('color', '#ffffff', 'important');
-      resultDiv.style.setProperty('border', '1px solid #555', 'important');
-      resultDiv.style.setProperty('box-shadow', '0 2px 8px rgba(0,0,0,0.3)', 'important');
-    } else {
-      resultDiv.style.setProperty('background-color', 'white', 'important');
-      resultDiv.style.setProperty('color', 'black', 'important');
-      resultDiv.style.setProperty('border', '1px solid #ccc', 'important');
-      resultDiv.style.setProperty('box-shadow', '0 2px 8px rgba(0,0,0,0.1)', 'important');
-    }
-  });
-
-  // Position near the original selection
-  const selection = window.getSelection();
-  if (selection.rangeCount > 0) {
-    const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    let left = rect.left + window.scrollX;
-    let top = rect.bottom + window.scrollY + 5;
-
-    // Adjust if it would go off screen
-    if (left + 300 > window.innerWidth + window.scrollX) {
-      left = window.innerWidth + window.scrollX - 310;
-    }
-    if (top + 100 > window.innerHeight + window.scrollY) {
-      top = rect.top + window.scrollY - 110;
-    }
-
-    resultDiv.style.setProperty('left', left + 'px', 'important');
-    resultDiv.style.setProperty('top', top + 'px', 'important');
-  }
-
-  // Create header div for close button
-  const headerDiv = document.createElement('div');
-  headerDiv.className = 'popupResultHeader';
-  // headerDiv.style.setProperty('width', '100%', 'important');
-  headerDiv.style.setProperty('position', 'relative', 'important');
-  headerDiv.style.setProperty('flex-shrink', '0', 'important');
-  // headerDiv.style.setProperty('margin', '0px', 'important'); // Negative margin to counteract parent padding
-  headerDiv.style.setProperty('padding', '10px', 'important');
-
-  // Create content div for spinner
-  const contentDiv = document.createElement('div');
-  contentDiv.className = 'popupResultContent';
-  // contentDiv.style.setProperty('width', '100%', 'important');
-  contentDiv.style.setProperty('flex', '1', 'important');
-  contentDiv.style.setProperty('display', 'flex', 'important');
-  contentDiv.style.setProperty('align-items', 'center', 'important');
-  contentDiv.style.setProperty('justify-content', 'center', 'important');
-  contentDiv.style.setProperty('min-height', '70px', 'important');
-  contentDiv.style.setProperty('padding', '0px 10px', 'important');
-
-  contentDiv.innerHTML = `<div style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 10px; height: 10px; animation: spin 2s linear infinite;"></div><span style="margin-left: 10px;">Loading ${group.name}...</span><style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>`;
-
-  // Assemble the structure
-  resultDiv.appendChild(headerDiv);
-  resultDiv.appendChild(contentDiv);
-
-  resultDiv.style.setProperty('display', 'flex', 'important');
-}
-
-// Show inline spinner
-function showInlineSpinner(group, boxId) {
-  // Find the parent text block of the selected text
-  const selection = window.getSelection();
-  if (selection.rangeCount === 0) return;
-
-  const range = selection.getRangeAt(0);
-  let parentElement = range.commonAncestorContainer;
-
-  // If it's a text node, get the parent element
-  if (parentElement.nodeType === Node.TEXT_NODE) {
-    parentElement = parentElement.parentElement;
-  }
-
-  // Find the closest p or div element
-  while (parentElement && parentElement !== document.body) {
-    if (parentElement.tagName === 'P' || parentElement.tagName === 'DIV') {
-      break;
-    }
-    parentElement = parentElement.parentElement;
-  }
-
-  if (!parentElement || parentElement === document.body) {
-    // Fallback to popup if no suitable parent found
-    showPopupSpinner(group, boxId);
-    return { boxId, displayMethod: 'popup' };
-  }
-
-  // Create a new inline div for this specific location and group
-  const inlineDiv = document.createElement('div');
-  inlineDiv.dataset.boxId = boxId;
-  inlineDiv.dataset.groupId = group.id;
-  inlineDiv.dataset.parentId = parentElement.id || 'no-id';
-  inlineDiv.style.setProperty('position', 'relative', 'important');
-  inlineDiv.style.setProperty('margin-top', '10px', 'important');
-  inlineDiv.style.setProperty('padding', '10px', 'important'); // Remove padding, let child divs handle it
-  inlineDiv.style.setProperty('border-radius', '4px', 'important');
-  inlineDiv.style.setProperty('border', '1px solid #ccc', 'important');
-  inlineDiv.style.setProperty('font-size', '14px', 'important');
-  inlineDiv.style.setProperty('min-height', '35px', 'important');
-  inlineDiv.style.setProperty('display', 'flex', 'important');
-  inlineDiv.style.setProperty('flex-direction', 'column', 'important');
-
-  // Apply dark mode
-  chrome.storage.local.get(['darkMode'], (result) => {
-    const isDarkMode = result.darkMode || false;
-
-    if (isDarkMode) {
-      inlineDiv.style.setProperty('background-color', '#2d2d2d', 'important');
-      inlineDiv.style.setProperty('color', '#ffffff', 'important');
-      inlineDiv.style.setProperty('border-color', '#555', 'important');
-    } else {
-      inlineDiv.style.setProperty('background-color', 'white', 'important');
-      inlineDiv.style.setProperty('color', 'black', 'important');
-      inlineDiv.style.setProperty('border-color', '#ccc', 'important');
-    }
-  });
-
-  // Create header div for close button (will be added later in showInlineResult)
-  const headerDiv = document.createElement('div');
-  headerDiv.className = 'inlineResultHeader';
-  headerDiv.style.setProperty('width', '100%', 'important');
-  headerDiv.style.setProperty('position', 'relative', 'important');
-  headerDiv.style.setProperty('flex-shrink', '0', 'important');
-  headerDiv.style.setProperty('padding', '5px 10px', 'important'); // Add padding to header
-
-  // Create content div for spinner
-  const contentDiv = document.createElement('div');
-  contentDiv.className = 'inlineResultContent';
-  contentDiv.style.setProperty('width', '100%', 'important');
-  contentDiv.style.setProperty('flex', '1', 'important');
-  contentDiv.style.setProperty('padding', '5px 10px', 'important'); // Add padding to content
-  contentDiv.style.setProperty('display', 'flex', 'important');
-  contentDiv.style.setProperty('align-items', 'center', 'important');
-  contentDiv.style.setProperty('justify-content', 'center', 'important');
-  contentDiv.style.setProperty('min-height', '25px', 'important');
-
-  contentDiv.innerHTML = `<div style="border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; width: 10px; height: 10px; animation: spin 2s linear infinite;"></div><span style="margin-left: 6px;">Loading ${group.name}...</span><style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>`;
-
-  // Assemble the structure
-  inlineDiv.appendChild(headerDiv);
-  inlineDiv.appendChild(contentDiv);
-
-  // Insert after the parent element
-  parentElement.parentNode.insertBefore(inlineDiv, parentElement.nextSibling);
-
-  // Store reference for later replacement
-  inlineDivs.push(inlineDiv);
-
-  inlineDiv.style.setProperty('display', 'flex', 'important');
-
-  // Return location info for the result handler
-  return { boxId, displayMethod: 'inline' };
-}
-
-// Show bottom spinner
-function showBottomSpinner(group, boxId) {
-  const bottomDiv = document.createElement('div');
-  bottomDiv.dataset.boxId = boxId;
-  bottomDiv.style.setProperty('position', 'fixed', 'important');
-  bottomDiv.style.setProperty('bottom', '0', 'important');
-  bottomDiv.style.setProperty('left', '0', 'important');
-  bottomDiv.style.setProperty('width', '100%', 'important');
-  bottomDiv.style.setProperty('height', '30%', 'important');
-  bottomDiv.style.setProperty('border-top', '1px solid #ccc', 'important');
-  bottomDiv.style.setProperty('padding', '0', 'important'); // Remove padding, let child divs handle it
-  bottomDiv.style.setProperty('z-index', '999998', 'important');
-  bottomDiv.style.setProperty('font-size', '14px', 'important');
-  bottomDiv.style.setProperty('box-sizing', 'border-box', 'important');
-  bottomDiv.style.setProperty('display', 'flex', 'important');
-  bottomDiv.style.setProperty('flex-direction', 'column', 'important');
-  bottomDiv.style.setProperty('overflow-y', 'visible', 'important'); // Main div doesn't scroll
-
-  document.body.appendChild(bottomDiv);
-  bottomDivs.push(bottomDiv);
-
-  // Apply dark mode
-  chrome.storage.local.get(['darkMode'], (result) => {
-    const isDarkMode = result.darkMode || false;
-
-    if (isDarkMode) {
-      bottomDiv.style.setProperty('background-color', '#2d2d2d', 'important');
-      bottomDiv.style.setProperty('color', '#ffffff', 'important');
-      bottomDiv.style.setProperty('border-top-color', '#555', 'important');
-    } else {
-      bottomDiv.style.setProperty('background-color', 'white', 'important');
-      bottomDiv.style.setProperty('color', 'black', 'important');
-      bottomDiv.style.setProperty('border-top-color', '#ccc', 'important');
-    }
-  });
-
-  // Create header div for close button
-  const headerDiv = document.createElement('div');
-  headerDiv.className = 'bottomResultHeader';
-  headerDiv.style.setProperty('width', '100%', 'important');
-  headerDiv.style.setProperty('position', 'relative', 'important');
-  headerDiv.style.setProperty('flex-shrink', '0', 'important');
-  headerDiv.style.setProperty('padding', '10px 15px', 'important'); // Keep original padding for header
-
-  // Create content div for spinner
-  const contentDiv = document.createElement('div');
-  contentDiv.className = 'bottomResultContent';
-  contentDiv.style.setProperty('width', '100%', 'important');
-  contentDiv.style.setProperty('flex', '1', 'important');
-  contentDiv.style.setProperty('padding', '0 15px 10px 15px', 'important'); // Bottom padding
-  contentDiv.style.setProperty('display', 'flex', 'important');
-  contentDiv.style.setProperty('align-items', 'center', 'important');
-  contentDiv.style.setProperty('justify-content', 'center', 'important');
-  contentDiv.style.setProperty('min-height', 'calc(100% - 40px)', 'important'); // Account for header
-
-  contentDiv.innerHTML = `<div style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 10px; height: 10px; animation: spin 2s linear infinite;"></div><span style="margin-left: 10px;">Loading ${group.name}...</span><style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>`;
-
-  // Assemble the structure
-  bottomDiv.appendChild(headerDiv);
-  bottomDiv.appendChild(contentDiv);
-
-  bottomDiv.style.setProperty('display', 'flex', 'important');
-}
 
 // Show the result based on group's display method
 function showResult(definition, group, locationInfo) {
-  const displayMethod = locationInfo.displayMethod || group.displayMethod || 'popup';
-  const boxId = locationInfo.boxId;
+  const displayMethod = locationInfo ? locationInfo.displayMethod : group.displayMethod || 'popup';
+  const boxId = locationInfo ? locationInfo.boxId : ++boxIdCounter;
 
   if (displayMethod === 'inline') {
     showInlineResult(definition, group, boxId);
@@ -701,109 +442,130 @@ function showResult(definition, group, locationInfo) {
     // Default to popup
     showPopupResult(definition, group, boxId);
   }
+
+  // Return location info for the caller
+  return { boxId, displayMethod };
 }
 
 // Show the result in a popup div (original behavior)
 function showPopupResult(definition, group, boxId) {
   resultJustShown = true;
-  const resultDiv = resultDivs.find(div => div.dataset.boxId == boxId);
-  if (!resultDiv) return;
+  let resultDiv = resultDivs.find(div => div.dataset.boxId == boxId);
+
+  // If result div doesn't exist yet, create it
+  if (!resultDiv) {
+    resultDiv = document.createElement('div');
+    resultDiv.dataset.boxId = boxId;
+    resultDiv.style.setProperty('position', 'absolute', 'important');
+    resultDiv.style.setProperty('width', '300px', 'important');
+    resultDiv.style.setProperty('height', '100px', 'important');
+    resultDiv.style.setProperty('border-radius', '4px', 'important');
+    resultDiv.style.setProperty('padding', '10px', 'important');
+    resultDiv.style.setProperty('z-index', '999999', 'important');
+    resultDiv.style.setProperty('font-size', '14px', 'important');
+    resultDiv.style.setProperty('display', 'flex', 'important');
+    resultDiv.style.setProperty('flex-direction', 'column', 'important');
+    resultDiv.style.setProperty('box-sizing', 'border-box', 'important');
+
+    document.body.appendChild(resultDiv);
+    resultDivs.push(resultDiv);
+
+    // Apply dark mode
+    chrome.storage.local.get(['darkMode'], (result) => {
+      const isDarkMode = result.darkMode || false;
+
+      if (isDarkMode) {
+        resultDiv.style.setProperty('background-color', '#2d2d2d', 'important');
+        resultDiv.style.setProperty('color', '#ffffff', 'important');
+        resultDiv.style.setProperty('border', '1px solid #555', 'important');
+        resultDiv.style.setProperty('box-shadow', '0 2px 8px rgba(0,0,0,0.3)', 'important');
+      } else {
+        resultDiv.style.setProperty('background-color', 'white', 'important');
+        resultDiv.style.setProperty('color', 'black', 'important');
+        resultDiv.style.setProperty('border', '1px solid #ccc', 'important');
+        resultDiv.style.setProperty('box-shadow', '0 2px 8px rgba(0,0,0,0.1)', 'important');
+      }
+    });
+
+    // Position near the original selection
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      let left = rect.left + window.scrollX;
+      let top = rect.bottom + window.scrollY + 5;
+
+      // Adjust if it would go off screen
+      if (left + 300 > window.innerWidth + window.scrollX) {
+        left = window.innerWidth + window.scrollX - 310;
+      }
+      if (top + 100 > window.innerHeight + window.scrollY) {
+        top = rect.top + window.scrollY - 110;
+      }
+
+      resultDiv.style.setProperty('left', left + 'px', 'important');
+      resultDiv.style.setProperty('top', top + 'px', 'important');
+    }
+
+    // Create header div for close button
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'popupResultHeader';
+    headerDiv.style.setProperty('position', 'relative', 'important');
+    headerDiv.style.setProperty('flex-shrink', '0', 'important');
+    headerDiv.style.setProperty('padding', '5px 10px', 'important');
+
+    // Create content div for scrollable content
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'popupResultContent';
+    contentDiv.style.setProperty('flex', '1', 'important');
+    contentDiv.style.setProperty('overflow-y', 'auto', 'important');
+    contentDiv.style.setProperty('padding', '5px 10px', 'important');
+
+    // Set main div to flexbox
+    resultDiv.style.setProperty('display', 'flex', 'important');
+    resultDiv.style.setProperty('flex-direction', 'column', 'important');
+
+    // Add close button to header
+    const closeBtn = createCloseButton(resultDiv, '5px', '5px');
+    headerDiv.appendChild(closeBtn);
+
+    // Assemble the structure
+    resultDiv.appendChild(headerDiv);
+    resultDiv.appendChild(contentDiv);
+  }
 
   // Get popup settings
   const popupSettings = group.popupSettings || { width: '40%', height: '30%', hideOnClickOutside: false };
 
-  // Clear existing content
-  resultDiv.innerHTML = '';
+  // Update width and height from popup settings
+  resultDiv.style.setProperty('width', popupSettings.width, 'important');
+  resultDiv.style.setProperty('height', popupSettings.height, 'important');
 
-  // Apply dark mode if enabled
-  chrome.storage.local.get(['darkMode'], (result) => {
-    const isDarkMode = result.darkMode || false;
+  // Get content div
+  const contentDiv = resultDiv.querySelector('.popupResultContent');
+  if (!contentDiv) return;
 
-    if (isDarkMode) {
-      resultDiv.style.setProperty('background-color', '#2d2d2d', 'important');
-      resultDiv.style.setProperty('color', '#ffffff', 'important');
-      resultDiv.style.setProperty('border', '1px solid #555', 'important');
-      resultDiv.style.setProperty('box-shadow', '0 2px 8px rgba(0,0,0,0.3)', 'important');
-    } else {
-      resultDiv.style.setProperty('background-color', 'white', 'important');
-      resultDiv.style.setProperty('color', 'black', 'important');
-      resultDiv.style.setProperty('border', '1px solid #ccc', 'important');
-      resultDiv.style.setProperty('box-shadow', '0 2px 8px rgba(0,0,0,0.1)', 'important');
-    }
+  // Clear content and show spinner or result
+  contentDiv.innerHTML = '';
 
-    // Set width and height from popup settings
-    resultDiv.style.setProperty('width', popupSettings.width, 'important');
-    resultDiv.style.setProperty('height', popupSettings.height, 'important');
-    resultDiv.style.setProperty('overflow-y', 'visible', 'important'); // Main div doesn't scroll
-  });
+  if (!definition) {
+    // Show spinner
+    const spinner = createSpinner(`Loading ${group.name}...`);
+    contentDiv.appendChild(spinner);
+  } else {
+    // Show result
+    const sanitizedHTML = sanitizeDictHTML(definition);
 
-  // Position near the original selection
-  const selection = window.getSelection();
-  if (selection.rangeCount > 0) {
-    const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    let left = rect.left + window.scrollX;
-    let top = rect.bottom + window.scrollY + 5;
-
-    // Adjust if it would go off screen
-    const divWidth = popupSettings.width.includes('%') ?
-      (parseFloat(popupSettings.width) / 100) * window.innerWidth :
-      parseFloat(popupSettings.width);
-    const divHeight = popupSettings.height.includes('%') ?
-      (parseFloat(popupSettings.height) / 100) * window.innerHeight :
-      parseFloat(popupSettings.height);
-
-    if (left + divWidth > window.innerWidth + window.scrollX) {
-      left = window.innerWidth + window.scrollX - divWidth - 10;
-    }
-    if (top + divHeight > window.innerHeight + window.scrollY) {
-      top = rect.top + window.scrollY - divHeight - 10;
-    }
-
-    resultDiv.style.setProperty('left', left + 'px', 'important');
-    resultDiv.style.setProperty('top', top + 'px', 'important');
+    // Add CSS for dictionary classes
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+      .dict-type { color: green; }
+      .dict-pron { color: brown; }
+      .dict-level { font-size: 0.7em; }
+    `;
+    contentDiv.appendChild(styleElement);
+    contentDiv.innerHTML += sanitizedHTML;
   }
-
-  // Create header div for close button
-  const headerDiv = document.createElement('div');
-  headerDiv.className = 'popupResultHeader';
-  // headerDiv.style.setProperty('width', '100%', 'important');
-  headerDiv.style.setProperty('position', 'relative', 'important');
-  headerDiv.style.setProperty('flex-shrink', '0', 'important');
-  headerDiv.style.setProperty('padding', '5px 10px', 'important');
-
-  // Create content div for scrollable content
-  const contentDiv = document.createElement('div');
-  contentDiv.className = 'popupResultContent';
-  // contentDiv.style.setProperty('width', '100%', 'important');
-  contentDiv.style.setProperty('flex', '1', 'important');
-  contentDiv.style.setProperty('overflow-y', 'auto', 'important');
-  contentDiv.style.setProperty('padding', '5px 10px', 'important');
-
-  // Set main div to flexbox
-  resultDiv.style.setProperty('display', 'flex', 'important');
-  resultDiv.style.setProperty('flex-direction', 'column', 'important');
-
-  // Sanitize and display HTML in content div
-  const sanitizedHTML = sanitizeDictHTML(definition);
-
-  // Add CSS for dictionary classes
-  const styleElement = document.createElement('style');
-  styleElement.textContent = `
-    .dict-type { color: green; }
-    .dict-pron { color: brown; }
-    .dict-level { font-size: 0.7em; }
-  `;
-  contentDiv.appendChild(styleElement);
-  contentDiv.innerHTML += sanitizedHTML;
-
-  // Add close button to header
-  const closeBtn = createCloseButton(resultDiv, '5px', '5px');
-  headerDiv.appendChild(closeBtn);
-
-  // Assemble the structure
-  resultDiv.appendChild(headerDiv);
-  resultDiv.appendChild(contentDiv);
 
   // Store hide on click outside setting for later use
   resultDiv.dataset.hideOnClickOutside = popupSettings.hideOnClickOutside;
@@ -813,158 +575,246 @@ function showPopupResult(definition, group, boxId) {
 
 // Show the result inline below the selected text
 function showInlineResult(definition, group, boxId) {
-  const inlineDiv = inlineDivs.find(div => div.dataset.boxId == boxId);
-  if (!inlineDiv) {
-    // Fallback to popup if div not found
-    showPopupResult(definition, group, boxId);
-    return;
-  }
+  let inlineDiv = inlineDivs.find(div => div.dataset.boxId == boxId);
 
-  // Clear existing content and apply dark mode
-  inlineDiv.innerHTML = '';
+  // If inline div doesn't exist yet, create it
+  if (!inlineDiv) {
+    // Find the parent text block of the selected text
+    const selection = window.getSelection();
+    if (selection.rangeCount === 0) {
+      // Fallback to popup if no selection found
+      showPopupResult(definition, group, boxId);
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    let parentElement = range.commonAncestorContainer;
+
+    // If it's a text node, get the parent element
+    if (parentElement.nodeType === Node.TEXT_NODE) {
+      parentElement = parentElement.parentElement;
+    }
+
+    // Find the closest p or div element
+    while (parentElement && parentElement !== document.body) {
+      if (parentElement.tagName === 'P' || parentElement.tagName === 'DIV') {
+        break;
+      }
+      parentElement = parentElement.parentElement;
+    }
+
+    if (!parentElement || parentElement === document.body) {
+      // Fallback to popup if no suitable parent found
+      showPopupResult(definition, group, boxId);
+      return;
+    }
+
+    // Create a new inline div for this specific location and group
+    inlineDiv = document.createElement('div');
+    inlineDiv.dataset.boxId = boxId;
+    inlineDiv.dataset.groupId = group.id;
+    inlineDiv.dataset.parentId = parentElement.id || 'no-id';
+    inlineDiv.style.setProperty('position', 'relative', 'important');
+    inlineDiv.style.setProperty('margin-top', '10px', 'important');
+    inlineDiv.style.setProperty('padding', '10px', 'important');
+    inlineDiv.style.setProperty('border-radius', '4px', 'important');
+    inlineDiv.style.setProperty('border', '1px solid #ccc', 'important');
+    inlineDiv.style.setProperty('font-size', '14px', 'important');
+    inlineDiv.style.setProperty('min-height', '35px', 'important');
+    inlineDiv.style.setProperty('display', 'flex', 'important');
+    inlineDiv.style.setProperty('flex-direction', 'column', 'important');
+    inlineDiv.style.setProperty('box-sizing', 'border-box', 'important');
+
+    // Apply dark mode
+    chrome.storage.local.get(['darkMode'], (result) => {
+      const isDarkMode = result.darkMode || false;
+
+      if (isDarkMode) {
+        inlineDiv.style.setProperty('background-color', '#2d2d2d', 'important');
+        inlineDiv.style.setProperty('color', '#ffffff', 'important');
+        inlineDiv.style.setProperty('border-color', '#555', 'important');
+      } else {
+        inlineDiv.style.setProperty('background-color', 'white', 'important');
+        inlineDiv.style.setProperty('color', 'black', 'important');
+        inlineDiv.style.setProperty('border-color', '#ccc', 'important');
+      }
+    });
+
+    // Create header div for close button
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'inlineResultHeader';
+    headerDiv.style.setProperty('width', '100%', 'important');
+    headerDiv.style.setProperty('position', 'relative', 'important');
+    headerDiv.style.setProperty('flex-shrink', '0', 'important');
+
+    // Create content div for scrollable content
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'inlineResultContent';
+    contentDiv.style.setProperty('width', '100%', 'important');
+    contentDiv.style.setProperty('flex', '1', 'important');
+    contentDiv.style.setProperty('overflow-y', 'auto', 'important');
+
+    // Set main div to flexbox
+    inlineDiv.style.setProperty('display', 'flex', 'important');
+    inlineDiv.style.setProperty('flex-direction', 'column', 'important');
+
+    // Add close button to header
+    const closeBtn = createCloseButton(inlineDiv, '-40px', '5px');
+    headerDiv.appendChild(closeBtn);
+
+    // Assemble the structure
+    inlineDiv.appendChild(headerDiv);
+    inlineDiv.appendChild(contentDiv);
+
+    // Insert after the parent element
+    parentElement.parentNode.insertBefore(inlineDiv, parentElement.nextSibling);
+
+    // Store reference for later replacement
+    inlineDivs.push(inlineDiv);
+  }
 
   // Check if flexible height is enabled
   const flexibleHeight = group.inlineSettings?.flexibleHeight !== false;
 
-  chrome.storage.local.get(['darkMode'], (result) => {
-    const isDarkMode = result.darkMode || false;
-
-    if (isDarkMode) {
-      inlineDiv.style.setProperty('background-color', '#2d2d2d', 'important');
-      inlineDiv.style.setProperty('color', '#ffffff', 'important');
-      inlineDiv.style.setProperty('border-color', '#555', 'important');
-    } else {
-      inlineDiv.style.setProperty('background-color', 'white', 'important');
-      inlineDiv.style.setProperty('color', 'black', 'important');
-      inlineDiv.style.setProperty('border-color', '#ccc', 'important');
-    }
-
-    // Apply flexible height settings
-    if (flexibleHeight) {
-      // Flexible height: allow content to expand, no max height
-      inlineDiv.style.setProperty('max-height', 'none', 'important');
-      inlineDiv.style.setProperty('overflow-y', 'visible', 'important');
-    } else {
-      // Fixed height: show scrollbars if content is too tall
-      inlineDiv.style.setProperty('max-height', '200px', 'important');
-      inlineDiv.style.setProperty('overflow-y', 'visible', 'important'); // Main div doesn't scroll
-    }
-  });
-
-  // Create header div for close button
-  const headerDiv = document.createElement('div');
-  headerDiv.className = 'inlineResultHeader';
-  headerDiv.style.setProperty('width', '100%', 'important');
-  headerDiv.style.setProperty('position', 'relative', 'important');
-  headerDiv.style.setProperty('flex-shrink', '0', 'important');
-
-  // Create content div for scrollable content
-  const contentDiv = document.createElement('div');
-  contentDiv.className = 'inlineResultContent';
-  contentDiv.style.setProperty('width', '100%', 'important');
-  contentDiv.style.setProperty('flex', '1', 'important');
-  contentDiv.style.setProperty('overflow-y', 'auto', 'important');
-
-  // Apply flexible height settings to content div
+  // Apply flexible height settings
   if (flexibleHeight) {
-    contentDiv.style.setProperty('max-height', 'none', 'important');
+    // Flexible height: allow content to expand, no max height
+    inlineDiv.style.setProperty('max-height', 'none', 'important');
+    inlineDiv.style.setProperty('overflow-y', 'visible', 'important');
   } else {
-    contentDiv.style.setProperty('max-height', '180px', 'important'); // Account for header
+    // Fixed height: show scrollbars if content is too tall
+    inlineDiv.style.setProperty('max-height', '200px', 'important');
+    inlineDiv.style.setProperty('overflow-y', 'visible', 'important'); // Main div doesn't scroll
   }
 
-  // Set main div to flexbox
-  inlineDiv.style.setProperty('display', 'flex', 'important');
-  inlineDiv.style.setProperty('flex-direction', 'column', 'important');
+  // Get content div
+  const contentDiv = inlineDiv.querySelector('.inlineResultContent');
+  if (!contentDiv) return;
 
-  // Sanitize and display HTML in content div
-  const sanitizedHTML = sanitizeDictHTML(definition);
+  // Clear content and show spinner or result
+  contentDiv.innerHTML = '';
 
-  // Add CSS for dictionary classes
-  const styleElement = document.createElement('style');
-  styleElement.textContent = `
-    .dict-type { color: green; }
-    .dict-pron { color: brown; }
-    .dict-level { font-size: 0.7em; }
-  `;
-  contentDiv.appendChild(styleElement);
-  contentDiv.innerHTML += sanitizedHTML;
+  if (!definition) {
+    // Show spinner
+    const spinner = createSpinner(`Loading ${group.name}...`);
+    contentDiv.appendChild(spinner);
+  } else {
+    // Show result
+    // Apply flexible height settings to content div
+    if (flexibleHeight) {
+      contentDiv.style.setProperty('max-height', 'none', 'important');
+    } else {
+      contentDiv.style.setProperty('max-height', '180px', 'important'); // Account for header
+    }
 
-  // Add close button to header
-  const closeBtn = createCloseButton(inlineDiv, '-40px', '5px');
-  headerDiv.appendChild(closeBtn);
+    const sanitizedHTML = sanitizeDictHTML(definition);
 
-  // Assemble the structure
-  inlineDiv.appendChild(headerDiv);
-  inlineDiv.appendChild(contentDiv);
+    // Add CSS for dictionary classes
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+      .dict-type { color: green; }
+      .dict-pron { color: brown; }
+      .dict-level { font-size: 0.7em; }
+    `;
+    contentDiv.appendChild(styleElement);
+    contentDiv.innerHTML += sanitizedHTML;
+  }
 
   inlineDiv.style.setProperty('display', 'flex', 'important');
 }
 
 // Show the result in a bottom panel
 function showBottomResult(definition, group, boxId) {
-  const bottomDiv = bottomDivs.find(div => div.dataset.boxId == boxId);
-  if (!bottomDiv) return;
+  let bottomDiv = bottomDivs.find(div => div.dataset.boxId == boxId);
 
-  // Clear existing content
-  bottomDiv.innerHTML = '';
+  // If bottom div doesn't exist yet, create it
+  if (!bottomDiv) {
+    bottomDiv = document.createElement('div');
+    bottomDiv.dataset.boxId = boxId;
+    bottomDiv.style.setProperty('position', 'fixed', 'important');
+    bottomDiv.style.setProperty('bottom', '0', 'important');
+    bottomDiv.style.setProperty('left', '0', 'important');
+    bottomDiv.style.setProperty('width', '100%', 'important');
+    bottomDiv.style.setProperty('height', '30%', 'important');
+    bottomDiv.style.setProperty('border-top', '1px solid #ccc', 'important');
+    bottomDiv.style.setProperty('padding', '10px', 'important');
+    bottomDiv.style.setProperty('z-index', '999998', 'important');
+    bottomDiv.style.setProperty('font-size', '14px', 'important');
+    bottomDiv.style.setProperty('box-sizing', 'border-box', 'important');
+    bottomDiv.style.setProperty('display', 'flex', 'important');
+    bottomDiv.style.setProperty('flex-direction', 'column', 'important');
+    bottomDiv.style.setProperty('overflow-y', 'visible', 'important');
 
-  // Apply dark mode
-  chrome.storage.local.get(['darkMode'], (result) => {
-    const isDarkMode = result.darkMode || false;
+    document.body.appendChild(bottomDiv);
+    bottomDivs.push(bottomDiv);
 
-    if (isDarkMode) {
-      bottomDiv.style.setProperty('background-color', '#2d2d2d', 'important');
-      bottomDiv.style.setProperty('color', '#ffffff', 'important');
-      bottomDiv.style.setProperty('border-top-color', '#555', 'important');
-    } else {
-      bottomDiv.style.setProperty('background-color', 'white', 'important');
-      bottomDiv.style.setProperty('color', 'black', 'important');
-      bottomDiv.style.setProperty('border-top-color', '#ccc', 'important');
-    }
-  });
+    // Apply dark mode
+    chrome.storage.local.get(['darkMode'], (result) => {
+      const isDarkMode = result.darkMode || false;
 
-  // Set main div to flexbox and remove old padding
-  bottomDiv.style.setProperty('display', 'flex', 'important');
-  bottomDiv.style.setProperty('flex-direction', 'column', 'important');
-  bottomDiv.style.setProperty('padding', '10px', 'important'); // Remove padding, let child divs handle it
-  bottomDiv.style.setProperty('overflow-y', 'visible', 'important'); // Main div doesn't scroll
+      if (isDarkMode) {
+        bottomDiv.style.setProperty('background-color', '#2d2d2d', 'important');
+        bottomDiv.style.setProperty('color', '#ffffff', 'important');
+        bottomDiv.style.setProperty('border-top-color', '#555', 'important');
+      } else {
+        bottomDiv.style.setProperty('background-color', 'white', 'important');
+        bottomDiv.style.setProperty('color', 'black', 'important');
+        bottomDiv.style.setProperty('border-top-color', '#ccc', 'important');
+      }
+    });
 
-  // Create header div for close button
-  const headerDiv = document.createElement('div');
-  headerDiv.className = 'bottomResultHeader';
-  headerDiv.style.setProperty('width', '100%', 'important');
-  headerDiv.style.setProperty('position', 'relative', 'important');
-  headerDiv.style.setProperty('flex-shrink', '0', 'important');
-  headerDiv.style.setProperty('padding', '0px', 'important'); // Keep original padding for header
+    // Create header div for close button
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'bottomResultHeader';
+    headerDiv.style.setProperty('width', '100%', 'important');
+    headerDiv.style.setProperty('position', 'relative', 'important');
+    headerDiv.style.setProperty('flex-shrink', '0', 'important');
 
-  // Create content div for scrollable content
-  const contentDiv = document.createElement('div');
-  contentDiv.className = 'bottomResultContent';
-  contentDiv.style.setProperty('width', '100%', 'important');
-  contentDiv.style.setProperty('flex', '1', 'important');
-  contentDiv.style.setProperty('overflow-y', 'auto', 'important');
-  contentDiv.style.setProperty('padding', '10px 0px', 'important'); // Bottom padding
+    // Create content div for scrollable content
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'bottomResultContent';
+    contentDiv.style.setProperty('width', '100%', 'important');
+    contentDiv.style.setProperty('flex', '1', 'important');
+    contentDiv.style.setProperty('overflow-y', 'auto', 'important');
 
-  // Sanitize and display HTML in content div
-  const sanitizedHTML = sanitizeDictHTML(definition);
+    // Set main div to flexbox
+    bottomDiv.style.setProperty('display', 'flex', 'important');
+    bottomDiv.style.setProperty('flex-direction', 'column', 'important');
 
-  // Add CSS for dictionary classes
-  const styleElement = document.createElement('style');
-  styleElement.textContent = `
-    .dict-type { color: green; }
-    .dict-pron { color: brown; }
-    .dict-level { font-size: 0.7em; }
-  `;
-  contentDiv.appendChild(styleElement);
-  contentDiv.innerHTML += sanitizedHTML;
+    // Add close button to header
+    const closeBtn = createCloseButton(bottomDiv, '-40px', '15px');
+    headerDiv.appendChild(closeBtn);
 
-  // Add close button to header
-  const closeBtn = createCloseButton(bottomDiv, '-40px', '15px');
-  headerDiv.appendChild(closeBtn);
+    // Assemble the structure
+    bottomDiv.appendChild(headerDiv);
+    bottomDiv.appendChild(contentDiv);
+  }
 
-  // Assemble the structure
-  bottomDiv.appendChild(headerDiv);
-  bottomDiv.appendChild(contentDiv);
+  // Get content div
+  const contentDiv = bottomDiv.querySelector('.bottomResultContent');
+  if (!contentDiv) return;
+
+  // Clear content and show spinner or result
+  contentDiv.innerHTML = '';
+
+  if (!definition) {
+    // Show spinner
+    const spinner = createSpinner(`Loading ${group.name}...`);
+    contentDiv.appendChild(spinner);
+  } else {
+    // Show result
+    const sanitizedHTML = sanitizeDictHTML(definition);
+
+    // Add CSS for dictionary classes
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+      .dict-type { color: green; }
+      .dict-pron { color: brown; }
+      .dict-level { font-size: 0.7em; }
+    `;
+    contentDiv.appendChild(styleElement);
+    contentDiv.innerHTML += sanitizedHTML;
+  }
 
   bottomDiv.style.setProperty('display', 'flex', 'important');
 }
@@ -992,6 +842,36 @@ function createCloseButton(targetDiv, top = '10px', right = '10px') {
     targetDiv.style.display = 'none';
   };
   return closeBtn;
+}
+
+// Create spinner element for loading states
+function createSpinner(groupName = 'Loading...') {
+  const spinnerContainer = document.createElement('div');
+  spinnerContainer.style.setProperty('display', 'flex', 'important');
+  spinnerContainer.style.setProperty('align-items', 'center', 'important');
+  spinnerContainer.style.setProperty('justify-content', 'center', 'important');
+  spinnerContainer.style.setProperty('min-height', '50px', 'important');
+
+  const spinner = document.createElement('div');
+  spinner.style.setProperty('border', '4px solid #f3f3f3', 'important');
+  spinner.style.setProperty('border-top', '4px solid #3498db', 'important');
+  spinner.style.setProperty('border-radius', '50%', 'important');
+  spinner.style.setProperty('width', '20px', 'important');
+  spinner.style.setProperty('height', '20px', 'important');
+  spinner.style.setProperty('animation', 'spin 2s linear infinite', 'important');
+
+  const text = document.createElement('span');
+  text.textContent = groupName;
+  text.style.setProperty('margin-left', '10px', 'important');
+
+  const style = document.createElement('style');
+  style.textContent = '@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }';
+
+  spinnerContainer.appendChild(spinner);
+  spinnerContainer.appendChild(text);
+  spinnerContainer.appendChild(style);
+
+  return spinnerContainer;
 }
 
 // Touch gesture handling for swipe detection
@@ -1073,8 +953,8 @@ function executeSwipeQuery(element) {
     wholeParagraph: paragraphText
   };
 
-  // Show loading state
-  const locationInfo = showSpinner(selectedGroup);
+  // Show result window immediately with spinner
+  const locationInfo = showResult(null, selectedGroup);
 
   // Choose text based on group's textSelectionMethod (default to wholeParagraph for swipe)
   const textSelectionMethod = selectedGroup.textSelectionMethod || 'wholeParagraph';
@@ -1161,8 +1041,8 @@ function executeTripleClickQuery(element) {
     wholeParagraph: paragraphText
   };
 
-  // Show loading state
-  const locationInfo = showSpinner(selectedGroup);
+  // Show result window immediately with spinner
+  const locationInfo = showResult(null, selectedGroup);
 
   // Always use whole paragraph for triple click (as requested)
   const word = tempSelection.wholeParagraph || tempSelection.selectedText || '';
