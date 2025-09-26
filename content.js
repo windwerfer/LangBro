@@ -1312,20 +1312,20 @@ let clickCount = 0;
 let clickTimer = null;
 let lastClickElement = null;
 
-// Add click event listeners to paragraphs for triple click gestures
+// Add mousedown event listeners to paragraphs for triple click gestures
 function addClickListeners() {
   // Remove existing listeners first
   document.querySelectorAll('p, div').forEach(element => {
-    element.removeEventListener('click', handleClick);
+    element.removeEventListener('mousedown', handleMouseDown);
   });
 
   // Add listeners to paragraphs and divs
   document.querySelectorAll('p, div').forEach(element => {
-    element.addEventListener('click', handleClick);
+    element.addEventListener('mousedown', handleMouseDown);
   });
 }
 
-function handleClick(event) {
+function handleMouseDown(event) {
   if (!tripleClickGroupId) return;
 
   const targetElement = event.target.closest('p, div');
@@ -1367,6 +1367,8 @@ function handleClick(event) {
     // Execute the selected query group with the paragraph text
     executeTripleClickQuery(targetElement);
   }
+  // For single and double clicks, allow normal behavior (text selection)
+  // Only prevent default on the actual triple click
 }
 
 function executeTripleClickQuery(element) {
