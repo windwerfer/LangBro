@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const iconOffsetInput = document.getElementById('iconOffset');
   const iconSpacingInput = document.getElementById('iconSpacing');
   const rightSwipeGroupSelect = document.getElementById('rightSwipeGroup');
+  const singleClickGroupSelect = document.getElementById('singleClickGroup');
   const tripleClickGroupSelect = document.getElementById('tripleClickGroup');
 
   // Import page elements
@@ -79,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Load settings
-  chrome.storage.local.get(['darkMode', 'hideGroupNames', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'tripleClickGroup'], (result) => {
+  chrome.storage.local.get(['darkMode', 'hideGroupNames', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'singleClickGroup', 'tripleClickGroup'], (result) => {
     console.log('Loaded settings:', result);
     darkModeCheckbox.checked = result.darkMode || false;
     hideGroupNamesCheckbox.checked = result.hideGroupNames || false;
@@ -88,6 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
     iconOffsetInput.value = result.iconOffset || 50;
     iconSpacingInput.value = result.iconSpacing || 10;
     rightSwipeGroupSelect.value = result.rightSwipeGroup || '';
+    singleClickGroupSelect.value = result.singleClickGroup || '';
     tripleClickGroupSelect.value = result.tripleClickGroup || '';
   });
 
@@ -122,6 +124,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const spacing = parseInt(iconSpacingInput.value) || 10;
     console.log('Saving icon spacing setting:', spacing);
     chrome.storage.local.set({ iconSpacing: spacing });
+  });
+
+  singleClickGroupSelect.addEventListener('change', () => {
+    console.log('Saving single click group setting:', singleClickGroupSelect.value);
+    chrome.storage.local.set({ singleClickGroup: singleClickGroupSelect.value });
   });
 
   rightSwipeGroupSelect.addEventListener('change', () => {
@@ -494,6 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     };
 
+    updateDropdown(singleClickGroupSelect);
     updateDropdown(rightSwipeGroupSelect);
     updateDropdown(tripleClickGroupSelect);
 

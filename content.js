@@ -16,6 +16,7 @@ let iconOffset = 50;
 let iconSpacing = 10;
 let boxIdCounter = 0;
 let rightSwipeGroupId = '';
+let singleClickGroupId = '';
 let tripleClickGroupId = '';
 let hideGroupNames = false;
 
@@ -175,14 +176,15 @@ function handleSelectionChange() {
 // Load settings from storage
 async function loadSettings() {
   try {
-    const result = await chrome.storage.local.get(['iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'tripleClickGroup', 'hideGroupNames']);
+    const result = await chrome.storage.local.get(['iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'singleClickGroup', 'tripleClickGroup', 'hideGroupNames']);
     iconPlacement = result.iconPlacement || 'word';
     iconOffset = result.iconOffset || 50;
     iconSpacing = result.iconSpacing || 10;
     rightSwipeGroupId = result.rightSwipeGroup || '';
+    singleClickGroupId = result.singleClickGroup || '';
     tripleClickGroupId = result.tripleClickGroup || '';
     hideGroupNames = result.hideGroupNames || false;
-    console.log('Loaded icon settings:', { iconPlacement, iconOffset, iconSpacing, rightSwipeGroupId, tripleClickGroupId, hideGroupNames });
+    console.log('Loaded icon settings:', { iconPlacement, iconOffset, iconSpacing, rightSwipeGroupId, singleClickGroupId, tripleClickGroupId, hideGroupNames });
   } catch (error) {
     console.error('Error loading settings:', error);
     iconPlacement = 'word';
@@ -1307,7 +1309,7 @@ function executeSwipeQuery(element) {
   lookupWord(word, selectedGroup, locationInfo);
 }
 
-// Mouse gesture handling for triple click detection
+// Mouse gesture handling for single and triple click detection
 let clickCount = 0;
 let clickTimer = null;
 let lastClickElement = null;
@@ -1326,7 +1328,7 @@ function addClickListeners() {
 }
 
 function handleMouseDown(event) {
-  if (!tripleClickGroupId) return;
+  if (!tripleClickGroupId && !singleClickGroupId) return;
 
   const targetElement = event.target.closest('p, div');
   if (!targetElement || !targetElement.textContent.trim()) return;
@@ -1346,6 +1348,10 @@ function handleMouseDown(event) {
 
   // Set timer to reset click count after 500ms
   clickTimer = setTimeout(() => {
+    // If we only got a single click and singleClickGroupId is set, execute single click action
+    if (clickCount === 1 && singleClickGroupId) {
+      executeSingleClickQuery(lastClickElement, event);
+    }
     clickCount = 0;
     lastClickElement = null;
   }, 500);
@@ -1369,6 +1375,119 @@ function handleMouseDown(event) {
   }
   // For single and double clicks, allow normal behavior (text selection)
   // Only prevent default on the actual triple click
+}
+
+function executeSingleClickQuery(element, clickEvent) {
+  console.log(`Executing single click action: ${singleClickGroupId}`);
+
+  if (singleClickGroupId === 'icons') {
+    // Show lookup icons for the paragraph
+    const paragraphText = element.textContent.trim();
+    if (paragraphText) {
+      // Create a temporary selection for the paragraph
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      selection.removeAllRanges();
+      selection.addRange(range);
+
+      // Update global currentSelection for consistency
+      currentSelection = {
+        selectedText: paragraphText,
+        wholeWord: paragraphText,
+        wholeParagraph: paragraphText
+      };
+
+      // Show lookup icons
+      showLookupIcons(selection);
+    }
+  } else {
+    // Execute specific query group
+    const selectedGroup = queryGroups.find(group => group.id === singleClickGroupId);
+    if (!selectedGroup || !selectedGroup.enabled) return;
+
+    console.log(`Executing single click query for group: ${selectedGroup.name}`);
+
+    // For single click, we need to detect which word was clicked
+    // Use the same logic as the word segmentation POC
+    let clickedWord = '';
+
+    if (clickEvent) {
+      // Get the text node and position from click coordinates
+      let textNode = null;
+      let clickOffset = 0;
+
+      try {
+        // Try caretRangeFromPoint first (WebKit/Safari)
+        if (document.caretRangeFromPoint) {
+          const range = document.caretRangeFromPoint(clickEvent.clientX, clickEvent.clientY);
+          if (range) {
+            textNode = range.startContainer;
+            clickOffset = range.startOffset;
+          }
+        }
+        // Fallback to caretPositionFromPoint (Firefox/Chrome)
+        else if (document.caretPositionFromPoint) {
+          const caretPosition = document.caretPositionFromPoint(clickEvent.clientX, clickEvent.clientY);
+          if (caretPosition) {
+            textNode = caretPosition.offsetNode;
+            clickOffset = caretPosition.offset;
+          }
+        }
+      } catch (error) {
+        console.error('Error getting caret position:', error);
+      }
+
+      if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+        const textContent = textNode.textContent;
+
+        // Use Intl.Segmenter to segment the text
+        try {
+          const segmenter = new Intl.Segmenter('th', { granularity: 'word' });
+          const segments = segmenter.segment(textContent);
+
+          // Find the segment that contains the click position
+          for (const segment of segments) {
+            if (segment.index <= clickOffset && clickOffset < segment.index + segment.segment.length) {
+              clickedWord = segment.segment.trim();
+              break;
+            }
+          }
+        } catch (error) {
+          console.error('Intl.Segmenter error:', error);
+          // Fallback: use the whole paragraph
+          clickedWord = element.textContent.trim();
+        }
+      }
+    }
+
+    // If we couldn't detect a word, use the whole paragraph
+    if (!clickedWord) {
+      clickedWord = element.textContent.trim();
+    }
+
+    // Create a temporary selection object
+    const tempSelection = {
+      selectedText: clickedWord,
+      wholeWord: clickedWord,
+      wholeParagraph: element.textContent.trim()
+    };
+
+    // Update global currentSelection so it can be used consistently
+    currentSelection = tempSelection;
+
+    // Choose text based on group's textSelectionMethod (same logic as handleIconClick)
+    const textSelectionMethod = selectedGroup.textSelectionMethod || 'selectedText';
+    console.log(`Using text selection method: ${textSelectionMethod}`);
+    console.log(currentSelection);
+    const word = currentSelection[textSelectionMethod] || currentSelection.selectedText || '';
+    console.log(`Single click query text: ${word}`);
+
+    // Show result window immediately with spinner, passing the selected word for search field
+    const locationInfo = showResult(null, selectedGroup, null, word);
+
+    lookupWord(word, selectedGroup, locationInfo);
+  }
 }
 
 function executeTripleClickQuery(element) {
@@ -1396,10 +1515,93 @@ function executeTripleClickQuery(element) {
   lookupWord(word, selectedGroup, locationInfo);
 }
 
+// Add click listener for word segmentation POC
+function addWordSegmentationListener() {
+  document.addEventListener('click', handleWordSegmentationClick, true);
+}
+
+function handleWordSegmentationClick(event) {
+  // Only process clicks on text content, not on interactive elements
+  if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' ||
+      event.target.tagName === 'BUTTON' || event.target.tagName === 'A' ||
+      event.target.closest('button, a, input, textarea, select')) {
+    return;
+  }
+
+  // Get the text node and position from click coordinates
+  let textNode = null;
+  let clickOffset = 0;
+
+  try {
+    // Try caretRangeFromPoint first (WebKit/Safari)
+    if (document.caretRangeFromPoint) {
+      const range = document.caretRangeFromPoint(event.clientX, event.clientY);
+      if (range) {
+        textNode = range.startContainer;
+        clickOffset = range.startOffset;
+      }
+    }
+    // Fallback to caretPositionFromPoint (Firefox/Chrome)
+    else if (document.caretPositionFromPoint) {
+      const caretPosition = document.caretPositionFromPoint(event.clientX, event.clientY);
+      if (caretPosition) {
+        textNode = caretPosition.offsetNode;
+        clickOffset = caretPosition.offset;
+      }
+    }
+  } catch (error) {
+    console.error('Error getting caret position:', error);
+    return;
+  }
+
+  if (!textNode || textNode.nodeType !== Node.TEXT_NODE) return;
+
+  const textContent = textNode.textContent;
+
+  // Use Intl.Segmenter to segment the text
+  try {
+    const segmenter = new Intl.Segmenter('th', { granularity: 'word' });
+    const segments = segmenter.segment(textContent);
+
+    // Find the segment that contains the click position
+    let wordStart = -1;
+    let wordEnd = -1;
+    let clickedWord = '';
+
+    for (const segment of segments) {
+      if (segment.index <= clickOffset && clickOffset < segment.index + segment.segment.length) {
+        clickedWord = segment.segment;
+        wordStart = segment.index;
+        wordEnd = segment.index + segment.segment.length;
+        break;
+      }
+    }
+
+    if (wordStart >= 0 && wordEnd >= 0) {
+      // Create a range that selects the detected word
+      const range = document.createRange();
+      range.setStart(textNode, wordStart);
+      range.setEnd(textNode, wordEnd);
+
+      // Clear any existing selection and set the new one
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+
+      console.log('Selected word (Intl.Segmenter):', clickedWord);
+      console.log('Word boundaries:', wordStart, 'to', wordEnd);
+    }
+
+  } catch (error) {
+    console.error('Intl.Segmenter error:', error);
+  }
+}
+
 // Initialize listeners when DOM is ready
 function initializeListeners() {
   addSwipeListeners();
   addClickListeners();
+  addWordSegmentationListener();
 
   // Re-add listeners when content changes (for dynamic content)
   if (document.body) {
@@ -1407,6 +1609,7 @@ function initializeListeners() {
       setTimeout(() => {
         addSwipeListeners();
         addClickListeners();
+        addWordSegmentationListener();
       }, 100); // Small delay to avoid excessive updates
     });
     observer.observe(document.body, { childList: true, subtree: true });
