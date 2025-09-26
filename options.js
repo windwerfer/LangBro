@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const iconSelector = document.getElementById('iconSelector');
   const queryTypeSelect = document.getElementById('queryType');
   const showSearchFieldSelect = document.getElementById('showSearchField');
+  const displaySuggestionsInput = document.getElementById('displaySuggestions');
   const saveGroupBtn = document.getElementById('saveGroupBtn');
   const cancelGroupBtn = document.getElementById('cancelGroupBtn');
 
@@ -562,6 +563,7 @@ document.addEventListener('DOMContentLoaded', () => {
       displayMethodSelect.value = group.displayMethod || 'popup';
       textSelectionMethodSelect.value = group.textSelectionMethod || 'selectedText';
       showSearchFieldSelect.value = group.showSearchField || 'none';
+      displaySuggestionsInput.value = group.displaySuggestions || 20;
       showQueryTypeSettings(group.queryType);
       showDisplayMethodSettings(group.displayMethod || 'popup');
 
@@ -739,6 +741,7 @@ document.addEventListener('DOMContentLoaded', () => {
       displayMethod: displayMethodSelect.value,
       textSelectionMethod: textSelectionMethodSelect.value,
       showSearchField: showSearchFieldSelect.value,
+      displaySuggestions: parseInt(displaySuggestionsInput.value) || 20,
       popupSettings,
       inlineSettings,
       settings,

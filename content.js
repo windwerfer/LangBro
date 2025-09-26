@@ -928,34 +928,73 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
         performSearch(searchInput.value.trim(), group, resultDiv, boxId);
       }
     });
-  } else if (group.showSearchField === 'liveResults') {
+  }
+
+  // Check if suggestions should be enabled (only for offline groups with displaySuggestions > 0)
+  const suggestionsEnabled = group.queryType === 'offline' && (group.displaySuggestions || 20) > 0;
+
+  if (group.showSearchField === 'liveResults') {
     // Live results - add debounced input handler
     let debounceTimer;
-    searchInput.addEventListener('input', () => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        performSearch(searchInput.value.trim(), group, resultDiv, boxId);
-      }, 500); // 0.5 second delay
-    });
-  } else if (group.showSearchField === 'liveHeadwordResults') {
-    // Live results + suggestions - add debounced input handler with suggestions
-    let debounceTimer;
-    let suggestionsDiv = null;
-
     searchInput.addEventListener('input', () => {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(async () => {
         const query = searchInput.value.trim();
         performSearch(query, group, resultDiv, boxId);
 
-        // Get suggestions if query is not empty
+        // Get suggestions if enabled and query is not empty
+        if (suggestionsEnabled && query.length > 0) {
+          try {
+            console.log('CONTENT: Requesting suggestions for word:', query, 'dictionaries:', group.settings?.selectedDictionaries);
+            const response = await chrome.runtime.sendMessage({
+              action: 'getSuggestions',
+              word: query,
+              maxResults: group.displaySuggestions || 20,
+              selectedDictionaries: group.settings?.selectedDictionaries || []
+            });
+            console.log('CONTENT: Received suggestions response:', response);
+
+            if (response.suggestions && response.suggestions.length > 0) {
+              console.log('CONTENT: Showing suggestions:', response.suggestions);
+              showSuggestions(response.suggestions, searchInput, resultDiv);
+            } else {
+              console.log('CONTENT: No suggestions to show, hiding dropdown');
+              hideSuggestions(resultDiv);
+            }
+          } catch (error) {
+            console.error('CONTENT: Error getting suggestions:', error);
+            hideSuggestions(resultDiv);
+          }
+        } else if (suggestionsEnabled) {
+          console.log('CONTENT: Query is empty, hiding suggestions');
+          hideSuggestions(resultDiv);
+        }
+      }, 300); // 0.3 second delay for faster suggestions
+    });
+
+    // Hide suggestions when input loses focus
+    if (suggestionsEnabled) {
+      searchInput.addEventListener('blur', () => {
+        // Delay hiding to allow clicking on suggestions
+        setTimeout(() => hideSuggestions(resultDiv), 150);
+      });
+    }
+  } else if (suggestionsEnabled) {
+    // Show suggestions for onPressingEnter mode, but don't auto-search
+    let debounceTimer;
+    searchInput.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        const query = searchInput.value.trim();
+
+        // Only get suggestions, don't perform search
         if (query.length > 0) {
           try {
             console.log('CONTENT: Requesting suggestions for word:', query, 'dictionaries:', group.settings?.selectedDictionaries);
             const response = await chrome.runtime.sendMessage({
               action: 'getSuggestions',
               word: query,
-              maxResults: 10,
+              maxResults: group.displaySuggestions || 20,
               selectedDictionaries: group.settings?.selectedDictionaries || []
             });
             console.log('CONTENT: Received suggestions response:', response);
@@ -975,7 +1014,7 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
           console.log('CONTENT: Query is empty, hiding suggestions');
           hideSuggestions(resultDiv);
         }
-      }, 300); // 0.3 second delay for faster suggestions
+      }, 300); // 0.3 second delay for suggestions only
     });
 
     // Hide suggestions when input loses focus

@@ -234,13 +234,18 @@
       </div>
 
       <div class="form-group">
-        <label for="showSearchField">Show Search Field:</label>
+        <label for="showSearchField">Show Search Field inside the result window:</label>
         <select id="showSearchField">
           <option value="none">None</option>
           <option value="liveResults">Live results</option>
-          <option value="liveHeadwordResults">Live results + suggestions (only offline dicts)</option>
           <option value="onPressingEnter">On pressing enter</option>
         </select>
+      </div>
+
+      <div class="form-group">
+        <label for="displaySuggestions">Display suggestions (only for offline dictionaries):</label>
+        <input type="number" id="displaySuggestions" min="0" max="100" value="20" style="width: 60px;">
+        <small>0 to disable, default 20</small>
       </div>
 
       <!-- Offline Settings -->
