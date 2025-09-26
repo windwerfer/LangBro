@@ -413,12 +413,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Function to update displaySuggestions visibility
+  function updateDisplaySuggestionsVisibility() {
+    const queryType = queryTypeSelect.value;
+    const showSearchField = showSearchFieldSelect.value;
+    const displaySuggestionsRow = displaySuggestionsInput.closest('.form-group');
+
+    // Show suggestions input only if search field is enabled AND it's an offline dictionary
+    const shouldShow = showSearchField !== 'none' && queryType === 'offline';
+
+    if (shouldShow) {
+      displaySuggestionsRow.style.display = 'block';
+    } else {
+      displaySuggestionsRow.style.display = 'none';
+    }
+  }
+
   // Query type change
   queryTypeSelect.addEventListener('change', () => {
     showQueryTypeSettings(queryTypeSelect.value);
     if (queryTypeSelect.value === 'offline') {
       loadAvailableDictionaries();
     }
+    updateDisplaySuggestionsVisibility();
+  });
+
+  // Show search field change
+  showSearchFieldSelect.addEventListener('change', () => {
+    updateDisplaySuggestionsVisibility();
   });
 
   // Display method change
@@ -614,6 +636,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     groupForm.style.display = 'block';
+    updateDisplaySuggestionsVisibility();
   }
 
   function hideGroupForm() {
