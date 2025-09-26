@@ -1602,98 +1602,160 @@ function executeSwipeQuery(element) {
   lookupWord(word, selectedGroup, locationInfo);
 }
 
-// Mouse gesture handling for single and triple click detection
-let clickCount = 0;
-let clickTimer = null;
-let lastClickElement = null;
+// Helper function to determine if element should be excluded from gesture detection
+function shouldExcludeFromGestures(element) {
+  // Exclude interactive form elements
+  if (['BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'A'].includes(element.tagName)) {
+    return true;
+  }
 
-// Add mousedown event listeners to paragraphs for triple click gestures using EventManager
+  // Exclude elements with interactive roles
+  if (element.getAttribute('role') === 'button' ||
+      element.getAttribute('role') === 'link' ||
+      element.getAttribute('role') === 'menuitem') {
+    return true;
+  }
+
+  // Exclude extension UI elements
+  if (element.classList.contains('lookup-icon') ||
+      element.closest('.lookup-icon')) {
+    return true;
+  }
+
+  // Exclude popup headers and controls
+  if (element.closest('.popupResultHeader, .inlineResultHeader, .bottomResultHeader')) {
+    return true;
+  }
+
+  // Exclude close buttons
+  if (element.classList.contains('close-button') ||
+      element.closest('.close-button')) {
+    return true;
+  }
+
+  // Allow text content within popups (for single-click on results)
+  const isInPopup = element.closest('[data-box-id]');
+  if (isInPopup) {
+    // Allow clicks on text content within popup results, but not on controls
+    return false;
+  }
+
+  return false;
+}
+
+// User selection guard to prevent race conditions
+let isUserSelecting = false;
+
+// Mouse gesture handling for single and triple click detection
+let clickBuffer = []; // Store recent clicks for sequence detection
+const TRIPLE_CLICK_WINDOW = 200; // 200ms window for triple-click detection
+
+// Add click listeners with user selection guard and immediate detection
 function addClickListeners() {
-  // Use event delegation for better performance and centralized management
+  // User selection guard - disable gestures during manual selection
+  eventManager.addListener(document, 'mousedown', (event) => {
+    // Check if this is a manual selection start
+    const target = event.target;
+    if (!shouldExcludeFromGestures(target)) {
+      isUserSelecting = true;
+      // Re-enable after 1 second
+      setTimeout(() => {
+        isUserSelecting = false;
+      }, 1000);
+    }
+  });
+
+  eventManager.addListener(document, 'selectionchange', () => {
+    // If user has an active selection, guard against gestures
+    if (window.getSelection().toString().trim()) {
+      isUserSelecting = true;
+      setTimeout(() => {
+        isUserSelecting = false;
+      }, 1000);
+    }
+  });
+
+  // Immediate click detection using mousedown/mouseup
   eventManager.addDelegatedListener('mousedown', 'p, div', handleMouseDown, {
+    filter: 'ignoreProgrammaticSelections'
+  });
+
+  eventManager.addDelegatedListener('mouseup', 'p, div', handleMouseUp, {
     filter: 'ignoreProgrammaticSelections'
   });
 }
 
 function handleMouseDown(event) {
-  if (!tripleClickGroupId && !singleClickGroupId) return;
+  if (isUserSelecting) return; // Guard against manual selection
 
   const targetElement = event.target.closest('p, div');
   if (!targetElement || !targetElement.textContent.trim()) return;
 
-  // Don't trigger single/triple click gestures on interactive elements inside result popups
-  // But allow them on text content within popup results
-  const isInPopup = targetElement.closest('[data-box-id]');
-  if (isInPopup) {
-    // Allow single clicks on text content within popups, but not on interactive elements
-    if (targetElement.tagName === 'BUTTON' ||
-        targetElement.tagName === 'INPUT' ||
-        targetElement.tagName === 'TEXTAREA' ||
-        targetElement.tagName === 'SELECT' ||
-        targetElement.tagName === 'A' ||
-        targetElement.closest('button, input, textarea, select, a') ||
-        targetElement.classList.contains('popupResultHeader') ||
-        targetElement.classList.contains('inlineResultHeader') ||
-        targetElement.classList.contains('bottomResultHeader')) {
-      return;
-    }
-    // Allow single clicks on content areas
+  // Check if element should be excluded from gestures
+  if (shouldExcludeFromGestures(event.target)) {
+    return;
   }
 
-  // Reset click count if clicking on a different element
-  if (lastClickElement !== targetElement) {
-    clickCount = 0;
-    lastClickElement = targetElement;
+  const now = Date.now();
+
+  // Clean old clicks from buffer (older than triple-click window)
+  clickBuffer = clickBuffer.filter(click => now - click.time < TRIPLE_CLICK_WINDOW);
+
+  // Add this click to buffer
+  clickBuffer.push({
+    time: now,
+    target: targetElement,
+    event: event
+  });
+
+  console.log(`Mouse down detected, click buffer size: ${clickBuffer.length}`);
+}
+
+function handleMouseUp(event) {
+  if (isUserSelecting) return; // Guard against manual selection
+
+  // Check if element should be excluded from gestures
+  if (shouldExcludeFromGestures(event.target)) {
+    return;
   }
 
-  clickCount++;
+  const now = Date.now();
+  const targetElement = event.target.closest('p, div');
+  if (!targetElement) return;
 
-  // Clear existing timer
-  if (clickTimer) {
-    clearTimeout(clickTimer);
-  }
+  // Find recent clicks on the same element within the triple-click window
+  const recentClicks = clickBuffer.filter(click =>
+    now - click.time < TRIPLE_CLICK_WINDOW &&
+    click.target === targetElement
+  );
 
-  // Set timer to handle click detection after 500ms
-  clickTimer = setTimeout(() => {
-    // If we got exactly 3 clicks, triple-click was already handled
-    if (clickCount >= 3) {
-      // Triple-click already executed, just reset
-      clickCount = 0;
-      lastClickElement = null;
-      return;
-    }
+  console.log(`Mouse up detected, recent clicks: ${recentClicks.length}`);
 
-    // If we got exactly 1 click and single-click is enabled, execute single click action
-    if (clickCount === 1 && singleClickGroupId) {
-      executeSingleClickQuery(lastClickElement, event);
-    }
-
-    // Reset click tracking
-    clickCount = 0;
-    lastClickElement = null;
-  }, 500);
-
-  // Check for triple click immediately when we reach 3 clicks
-  if (clickCount === 3 && tripleClickGroupId) {
-    // Prevent default behavior and execute query
+  // Handle based on click count
+  if (recentClicks.length === 3 && tripleClickGroupId) {
+    // Triple click detected
     event.preventDefault();
     event.stopPropagation();
-
-    // Clear the timer since we're handling the triple-click now
-    if (clickTimer) {
-      clearTimeout(clickTimer);
-      clickTimer = null;
-    }
-
-    // Reset click tracking
-    clickCount = 0;
-    lastClickElement = null;
-
-    // Execute the selected query group with the paragraph text
+    console.log('Triple click detected');
     executeTripleClickQuery(targetElement);
+    clickBuffer = []; // Clear buffer after triple click
+
+  } else if (recentClicks.length === 1 && singleClickGroupId) {
+    // Single click detected (after a short delay to allow for double/triple)
+    setTimeout(() => {
+      // Re-check if we still have exactly 1 click (no additional clicks occurred)
+      const finalClicks = clickBuffer.filter(click =>
+        Date.now() - click.time < TRIPLE_CLICK_WINDOW &&
+        click.target === targetElement
+      );
+
+      if (finalClicks.length === 1) {
+        console.log('Single click confirmed, executing query');
+        executeSingleClickQuery(targetElement, event);
+        clickBuffer = clickBuffer.filter(click => click.target !== targetElement); // Clean up
+      }
+    }, 250); // Short delay to detect if more clicks are coming
   }
-  // For single and double clicks, allow normal behavior (text selection)
-  // Only prevent default on the actual triple click
 }
 
 function executeSingleClickQuery(element, clickEvent) {
@@ -1788,6 +1850,8 @@ function executeSingleClickQuery(element, clickEvent) {
             const selection = window.getSelection();
             selection.removeAllRanges();
             selection.addRange(range);
+            // Set selection state to USER_INITIATED to prevent clearing
+            eventManager.setSelectionState(SELECTION_STATES.USER_INITIATED);
           }
         } else if (document.caretPositionFromPoint) {
           const caretPosition = document.caretPositionFromPoint(clickEvent.clientX, clickEvent.clientY);
@@ -1798,6 +1862,8 @@ function executeSingleClickQuery(element, clickEvent) {
             const selection = window.getSelection();
             selection.removeAllRanges();
             selection.addRange(range);
+            // Set selection state to USER_INITIATED to prevent clearing
+            eventManager.setSelectionState(SELECTION_STATES.USER_INITIATED);
           }
         }
       } catch (error) {
