@@ -937,10 +937,137 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
         performSearch(searchInput.value.trim(), group, resultDiv, boxId);
       }, 500); // 0.5 second delay
     });
+  } else if (group.showSearchField === 'liveHeadwordResults') {
+    // Live results + suggestions - add debounced input handler with suggestions
+    let debounceTimer;
+    let suggestionsDiv = null;
+
+    searchInput.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        const query = searchInput.value.trim();
+        performSearch(query, group, resultDiv, boxId);
+
+        // Get suggestions if query is not empty
+        if (query.length > 0) {
+          try {
+            console.log('CONTENT: Requesting suggestions for word:', query, 'dictionaries:', group.settings?.selectedDictionaries);
+            const response = await chrome.runtime.sendMessage({
+              action: 'getSuggestions',
+              word: query,
+              maxResults: 10,
+              selectedDictionaries: group.settings?.selectedDictionaries || []
+            });
+            console.log('CONTENT: Received suggestions response:', response);
+
+            if (response.suggestions && response.suggestions.length > 0) {
+              console.log('CONTENT: Showing suggestions:', response.suggestions);
+              showSuggestions(response.suggestions, searchInput, resultDiv);
+            } else {
+              console.log('CONTENT: No suggestions to show, hiding dropdown');
+              hideSuggestions(resultDiv);
+            }
+          } catch (error) {
+            console.error('CONTENT: Error getting suggestions:', error);
+            hideSuggestions(resultDiv);
+          }
+        } else {
+          console.log('CONTENT: Query is empty, hiding suggestions');
+          hideSuggestions(resultDiv);
+        }
+      }, 300); // 0.3 second delay for faster suggestions
+    });
+
+    // Hide suggestions when input loses focus
+    searchInput.addEventListener('blur', () => {
+      // Delay hiding to allow clicking on suggestions
+      setTimeout(() => hideSuggestions(resultDiv), 150);
+    });
   }
-  // Note: 'liveHeadwordResults' is a placeholder for now
 
   return searchContainer;
+}
+
+// Show suggestions dropdown below search input
+function showSuggestions(suggestions, searchInput, resultDiv) {
+  // Remove existing suggestions
+  hideSuggestions(resultDiv);
+
+  // Create suggestions container
+  const suggestionsDiv = document.createElement('div');
+  suggestionsDiv.className = 'search-suggestions';
+  suggestionsDiv.style.setProperty('position', 'absolute', 'important');
+  suggestionsDiv.style.setProperty('top', '100%', 'important');
+  suggestionsDiv.style.setProperty('left', '0', 'important');
+  suggestionsDiv.style.setProperty('right', '0', 'important');
+  suggestionsDiv.style.setProperty('max-height', '200px', 'important');
+  suggestionsDiv.style.setProperty('overflow-y', 'auto', 'important');
+  suggestionsDiv.style.setProperty('border', '1px solid #ccc', 'important');
+  suggestionsDiv.style.setProperty('border-top', 'none', 'important');
+  suggestionsDiv.style.setProperty('border-radius', '0 0 3px 3px', 'important');
+  suggestionsDiv.style.setProperty('z-index', '1000000', 'important');
+  suggestionsDiv.style.setProperty('background', 'white', 'important');
+
+  // Apply dark mode
+  chrome.storage.local.get(['darkMode'], (result) => {
+    const isDarkMode = result.darkMode || false;
+    if (isDarkMode) {
+      suggestionsDiv.style.setProperty('background-color', '#1e1e1e', 'important');
+      suggestionsDiv.style.setProperty('border-color', '#555', 'important');
+      suggestionsDiv.style.setProperty('color', '#ffffff', 'important');
+    }
+  });
+
+  // Add suggestions
+  suggestions.forEach(suggestion => {
+    const suggestionItem = document.createElement('div');
+    suggestionItem.textContent = suggestion;
+    suggestionItem.style.setProperty('padding', '4px 8px', 'important');
+    suggestionItem.style.setProperty('cursor', 'pointer', 'important');
+    suggestionItem.style.setProperty('border-bottom', '1px solid #eee', 'important');
+
+    // Apply dark mode to items
+    chrome.storage.local.get(['darkMode'], (result) => {
+      const isDarkMode = result.darkMode || false;
+      if (isDarkMode) {
+        suggestionItem.style.setProperty('border-bottom-color', '#333', 'important');
+      }
+    });
+
+    suggestionItem.addEventListener('mouseenter', () => {
+      suggestionItem.style.setProperty('background-color', '#f0f0f0', 'important');
+      if (chrome.storage.local.get(['darkMode'], (result) => result.darkMode)) {
+        suggestionItem.style.setProperty('background-color', '#333', 'important');
+      }
+    });
+
+    suggestionItem.addEventListener('mouseleave', () => {
+      suggestionItem.style.setProperty('background-color', 'transparent', 'important');
+    });
+
+    suggestionItem.addEventListener('click', () => {
+      searchInput.value = suggestion;
+      searchInput.focus();
+      hideSuggestions(resultDiv);
+      // Trigger search
+      searchInput.dispatchEvent(new Event('input'));
+    });
+
+    suggestionsDiv.appendChild(suggestionItem);
+  });
+
+  // Find the search container and append suggestions
+  const searchContainer = searchInput.parentElement;
+  searchContainer.style.setProperty('position', 'relative', 'important');
+  searchContainer.appendChild(suggestionsDiv);
+}
+
+// Hide suggestions dropdown
+function hideSuggestions(resultDiv) {
+  const suggestionsDiv = resultDiv.querySelector('.search-suggestions');
+  if (suggestionsDiv) {
+    suggestionsDiv.remove();
+  }
 }
 
 // Perform search with the given query

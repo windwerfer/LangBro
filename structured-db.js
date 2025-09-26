@@ -4,7 +4,7 @@
 class StructuredDictionaryDatabase {
   constructor() {
     this.db = null;
-    this.dbVersion = 3; // Increment version for new schema
+    this.dbVersion = 4; // Increment version for new expressionOnly index
   }
 
   // Initialize database with structured schema
@@ -23,6 +23,7 @@ class StructuredDictionaryDatabase {
         if (!db.objectStoreNames.contains('terms')) {
           const termsStore = db.createObjectStore('terms', { keyPath: ['dictionary', 'expression', 'reading'] });
           termsStore.createIndex('expression', ['dictionary', 'expression']);
+          termsStore.createIndex('expressionOnly', 'expression');
           termsStore.createIndex('reading', ['dictionary', 'reading']);
         }
         if (!db.objectStoreNames.contains('kanji')) {
@@ -434,6 +435,126 @@ class StructuredDictionaryDatabase {
       };
 
       request.onerror = () => reject(request.error);
+    });
+  }
+
+  // Get suggestions for autocomplete (terms that start with the given word) from specific dictionaries
+  async getSuggestionsInDictionaries(word, maxResults = 10, selectedDictionaryNames = []) {
+    if (!this.db) await this.open();
+
+    console.log('DB: getSuggestionsInDictionaries called with word:', word, 'maxResults:', maxResults, 'dictionaries:', selectedDictionaryNames);
+
+    if (selectedDictionaryNames.length === 0) {
+      console.log('DB: No dictionaries selected, returning empty suggestions');
+      return [];
+    }
+
+    const transaction = this.db.transaction(['terms'], 'readonly');
+    const store = transaction.objectStore('terms');
+    const index = store.index('expression'); // Use compound index [dictionary, expression]
+
+    return new Promise((resolve, reject) => {
+      const suggestions = new Set(); // Use Set to avoid duplicates
+
+      // We need to query each selected dictionary separately
+      let dictionariesProcessed = 0;
+      const totalDictionaries = selectedDictionaryNames.length;
+
+      const processDictionary = (dictName) => {
+        console.log('DB: Processing dictionary:', dictName, 'for suggestions');
+        const range = IDBKeyRange.bound([dictName, word], [dictName, word + '\uffff'], false, false);
+
+        const request = index.openCursor(range);
+
+        request.onsuccess = (event) => {
+          const cursor = event.target.result;
+          if (cursor && suggestions.size < maxResults) {
+            const expression = cursor.value.expression;
+            console.log('DB: Found expression:', expression, 'in dict:', dictName, 'starts with word?', expression.startsWith(word));
+            // Only add if it starts with our word (the range should already filter this, but double-check)
+            if (expression.startsWith(word)) {
+              suggestions.add(expression);
+              console.log('DB: Added suggestion:', expression, 'total suggestions:', suggestions.size);
+            }
+            cursor.continue();
+          } else {
+            // Finished this dictionary
+            dictionariesProcessed++;
+            console.log('DB: Finished processing dictionary:', dictName, 'processed:', dictionariesProcessed, '/', totalDictionaries);
+
+            if (dictionariesProcessed >= totalDictionaries) {
+              // All dictionaries processed
+              const result = Array.from(suggestions).sort();
+              console.log('DB: Returning suggestions from selected dictionaries:', result);
+              resolve(result);
+            } else {
+              // Process next dictionary
+              const nextDict = selectedDictionaryNames[dictionariesProcessed];
+              processDictionary(nextDict);
+            }
+          }
+        };
+
+        request.onerror = (event) => {
+          console.error('DB: Error processing dictionary:', dictName, event.target.error);
+          // Continue with other dictionaries
+          dictionariesProcessed++;
+          if (dictionariesProcessed >= totalDictionaries) {
+            const result = Array.from(suggestions).sort();
+            console.log('DB: Returning suggestions (with error):', result);
+            resolve(result);
+          } else {
+            const nextDict = selectedDictionaryNames[dictionariesProcessed];
+            processDictionary(nextDict);
+          }
+        };
+      };
+
+      // Start processing the first dictionary
+      processDictionary(selectedDictionaryNames[0]);
+    });
+  }
+
+  // Get suggestions for autocomplete (terms that start with the given word) - LEGACY: searches all dictionaries
+  async getSuggestions(word, maxResults = 10) {
+    if (!this.db) await this.open();
+
+    console.log('DB: getSuggestions called with word:', word, 'maxResults:', maxResults);
+
+    const transaction = this.db.transaction(['terms'], 'readonly');
+    const store = transaction.objectStore('terms');
+    const index = store.index('expressionOnly'); // Use the new expression-only index
+
+    return new Promise((resolve, reject) => {
+      const suggestions = new Set(); // Use Set to avoid duplicates
+      const range = IDBKeyRange.bound(word, word + '\uffff', false, false); // Single key, not array
+
+      console.log('DB: Created range for word:', word, 'range:', range);
+
+      const request = index.openCursor(range);
+
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+        console.log('DB: Cursor result:', cursor ? 'has cursor' : 'no cursor', 'suggestions size:', suggestions.size);
+        if (cursor && suggestions.size < maxResults) {
+          const expression = cursor.key; // The key is just the expression now
+          console.log('DB: Found expression:', expression, 'starts with word?', expression.startsWith(word));
+          // The range query already filters to expressions that start with our word
+          suggestions.add(expression);
+          console.log('DB: Added suggestion:', expression, 'total suggestions:', suggestions.size);
+          cursor.continue();
+        } else {
+          // Convert Set to Array and sort alphabetically
+          const result = Array.from(suggestions).sort();
+          console.log('DB: Returning suggestions:', result);
+          resolve(result);
+        }
+      };
+
+      request.onerror = (event) => {
+        console.error('DB: Error in getSuggestions:', event.target.error);
+        reject(event.target.error);
+      };
     });
   }
 

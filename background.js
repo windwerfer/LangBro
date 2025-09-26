@@ -276,6 +276,33 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
     })();
     return true; // Keep message channel open for async response
+  } else if (request.action === 'getSuggestions') {
+    (async () => {
+      try {
+        const word = request.word || '';
+        const maxResults = request.maxResults || 10;
+        const selectedDictionaries = request.selectedDictionaries || [];
+
+        console.log('BACKGROUND: Received getSuggestions request for word:', word, 'maxResults:', maxResults, 'dictionaries:', selectedDictionaries);
+
+        if (!word.trim()) {
+          console.log('BACKGROUND: Word is empty, returning empty suggestions');
+          sendResponse({ suggestions: [] });
+          return;
+        }
+
+        const db = await getStructuredDB();
+        console.log('BACKGROUND: Calling db.getSuggestionsInDictionaries with word:', word, 'maxResults:', maxResults, 'dictionaries:', selectedDictionaries);
+        const suggestions = await db.getSuggestionsInDictionaries(word, maxResults, selectedDictionaries);
+        console.log('BACKGROUND: Database returned suggestions:', suggestions);
+        console.log('BACKGROUND: Sending response with suggestions:', suggestions);
+        sendResponse({ suggestions: suggestions });
+      } catch (error) {
+        console.error('BACKGROUND: Error getting suggestions:', error);
+        sendResponse({ suggestions: [] });
+      }
+    })();
+    return true; // Keep message channel open for async response
   } else if (request.action === 'getAllDictionaries') {
     (async () => {
       try {
