@@ -972,34 +972,37 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
       }, 300); // 0.3 second delay for faster suggestions
     });
 
-    // Show suggestions when input gains focus (if it has content)
+    // Show suggestions when input gains focus or is clicked (if it has content)
     if (suggestionsEnabled) {
-      searchInput.addEventListener('focus', async () => {
+      const showSuggestionsIfContent = async () => {
         const query = searchInput.value.trim();
         if (query.length > 0) {
           try {
-            console.log('CONTENT: Requesting suggestions on focus for word:', query, 'dictionaries:', group.settings?.selectedDictionaries);
+            console.log('CONTENT: Requesting suggestions on focus/click for word:', query, 'dictionaries:', group.settings?.selectedDictionaries);
             const response = await chrome.runtime.sendMessage({
               action: 'getSuggestions',
               word: query,
               maxResults: group.displaySuggestions || 20,
               selectedDictionaries: group.settings?.selectedDictionaries || []
             });
-            console.log('CONTENT: Received suggestions response on focus:', response);
+            console.log('CONTENT: Received suggestions response on focus/click:', response);
 
             if (response.suggestions && response.suggestions.length > 0) {
-              console.log('CONTENT: Showing suggestions on focus:', response.suggestions);
+              console.log('CONTENT: Showing suggestions on focus/click:', response.suggestions);
               showSuggestions(response.suggestions, searchInput, resultDiv, group, boxId);
             } else {
-              console.log('CONTENT: No suggestions to show on focus, hiding dropdown');
+              console.log('CONTENT: No suggestions to show on focus/click, hiding dropdown');
               hideSuggestions(resultDiv);
             }
           } catch (error) {
-            console.error('CONTENT: Error getting suggestions on focus:', error);
+            console.error('CONTENT: Error getting suggestions on focus/click:', error);
             hideSuggestions(resultDiv);
           }
         }
-      });
+      };
+
+      searchInput.addEventListener('focus', showSuggestionsIfContent);
+      searchInput.addEventListener('click', showSuggestionsIfContent);
 
       // Hide suggestions when input loses focus
       searchInput.addEventListener('blur', () => {
@@ -1045,33 +1048,36 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
       }, 300); // 0.3 second delay for suggestions only
     });
 
-    // Show suggestions when input gains focus (if it has content)
-    searchInput.addEventListener('focus', async () => {
+    // Show suggestions when input gains focus or is clicked (if it has content)
+    const showSuggestionsIfContent = async () => {
       const query = searchInput.value.trim();
       if (query.length > 0) {
         try {
-          console.log('CONTENT: Requesting suggestions on focus for word:', query, 'dictionaries:', group.settings?.selectedDictionaries);
+          console.log('CONTENT: Requesting suggestions on focus/click for word:', query, 'dictionaries:', group.settings?.selectedDictionaries);
           const response = await chrome.runtime.sendMessage({
             action: 'getSuggestions',
             word: query,
             maxResults: group.displaySuggestions || 20,
             selectedDictionaries: group.settings?.selectedDictionaries || []
           });
-          console.log('CONTENT: Received suggestions response on focus:', response);
+          console.log('CONTENT: Received suggestions response on focus/click:', response);
 
           if (response.suggestions && response.suggestions.length > 0) {
-            console.log('CONTENT: Showing suggestions on focus:', response.suggestions);
+            console.log('CONTENT: Showing suggestions on focus/click:', response.suggestions);
             showSuggestions(response.suggestions, searchInput, resultDiv, group, boxId);
           } else {
-            console.log('CONTENT: No suggestions to show on focus, hiding dropdown');
+            console.log('CONTENT: No suggestions to show on focus/click, hiding dropdown');
             hideSuggestions(resultDiv);
           }
         } catch (error) {
-          console.error('CONTENT: Error getting suggestions on focus:', error);
+          console.error('CONTENT: Error getting suggestions on focus/click:', error);
           hideSuggestions(resultDiv);
         }
       }
-    });
+    };
+
+    searchInput.addEventListener('focus', showSuggestionsIfContent);
+    searchInput.addEventListener('click', showSuggestionsIfContent);
 
     // Hide suggestions when input loses focus
     searchInput.addEventListener('blur', () => {
