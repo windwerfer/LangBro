@@ -343,15 +343,15 @@ function handleIconClick(event, group) {
   // console.log(currentSelection);console.log('xxx');
   if (currentSelection) {
     hideLookupIcons(); // Hide icons after click
-    // Show result window immediately with spinner
-    const locationInfo = showResult(null, group);
-
     // Choose text based on group's textSelectionMethod
     const textSelectionMethod = group.textSelectionMethod || 'selectedText';
     console.log(`Using text selection method: ${textSelectionMethod}`);
     console.log(currentSelection);
     const word = currentSelection[textSelectionMethod] || currentSelection.selectedText || '';
     console.log(`Sending Text: ${word}`);
+
+    // Show result window immediately with spinner and initial word
+    const locationInfo = showResult(null, group, null, word);
     lookupWord(word, group, locationInfo);
   }
 }
@@ -430,17 +430,17 @@ function sanitizeDictHTML(html) {
 
 
 // Show the result based on group's display method
-function showResult(definition, group, locationInfo) {
+function showResult(definition, group, locationInfo, initialWord = '') {
   const displayMethod = locationInfo ? locationInfo.displayMethod : group.displayMethod || 'popup';
   const boxId = locationInfo ? locationInfo.boxId : ++boxIdCounter;
 
   if (displayMethod === 'inline') {
-    showInlineResult(definition, group, boxId);
+    showInlineResult(definition, group, boxId, initialWord);
   } else if (displayMethod === 'bottom') {
-    showBottomResult(definition, group, boxId);
+    showBottomResult(definition, group, boxId, initialWord);
   } else {
     // Default to popup
-    showPopupResult(definition, group, boxId);
+    showPopupResult(definition, group, boxId, initialWord);
   }
 
   // Return location info for the caller
@@ -448,7 +448,7 @@ function showResult(definition, group, locationInfo) {
 }
 
 // Show the result in a popup div (original behavior)
-function showPopupResult(definition, group, boxId) {
+function showPopupResult(definition, group, boxId, initialWord = '') {
   resultJustShown = true;
   let resultDiv = resultDivs.find(div => div.dataset.boxId == boxId);
 
@@ -507,7 +507,7 @@ function showPopupResult(definition, group, boxId) {
       resultDiv.style.setProperty('top', top + 'px', 'important');
     }
 
-    // Create header div for close button
+    // Create header div for close button and search field
     const headerDiv = document.createElement('div');
     headerDiv.className = 'popupResultHeader';
     headerDiv.style.setProperty('position', 'relative', 'important');
@@ -528,6 +528,12 @@ function showPopupResult(definition, group, boxId) {
     // Add close button to header
     const closeBtn = createCloseButton(resultDiv, '5px', '5px');
     headerDiv.appendChild(closeBtn);
+
+    // Add search field if enabled
+    if (group.showSearchField && group.showSearchField !== 'none') {
+      const searchContainer = createSearchField(group, resultDiv, boxId, initialWord);
+      headerDiv.appendChild(searchContainer);
+    }
 
     // Assemble the structure
     resultDiv.appendChild(headerDiv);
@@ -574,7 +580,7 @@ function showPopupResult(definition, group, boxId) {
 }
 
 // Show the result inline below the selected text
-function showInlineResult(definition, group, boxId) {
+function showInlineResult(definition, group, boxId, initialWord = '') {
   let inlineDiv = inlineDivs.find(div => div.dataset.boxId == boxId);
 
   // If inline div doesn't exist yet, create it
@@ -640,12 +646,14 @@ function showInlineResult(definition, group, boxId) {
       }
     });
 
-    // Create header div for close button
+    // Create header div for close button and search field
     const headerDiv = document.createElement('div');
     headerDiv.className = 'inlineResultHeader';
     headerDiv.style.setProperty('width', '100%', 'important');
     headerDiv.style.setProperty('position', 'relative', 'important');
     headerDiv.style.setProperty('flex-shrink', '0', 'important');
+    headerDiv.style.setProperty('display', 'flex', 'important');
+    headerDiv.style.setProperty('align-items', 'center', 'important');
 
     // Create content div for scrollable content
     const contentDiv = document.createElement('div');
@@ -661,6 +669,12 @@ function showInlineResult(definition, group, boxId) {
     // Add close button to header
     const closeBtn = createCloseButton(inlineDiv, '-40px', '5px');
     headerDiv.appendChild(closeBtn);
+
+    // Add search field if enabled
+    if (group.showSearchField && group.showSearchField !== 'none') {
+      const searchContainer = createSearchField(group, inlineDiv, boxId, initialWord);
+      headerDiv.appendChild(searchContainer);
+    }
 
     // Assemble the structure
     inlineDiv.appendChild(headerDiv);
@@ -724,7 +738,7 @@ function showInlineResult(definition, group, boxId) {
 }
 
 // Show the result in a bottom panel
-function showBottomResult(definition, group, boxId) {
+function showBottomResult(definition, group, boxId, initialWord = '') {
   let bottomDiv = bottomDivs.find(div => div.dataset.boxId == boxId);
 
   // If bottom div doesn't exist yet, create it
@@ -763,12 +777,14 @@ function showBottomResult(definition, group, boxId) {
       }
     });
 
-    // Create header div for close button
+    // Create header div for close button and search field
     const headerDiv = document.createElement('div');
     headerDiv.className = 'bottomResultHeader';
     headerDiv.style.setProperty('width', '100%', 'important');
     headerDiv.style.setProperty('position', 'relative', 'important');
     headerDiv.style.setProperty('flex-shrink', '0', 'important');
+    headerDiv.style.setProperty('display', 'flex', 'important');
+    headerDiv.style.setProperty('align-items', 'center', 'important');
 
     // Create content div for scrollable content
     const contentDiv = document.createElement('div');
@@ -784,6 +800,12 @@ function showBottomResult(definition, group, boxId) {
     // Add close button to header
     const closeBtn = createCloseButton(bottomDiv, '-40px', '15px');
     headerDiv.appendChild(closeBtn);
+
+    // Add search field if enabled
+    if (group.showSearchField && group.showSearchField !== 'none') {
+      const searchContainer = createSearchField(group, bottomDiv, boxId, initialWord);
+      headerDiv.appendChild(searchContainer);
+    }
 
     // Assemble the structure
     bottomDiv.appendChild(headerDiv);
@@ -842,6 +864,102 @@ function createCloseButton(targetDiv, top = '10px', right = '10px') {
     targetDiv.style.display = 'none';
   };
   return closeBtn;
+}
+
+// Create search field container for result windows
+function createSearchField(group, resultDiv, boxId, initialWord = '') {
+  const searchContainer = document.createElement('div');
+  searchContainer.style.setProperty('display', 'flex', 'important');
+  searchContainer.style.setProperty('align-items', 'center', 'important');
+  searchContainer.style.setProperty('gap', '5px', 'important');
+  searchContainer.style.setProperty('margin-right', '25px', 'important'); // Leave space for close button
+  searchContainer.style.setProperty('flex', '1', 'important');
+
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.placeholder = 'Search...';
+  searchInput.value = initialWord; // Set initial word
+  searchInput.style.setProperty('flex', '1', 'important');
+  searchInput.style.setProperty('padding', '2px 5px', 'important');
+  searchInput.style.setProperty('border', '1px solid #ccc', 'important');
+  searchInput.style.setProperty('border-radius', '3px', 'important');
+  searchInput.style.setProperty('font-size', '12px', 'important');
+  searchInput.style.setProperty('min-width', '0', 'important');
+
+  // Apply dark mode to input
+  chrome.storage.local.get(['darkMode'], (result) => {
+    const isDarkMode = result.darkMode || false;
+    if (isDarkMode) {
+      searchInput.style.setProperty('background-color', '#1e1e1e', 'important');
+      searchInput.style.setProperty('color', '#ffffff', 'important');
+      searchInput.style.setProperty('border-color', '#555', 'important');
+    }
+  });
+
+  searchContainer.appendChild(searchInput);
+
+  // Add search button if "on pressing enter" mode
+  if (group.showSearchField === 'onPressingEnter') {
+    const searchButton = document.createElement('button');
+    searchButton.innerHTML = '🔍';
+    searchButton.style.setProperty('padding', '2px 6px', 'important');
+    searchButton.style.setProperty('border', '1px solid #ccc', 'important');
+    searchButton.style.setProperty('border-radius', '3px', 'important');
+    searchButton.style.setProperty('background', 'white', 'important');
+    searchButton.style.setProperty('cursor', 'pointer', 'important');
+    searchButton.style.setProperty('font-size', '12px', 'important');
+
+    // Apply dark mode to button
+    chrome.storage.local.get(['darkMode'], (result) => {
+      const isDarkMode = result.darkMode || false;
+      if (isDarkMode) {
+        searchButton.style.setProperty('background-color', '#2d2d2d', 'important');
+        searchButton.style.setProperty('color', '#ffffff', 'important');
+        searchButton.style.setProperty('border-color', '#555', 'important');
+      }
+    });
+
+    searchButton.onclick = () => performSearch(searchInput.value.trim(), group, resultDiv, boxId);
+    searchContainer.appendChild(searchButton);
+
+    // Handle Enter key
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        performSearch(searchInput.value.trim(), group, resultDiv, boxId);
+      }
+    });
+  } else if (group.showSearchField === 'liveResults') {
+    // Live results - add debounced input handler
+    let debounceTimer;
+    searchInput.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        performSearch(searchInput.value.trim(), group, resultDiv, boxId);
+      }, 500); // 0.5 second delay
+    });
+  }
+  // Note: 'liveHeadwordResults' is a placeholder for now
+
+  return searchContainer;
+}
+
+// Perform search with the given query
+function performSearch(query, group, resultDiv, boxId) {
+  if (!query) return;
+
+  // Get content div
+  const contentDiv = resultDiv.querySelector('.popupResultContent') ||
+                     resultDiv.querySelector('.inlineResultContent') ||
+                     resultDiv.querySelector('.bottomResultContent');
+  if (!contentDiv) return;
+
+  // Show spinner
+  contentDiv.innerHTML = '';
+  const spinner = createSpinner(`Searching ${group.name}...`);
+  contentDiv.appendChild(spinner);
+
+  // Perform lookup
+  lookupWord(query, group, { boxId, displayMethod: group.displayMethod || 'popup' });
 }
 
 // Create spinner element for loading states
