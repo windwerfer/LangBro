@@ -489,6 +489,29 @@ function showPopupResult(definition, group, boxId, initialWord = '') {
       }
     });
 
+    // Add event delegation for single-click gestures on popup content
+    resultDiv.addEventListener('mousedown', (event) => {
+      // Only handle if single-click is enabled
+      if (!singleClickGroupId) return;
+
+      // Find the closest text-containing element (p, div, span, etc.)
+      const targetElement = event.target.closest('p, div, span, em, strong, b, i');
+      if (!targetElement || !targetElement.textContent.trim()) return;
+
+      // Don't trigger on interactive elements
+      if (targetElement.tagName === 'BUTTON' ||
+          targetElement.tagName === 'INPUT' ||
+          targetElement.tagName === 'TEXTAREA' ||
+          targetElement.tagName === 'SELECT' ||
+          targetElement.tagName === 'A' ||
+          targetElement.closest('button, input, textarea, select, a')) {
+        return;
+      }
+
+      // Delegate to single-click handler
+      executeSingleClickQuery(targetElement, event);
+    });
+
     // Position near the original selection
     const selection = window.getSelection();
     if (selection.rangeCount > 0) {
@@ -648,6 +671,29 @@ function showInlineResult(definition, group, boxId, initialWord = '') {
       }
     });
 
+    // Add event delegation for single-click gestures on inline content
+    inlineDiv.addEventListener('mousedown', (event) => {
+      // Only handle if single-click is enabled
+      if (!singleClickGroupId) return;
+
+      // Find the closest text-containing element (p, div, span, etc.)
+      const targetElement = event.target.closest('p, div, span, em, strong, b, i');
+      if (!targetElement || !targetElement.textContent.trim()) return;
+
+      // Don't trigger on interactive elements
+      if (targetElement.tagName === 'BUTTON' ||
+          targetElement.tagName === 'INPUT' ||
+          targetElement.tagName === 'TEXTAREA' ||
+          targetElement.tagName === 'SELECT' ||
+          targetElement.tagName === 'A' ||
+          targetElement.closest('button, input, textarea, select, a')) {
+        return;
+      }
+
+      // Delegate to single-click handler
+      executeSingleClickQuery(targetElement, event);
+    });
+
     // Create header div for close button and search field
     const headerDiv = document.createElement('div');
     headerDiv.className = 'inlineResultHeader';
@@ -777,6 +823,29 @@ function showBottomResult(definition, group, boxId, initialWord = '') {
         bottomDiv.style.setProperty('color', 'black', 'important');
         bottomDiv.style.setProperty('border-top-color', '#ccc', 'important');
       }
+    });
+
+    // Add event delegation for single-click gestures on bottom content
+    bottomDiv.addEventListener('mousedown', (event) => {
+      // Only handle if single-click is enabled
+      if (!singleClickGroupId) return;
+
+      // Find the closest text-containing element (p, div, span, etc.)
+      const targetElement = event.target.closest('p, div, span, em, strong, b, i');
+      if (!targetElement || !targetElement.textContent.trim()) return;
+
+      // Don't trigger on interactive elements
+      if (targetElement.tagName === 'BUTTON' ||
+          targetElement.tagName === 'INPUT' ||
+          targetElement.tagName === 'TEXTAREA' ||
+          targetElement.tagName === 'SELECT' ||
+          targetElement.tagName === 'A' ||
+          targetElement.closest('button, input, textarea, select, a')) {
+        return;
+      }
+
+      // Delegate to single-click handler
+      executeSingleClickQuery(targetElement, event);
     });
 
     // Create header div for close button and search field
@@ -1333,6 +1402,25 @@ function handleMouseDown(event) {
   const targetElement = event.target.closest('p, div');
   if (!targetElement || !targetElement.textContent.trim()) return;
 
+  // Don't trigger single/triple click gestures on interactive elements inside result popups
+  // But allow them on text content within popup results
+  const isInPopup = targetElement.closest('[data-box-id]');
+  if (isInPopup) {
+    // Allow single clicks on text content within popups, but not on interactive elements
+    if (targetElement.tagName === 'BUTTON' ||
+        targetElement.tagName === 'INPUT' ||
+        targetElement.tagName === 'TEXTAREA' ||
+        targetElement.tagName === 'SELECT' ||
+        targetElement.tagName === 'A' ||
+        targetElement.closest('button, input, textarea, select, a') ||
+        targetElement.classList.contains('popupResultHeader') ||
+        targetElement.classList.contains('inlineResultHeader') ||
+        targetElement.classList.contains('bottomResultHeader')) {
+      return;
+    }
+    // Allow single clicks on content areas
+  }
+
   // Reset click count if clicking on a different element
   if (lastClickElement !== targetElement) {
     clickCount = 0;
@@ -1482,6 +1570,33 @@ function executeSingleClickQuery(element, clickEvent) {
     console.log(currentSelection);
     const word = currentSelection[textSelectionMethod] || currentSelection.selectedText || '';
     console.log(`Single click query text: ${word}`);
+
+    // Create a selection for the detected word to ensure proper popup positioning
+    if (clickedWord && clickEvent) {
+      try {
+        // Try to create a selection for the clicked word
+        if (document.caretRangeFromPoint) {
+          const range = document.caretRangeFromPoint(clickEvent.clientX, clickEvent.clientY);
+          if (range) {
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+        } else if (document.caretPositionFromPoint) {
+          const caretPosition = document.caretPositionFromPoint(clickEvent.clientX, clickEvent.clientY);
+          if (caretPosition && caretPosition.offsetNode.nodeType === Node.TEXT_NODE) {
+            const range = document.createRange();
+            range.setStart(caretPosition.offsetNode, caretPosition.offset);
+            range.setEnd(caretPosition.offsetNode, caretPosition.offset);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+        }
+      } catch (error) {
+        console.error('Error creating selection for popup positioning:', error);
+      }
+    }
 
     // Show result window immediately with spinner, passing the selected word for search field
     const locationInfo = showResult(null, selectedGroup, null, word);
