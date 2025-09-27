@@ -172,6 +172,7 @@ let rightSwipeGroupId = '';
 let singleClickGroupId = '';
 let tripleClickGroupId = '';
 let hideGroupNames = false;
+let isDarkMode = false;
 
 // Load settings and query groups on startup
 loadSettings();
@@ -329,7 +330,7 @@ function handleSelectionChange() {
 // Load settings from storage
 async function loadSettings() {
   try {
-    const result = await chrome.storage.local.get(['iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'singleClickGroup', 'tripleClickGroup', 'hideGroupNames']);
+    const result = await chrome.storage.local.get(['iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'singleClickGroup', 'tripleClickGroup', 'hideGroupNames', 'darkMode']);
     iconPlacement = result.iconPlacement || 'word';
     iconOffset = result.iconOffset || 50;
     iconSpacing = result.iconSpacing || 10;
@@ -337,7 +338,8 @@ async function loadSettings() {
     singleClickGroupId = result.singleClickGroup || '';
     tripleClickGroupId = result.tripleClickGroup || '';
     hideGroupNames = result.hideGroupNames || false;
-    console.log('Loaded icon settings:', { iconPlacement, iconOffset, iconSpacing, rightSwipeGroupId, singleClickGroupId, tripleClickGroupId, hideGroupNames });
+    isDarkMode = result.darkMode || false;
+    console.log('Loaded icon settings:', { iconPlacement, iconOffset, iconSpacing, rightSwipeGroupId, singleClickGroupId, tripleClickGroupId, hideGroupNames, isDarkMode });
   } catch (error) {
     console.error('Error loading settings:', error);
     iconPlacement = 'word';
@@ -346,6 +348,7 @@ async function loadSettings() {
     rightSwipeGroupId = '';
     tripleClickGroupId = '';
     hideGroupNames = false;
+    isDarkMode = false;
   }
 }
 
@@ -374,6 +377,14 @@ async function loadQueryGroups() {
   }
 }
 
+// Listen for dark mode changes
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.darkMode) {
+    isDarkMode = changes.darkMode.newValue || false;
+    console.log('Dark mode updated:', isDarkMode);
+  }
+});
+
 // Show multiple lookup icons near the selection
 function showLookupIcons(selection) {
   // Hide existing icons
@@ -384,102 +395,97 @@ function showLookupIcons(selection) {
   console.log('Enabled query groups:', enabledGroups.length);
   if (enabledGroups.length === 0) return;
 
-  // Apply dark mode styling
-  chrome.storage.local.get(['darkMode'], (result) => {
-    const isDarkMode = result.darkMode || false;
+  // Position calculation
+  const range = selection.getRangeAt(0);
+  const rect = range.getBoundingClientRect();
+  const baseTop = rect.top + window.scrollY - 5;
 
-    // Position calculation
-    const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    const baseTop = rect.top + window.scrollY - 5;
+  enabledGroups.forEach((group, index) => {
+    // console.log(`Creating icon for group: ${group.name} (${group.icon})`);
+    const icon = document.createElement('div');
+    icon.style.position = 'absolute';
+    icon.style.borderRadius = '3px';
+    icon.style.padding = '2px 4px';
+    icon.style.cursor = 'pointer';
+    icon.style.zIndex = '999999';
+    icon.style.fontSize = '14px';
+    icon.style.fontWeight = 'bold';
+    icon.dataset.groupId = group.id;
+    icon.dataset.groupIndex = index;
 
-    enabledGroups.forEach((group, index) => {
-      // console.log(`Creating icon for group: ${group.name} (${group.icon})`);
-      const icon = document.createElement('div');
-      icon.style.position = 'absolute';
-      icon.style.borderRadius = '3px';
-      icon.style.padding = '2px 4px';
-      icon.style.cursor = 'pointer';
-      icon.style.zIndex = '999999';
-      icon.style.fontSize = '14px';
-      icon.style.fontWeight = 'bold';
-      icon.dataset.groupId = group.id;
-      icon.dataset.groupIndex = index;
+    // Handle image icons vs text icons
+    if (group.icon && group.icon.endsWith('.png')) {
+      // Image icon - create img element with proper extension URL
+      const img = document.createElement('img');
+      img.src = chrome.runtime.getURL(group.icon);
+      img.style.width = '16px';
+      img.style.height = '16px';
+      img.style.verticalAlign = 'middle';
+      icon.appendChild(img);
+    } else {
+      // Text icon
+      icon.textContent = group.icon;
+    }
 
-      // Handle image icons vs text icons
-      if (group.icon && group.icon.endsWith('.png')) {
-        // Image icon - create img element with proper extension URL
-        const img = document.createElement('img');
-        img.src = chrome.runtime.getURL(group.icon);
-        img.style.width = '16px';
-        img.style.height = '16px';
-        img.style.verticalAlign = 'middle';
-        icon.appendChild(img);
-      } else {
-        // Text icon
-        icon.textContent = group.icon;
+    // Mark as interactive to prevent single-click delegation
+    icon.classList.add('lookup-icon');
+
+    // Apply dark mode styling
+    if (isDarkMode) {
+      icon.style.backgroundColor = 'black';
+      icon.style.color = 'gray';
+      icon.style.border = '1px solid gray';
+    } else {
+      icon.style.backgroundColor = 'white';
+      icon.style.color = 'black';
+      icon.style.border = '1px solid #ccc';
+    }
+
+    // Calculate position based on placement setting
+    let left, top = baseTop + iconOffset;
+
+    if (iconPlacement === 'right') {
+      // Position on right side of screen, from right to left
+      left = window.innerWidth + window.scrollX - 30 - 5 - (index * iconSpacing);
+    } else if (iconPlacement === 'left') {
+      // Position on left side of screen, from left to right
+      left = window.scrollX + 5 + (index * iconSpacing);
+    } else {
+      // 'word' (default): Position near the selected word, from right to left
+      left = rect.right + window.scrollX + 5 - (index * iconSpacing);
+
+      // Ensure icons don't go off-screen to the left
+      const iconWidth = 20; // Approximate icon width
+      if (left < window.scrollX + 5) {
+        // If icon would go off-screen, reposition to the right side of the word
+        left = rect.right + window.scrollX + 5 + (index * iconSpacing);
       }
+    }
 
-      // Mark as interactive to prevent single-click delegation
-      icon.classList.add('lookup-icon');
+    // Ensure icons stay within viewport bounds
+    const iconWidth = 20;
+    const viewportLeft = window.scrollX;
+    const viewportRight = window.scrollX + window.innerWidth;
 
-      // Apply dark mode styling
-      if (isDarkMode) {
-        icon.style.backgroundColor = 'black';
-        icon.style.color = 'gray';
-        icon.style.border = '1px solid gray';
-      } else {
-        icon.style.backgroundColor = 'white';
-        icon.style.color = 'black';
-        icon.style.border = '1px solid #ccc';
-      }
+    if (left < viewportLeft + 5) {
+      left = viewportLeft + 5;
+    } else if (left + iconWidth > viewportRight - 5) {
+      left = viewportRight - iconWidth - 5;
+    }
 
-      // Calculate position based on placement setting
-      let left, top = baseTop + iconOffset;
+    icon.style.left = left + 'px';
+    icon.style.top = top + 'px';
+    icon.style.display = 'block';
 
-      if (iconPlacement === 'right') {
-        // Position on right side of screen, from right to left
-        left = window.innerWidth + window.scrollX - 30 - 5 - (index * iconSpacing);
-      } else if (iconPlacement === 'left') {
-        // Position on left side of screen, from left to right
-        left = window.scrollX + 5 + (index * iconSpacing);
-      } else {
-        // 'word' (default): Position near the selected word, from right to left
-        left = rect.right + window.scrollX + 5 - (index * iconSpacing);
-
-        // Ensure icons don't go off-screen to the left
-        const iconWidth = 20; // Approximate icon width
-        if (left < window.scrollX + 5) {
-          // If icon would go off-screen, reposition to the right side of the word
-          left = rect.right + window.scrollX + 5 + (index * iconSpacing);
-        }
-      }
-
-      // Ensure icons stay within viewport bounds
-      const iconWidth = 20;
-      const viewportLeft = window.scrollX;
-      const viewportRight = window.scrollX + window.innerWidth;
-
-      if (left < viewportLeft + 5) {
-        left = viewportLeft + 5;
-      } else if (left + iconWidth > viewportRight - 5) {
-        left = viewportRight - iconWidth - 5;
-      }
-
-      icon.style.left = left + 'px';
-      icon.style.top = top + 'px';
-      icon.style.display = 'block';
-
-      // Add event listeners using EventManager
-      eventManager.addListener(icon, 'click', (e) => handleIconClick(e, group));
-      eventManager.addListener(icon, 'mousedown', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      });
-
-      document.body.appendChild(icon);
-      lookupIcons.push(icon);
+    // Add event listeners using EventManager
+    eventManager.addListener(icon, 'click', (e) => handleIconClick(e, group));
+    eventManager.addListener(icon, 'mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
     });
+
+    document.body.appendChild(icon);
+    lookupIcons.push(icon);
   });
 }
 
@@ -564,6 +570,242 @@ function lookupWord(word, group, locationInfo) {
   }
 }
 
+// Setup single-click delegation for result content (generic)
+function setupSingleClickDelegation(resultDiv) {
+  if (!singleClickGroupId) return;
+
+  // Determine the correct content selector based on result type
+  const contentSelector = resultDiv.classList.contains('popupResultDiv') ? '.popupResultContent *' :
+                         resultDiv.classList.contains('inlineResultDiv') ? '.inlineResultContent *' :
+                         '.bottomResultContent *';
+
+  eventManager.addDelegatedListener('mousedown', contentSelector, (event, targetElement) => {
+    if (!targetElement || !targetElement.textContent.trim()) return;
+
+    // Don't trigger on interactive elements
+    if (targetElement.tagName === 'BUTTON' ||
+        targetElement.tagName === 'INPUT' ||
+        targetElement.tagName === 'TEXTAREA' ||
+        targetElement.tagName === 'SELECT' ||
+        targetElement.tagName === 'A' ||
+        targetElement.closest('button, input, textarea, select, a') ||
+        targetElement.classList.contains('lookup-icon') ||
+        targetElement.closest('.resultHeader')) {
+      return;
+    }
+
+    // Store click data on the result div for mouseup to access
+    resultDiv._clickStartTime = Date.now();
+    resultDiv._clickStartX = event.clientX;
+    resultDiv._clickStartY = event.clientY;
+    resultDiv._clickTargetElement = targetElement;
+  });
+
+  const contentClass = resultDiv.classList.contains('popupResultDiv') ? '.popupResultContent' :
+                      resultDiv.classList.contains('inlineResultDiv') ? '.inlineResultContent' :
+                      '.bottomResultContent';
+
+  eventManager.addDelegatedListener('mouseup', contentClass, (event) => {
+    if (!resultDiv._clickStartTime || !resultDiv._clickTargetElement) return;
+
+    const clickDuration = Date.now() - resultDiv._clickStartTime;
+    const clickDistance = Math.sqrt(
+      Math.pow(event.clientX - resultDiv._clickStartX, 2) +
+      Math.pow(event.clientY - resultDiv._clickStartY, 2)
+    );
+
+    if (clickDuration < 250 && clickDistance < 5) {
+      executeSingleClickQuery(resultDiv._clickTargetElement, event);
+    }
+
+    // Reset tracking
+    resultDiv._clickStartTime = 0;
+    resultDiv._clickStartX = 0;
+    resultDiv._clickStartY = 0;
+    resultDiv._clickTargetElement = null;
+  });
+}
+
+// Create shared result div for all display types
+function createResultDiv(type, group, boxId, initialWord = '') {
+  let resultDiv;
+  let divsArray;
+  let classPrefix;
+  let positionCallback;
+
+  switch (type) {
+    case 'popup':
+      divsArray = resultDivs;
+      classPrefix = 'popupResult';
+      positionCallback = () => {
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          const rect = range.getBoundingClientRect();
+          let left = rect.left + window.scrollX;
+          let top = rect.bottom + window.scrollY + 5;
+
+          // Adjust if it would go off screen
+          if (left + 300 > window.innerWidth + window.scrollX) {
+            left = window.innerWidth + window.scrollX - 310;
+          }
+          if (top + 100 > window.innerHeight + window.scrollY) {
+            top = rect.top + window.scrollY - 110;
+          }
+
+          resultDiv.style.setProperty('left', left + 'px', 'important');
+          resultDiv.style.setProperty('top', top + 'px', 'important');
+        }
+      };
+      break;
+    case 'inline':
+      divsArray = inlineDivs;
+      classPrefix = 'inlineResult';
+      positionCallback = () => {
+        // Find the parent text block of the selected text
+        const selection = window.getSelection();
+        if (selection.rangeCount === 0) {
+          // Fallback to popup if no selection found
+          return;
+        }
+
+        const range = selection.getRangeAt(0);
+        let parentElement = range.commonAncestorContainer;
+
+        // If it's a text node, get the parent element
+        if (parentElement.nodeType === Node.TEXT_NODE) {
+          parentElement = parentElement.parentElement;
+        }
+
+        // Find the closest p or div element
+        while (parentElement && parentElement !== document.body) {
+          if (parentElement.tagName === 'P' || parentElement.tagName === 'DIV') {
+            break;
+          }
+          parentElement = parentElement.parentElement;
+        }
+
+        if (!parentElement || parentElement === document.body) {
+          // Fallback to popup if no suitable parent found
+          return;
+        }
+
+        // Insert after the parent element
+        parentElement.parentNode.insertBefore(resultDiv, parentElement.nextSibling);
+      };
+      break;
+    case 'bottom':
+      divsArray = bottomDivs;
+      classPrefix = 'bottomResult';
+      positionCallback = () => {
+        // Already positioned fixed
+      };
+      break;
+    default:
+      throw new Error(`Unknown result type: ${type}`);
+  }
+
+  resultDiv = divsArray.find(div => div.dataset.boxId == boxId);
+
+  if (!resultDiv) {
+    resultDiv = document.createElement('div');
+    resultDiv.dataset.boxId = boxId;
+    resultDiv.dataset.groupId = group.id;
+    resultDiv.classList.add(`${classPrefix}Div`);
+    resultDiv.style.setProperty('display', 'flex', 'important');
+    resultDiv.style.setProperty('flex-direction', 'column', 'important');
+    resultDiv.style.setProperty('box-sizing', 'border-box', 'important');
+    resultDiv.style.setProperty('font-size', '14px', 'important');
+    resultDiv.style.setProperty('z-index', type === 'bottom' ? '999998' : '999999', 'important');
+
+    // Type-specific base styles
+    if (type === 'popup') {
+      resultDiv.style.setProperty('position', 'absolute', 'important');
+      resultDiv.style.setProperty('border-radius', '4px', 'important');
+      resultDiv.style.setProperty('padding', '10px', 'important');
+      resultDiv.style.setProperty('width', '300px', 'important');
+      resultDiv.style.setProperty('height', '100px', 'important');
+    } else if (type === 'inline') {
+      resultDiv.style.setProperty('position', 'relative', 'important');
+      resultDiv.style.setProperty('margin-top', '10px', 'important');
+      resultDiv.style.setProperty('padding', '10px', 'important');
+      resultDiv.style.setProperty('border-radius', '4px', 'important');
+      resultDiv.style.setProperty('min-height', '35px', 'important');
+    } else if (type === 'bottom') {
+      resultDiv.style.setProperty('position', 'fixed', 'important');
+      resultDiv.style.setProperty('bottom', '0', 'important');
+      resultDiv.style.setProperty('left', '0', 'important');
+      resultDiv.style.setProperty('width', '100%', 'important');
+      resultDiv.style.setProperty('height', '30%', 'important');
+      resultDiv.style.setProperty('border-top', '1px solid #ccc', 'important');
+      resultDiv.style.setProperty('padding', '10px', 'important');
+      resultDiv.style.setProperty('overflow-y', 'visible', 'important');
+    }
+
+    // Apply dark mode
+    if (isDarkMode) {
+      resultDiv.style.setProperty('background-color', '#2d2d2d', 'important');
+      resultDiv.style.setProperty('color', '#ffffff', 'important');
+      resultDiv.style.setProperty('border', '1px solid #555', 'important');
+      resultDiv.style.setProperty('box-shadow', type === 'popup' ? '0 2px 8px rgba(0,0,0,0.3)' : 'none', 'important');
+    } else {
+      resultDiv.style.setProperty('background-color', 'white', 'important');
+      resultDiv.style.setProperty('color', 'black', 'important');
+      resultDiv.style.setProperty('border', '1px solid #ccc', 'important');
+      resultDiv.style.setProperty('box-shadow', type === 'popup' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none', 'important');
+    }
+
+    // Create header div for close button and search field
+    const headerDiv = document.createElement('div');
+    headerDiv.className = `${classPrefix}Header`;
+    headerDiv.style.setProperty('position', 'relative', 'important');
+    headerDiv.style.setProperty('flex-shrink', '0', 'important');
+    headerDiv.style.setProperty('padding', '5px 10px', 'important');
+
+    // Create content div for scrollable content
+    const contentDiv = document.createElement('div');
+    contentDiv.className = `${classPrefix}Content`;
+    contentDiv.style.setProperty('flex', '1', 'important');
+    contentDiv.style.setProperty('overflow-y', 'auto', 'important');
+    contentDiv.style.setProperty('padding', '5px 10px', 'important');
+
+    // Set main div to flexbox
+    resultDiv.style.setProperty('display', 'flex', 'important');
+    resultDiv.style.setProperty('flex-direction', 'column', 'important');
+
+    // Add close button to header
+    const closeBtn = createCloseButton(resultDiv, '5px', type === 'bottom' ? '15px' : '5px');
+    headerDiv.appendChild(closeBtn);
+
+    // Add search field if enabled
+    if (group.showSearchField && group.showSearchField !== 'none') {
+      const searchContainer = createSearchField(group, resultDiv, boxId, initialWord);
+      headerDiv.appendChild(searchContainer);
+    }
+
+    // Assemble the structure
+    resultDiv.appendChild(headerDiv);
+    resultDiv.appendChild(contentDiv);
+
+    // Position and append
+    if (type === 'popup' || type === 'bottom') {
+      document.body.appendChild(resultDiv);
+    } // Inline will be inserted later
+
+    divsArray.push(resultDiv);
+
+    // Setup single-click delegation
+    setupSingleClickDelegation(resultDiv);
+
+    // Position if needed
+    if (positionCallback) {
+      positionCallback();
+    }
+  }
+
+  return resultDiv;
+}
+
 // Sanitize HTML to replace inline styles with classes
 function sanitizeDictHTML(html) {
   // Replace common inline styles with classes
@@ -587,165 +829,9 @@ function sanitizeDictHTML(html) {
 
 
 
-// Show the result based on group's display method
-function showResult(definition, group, locationInfo, initialWord = '') {
-  const displayMethod = locationInfo ? locationInfo.displayMethod : group.displayMethod || 'popup';
-  const boxId = locationInfo ? locationInfo.boxId : ++boxIdCounter;
-
-  if (displayMethod === 'inline') {
-    showInlineResult(definition, group, boxId, initialWord);
-  } else if (displayMethod === 'bottom') {
-    showBottomResult(definition, group, boxId, initialWord);
-  } else {
-    // Default to popup
-    showPopupResult(definition, group, boxId, initialWord);
-  }
-
-  // Return location info for the caller
-  return { boxId, displayMethod };
-}
-
-// Show the result in a popup div (original behavior)
+// Show the result in a popup div (using shared createResultDiv)
 function showPopupResult(definition, group, boxId, initialWord = '') {
-  resultJustShown = true;
-  let resultDiv = resultDivs.find(div => div.dataset.boxId == boxId);
-
-  // If result div doesn't exist yet, create it
-  if (!resultDiv) {
-    resultDiv = document.createElement('div');
-    resultDiv.dataset.boxId = boxId;
-    resultDiv.style.setProperty('position', 'absolute', 'important');
-    resultDiv.style.setProperty('width', '300px', 'important');
-    resultDiv.style.setProperty('height', '100px', 'important');
-    resultDiv.style.setProperty('border-radius', '4px', 'important');
-    resultDiv.style.setProperty('padding', '10px', 'important');
-    resultDiv.style.setProperty('z-index', '999999', 'important');
-    resultDiv.style.setProperty('font-size', '14px', 'important');
-    resultDiv.style.setProperty('display', 'flex', 'important');
-    resultDiv.style.setProperty('flex-direction', 'column', 'important');
-    resultDiv.style.setProperty('box-sizing', 'border-box', 'important');
-
-    document.body.appendChild(resultDiv);
-    resultDivs.push(resultDiv);
-
-    // Apply dark mode
-    chrome.storage.local.get(['darkMode'], (result) => {
-      const isDarkMode = result.darkMode || false;
-
-      if (isDarkMode) {
-        resultDiv.style.setProperty('background-color', '#2d2d2d', 'important');
-        resultDiv.style.setProperty('color', '#ffffff', 'important');
-        resultDiv.style.setProperty('border', '1px solid #555', 'important');
-        resultDiv.style.setProperty('box-shadow', '0 2px 8px rgba(0,0,0,0.3)', 'important');
-      } else {
-        resultDiv.style.setProperty('background-color', 'white', 'important');
-        resultDiv.style.setProperty('color', 'black', 'important');
-        resultDiv.style.setProperty('border', '1px solid #ccc', 'important');
-        resultDiv.style.setProperty('box-shadow', '0 2px 8px rgba(0,0,0,0.1)', 'important');
-      }
-    });
-
-    // Add event delegation for single-click gestures on popup content using EventManager
-    eventManager.addDelegatedListener('mousedown', '.popupResultContent p, .popupResultContent div, .popupResultContent span, .popupResultContent em, .popupResultContent strong, .popupResultContent b, .popupResultContent i', (event, targetElement) => {
-      // Only handle if single-click is enabled
-      if (!singleClickGroupId) return;
-
-      if (!targetElement || !targetElement.textContent.trim()) return;
-
-      // Don't trigger on interactive elements
-      if (targetElement.tagName === 'BUTTON' ||
-          targetElement.tagName === 'INPUT' ||
-          targetElement.tagName === 'TEXTAREA' ||
-          targetElement.tagName === 'SELECT' ||
-          targetElement.tagName === 'A' ||
-          targetElement.closest('button, input, textarea, select, a') ||
-          targetElement.classList.contains('lookup-icon') ||
-          targetElement.closest('.popupResultHeader, .inlineResultHeader, .bottomResultHeader')) {
-        return;
-      }
-
-      // Store click data on the result div for mouseup to access
-      resultDiv._clickStartTime = Date.now();
-      resultDiv._clickStartX = event.clientX;
-      resultDiv._clickStartY = event.clientY;
-      resultDiv._clickTargetElement = targetElement;
-    });
-
-    eventManager.addDelegatedListener('mouseup', '.popupResultContent', (event) => {
-      // Only handle if we have a recorded mousedown
-      if (!resultDiv._clickStartTime || !resultDiv._clickTargetElement) return;
-
-      const clickDuration = Date.now() - resultDiv._clickStartTime;
-      const clickDistance = Math.sqrt(
-        Math.pow(event.clientX - resultDiv._clickStartX, 2) +
-        Math.pow(event.clientY - resultDiv._clickStartY, 2)
-      );
-
-      // Check if this was a quick tap (not a selection or drag)
-      if (clickDuration < 250 && clickDistance < 5) {
-        // It's a tap! Trigger single-click
-        executeSingleClickQuery(resultDiv._clickTargetElement, event);
-      }
-
-      // Reset tracking
-      resultDiv._clickStartTime = 0;
-      resultDiv._clickStartX = 0;
-      resultDiv._clickStartY = 0;
-      resultDiv._clickTargetElement = null;
-    });
-
-    // Position near the original selection
-    const selection = window.getSelection();
-    if (selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      let left = rect.left + window.scrollX;
-      let top = rect.bottom + window.scrollY + 5;
-
-      // Adjust if it would go off screen
-      if (left + 300 > window.innerWidth + window.scrollX) {
-        left = window.innerWidth + window.scrollX - 310;
-      }
-      if (top + 100 > window.innerHeight + window.scrollY) {
-        top = rect.top + window.scrollY - 110;
-      }
-
-      resultDiv.style.setProperty('left', left + 'px', 'important');
-      resultDiv.style.setProperty('top', top + 'px', 'important');
-    }
-
-    // Create header div for close button and search field
-    const headerDiv = document.createElement('div');
-    headerDiv.className = 'popupResultHeader';
-    headerDiv.style.setProperty('position', 'relative', 'important');
-    headerDiv.style.setProperty('flex-shrink', '0', 'important');
-    headerDiv.style.setProperty('padding', '5px 10px', 'important');
-
-    // Create content div for scrollable content
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'popupResultContent';
-    contentDiv.style.setProperty('flex', '1', 'important');
-    contentDiv.style.setProperty('overflow-y', 'auto', 'important');
-    contentDiv.style.setProperty('padding', '5px 10px', 'important');
-
-    // Set main div to flexbox
-    resultDiv.style.setProperty('display', 'flex', 'important');
-    resultDiv.style.setProperty('flex-direction', 'column', 'important');
-
-    // Add close button to header
-    const closeBtn = createCloseButton(resultDiv, '5px', '5px');
-    headerDiv.appendChild(closeBtn);
-
-    // Add search field if enabled
-    if (group.showSearchField && group.showSearchField !== 'none') {
-      const searchContainer = createSearchField(group, resultDiv, boxId, initialWord);
-      headerDiv.appendChild(searchContainer);
-    }
-
-    // Assemble the structure
-    resultDiv.appendChild(headerDiv);
-    resultDiv.appendChild(contentDiv);
-  }
+  let resultDiv = createResultDiv('popup', group, boxId, initialWord);
 
   // Get popup settings
   const popupSettings = group.popupSettings || { width: '40%', height: '30%', hideOnClickOutside: false };
@@ -786,162 +872,29 @@ function showPopupResult(definition, group, boxId, initialWord = '') {
   resultDiv.style.setProperty('display', 'flex', 'important');
 }
 
-// Show the result inline below the selected text
-function showInlineResult(definition, group, boxId, initialWord = '') {
-  let inlineDiv = inlineDivs.find(div => div.dataset.boxId == boxId);
+// Show the result based on group's display method
+function showResult(definition, group, locationInfo, initialWord = '') {
+  const displayMethod = locationInfo ? locationInfo.displayMethod : group.displayMethod || 'popup';
+  const boxId = locationInfo ? locationInfo.boxId : ++boxIdCounter;
 
-  // If inline div doesn't exist yet, create it
-  if (!inlineDiv) {
-    // Find the parent text block of the selected text
-    const selection = window.getSelection();
-    if (selection.rangeCount === 0) {
-      // Fallback to popup if no selection found
-      showPopupResult(definition, group, boxId);
-      return;
-    }
-
-    const range = selection.getRangeAt(0);
-    let parentElement = range.commonAncestorContainer;
-
-    // If it's a text node, get the parent element
-    if (parentElement.nodeType === Node.TEXT_NODE) {
-      parentElement = parentElement.parentElement;
-    }
-
-    // Find the closest p or div element
-    while (parentElement && parentElement !== document.body) {
-      if (parentElement.tagName === 'P' || parentElement.tagName === 'DIV') {
-        break;
-      }
-      parentElement = parentElement.parentElement;
-    }
-
-    if (!parentElement || parentElement === document.body) {
-      // Fallback to popup if no suitable parent found
-      showPopupResult(definition, group, boxId);
-      return;
-    }
-
-    // Create a new inline div for this specific location and group
-    inlineDiv = document.createElement('div');
-    inlineDiv.dataset.boxId = boxId;
-    inlineDiv.dataset.groupId = group.id;
-    inlineDiv.dataset.parentId = parentElement.id || 'no-id';
-    inlineDiv.style.setProperty('position', 'relative', 'important');
-    inlineDiv.style.setProperty('margin-top', '10px', 'important');
-    inlineDiv.style.setProperty('padding', '10px', 'important');
-    inlineDiv.style.setProperty('border-radius', '4px', 'important');
-    inlineDiv.style.setProperty('border', '1px solid #ccc', 'important');
-    inlineDiv.style.setProperty('font-size', '14px', 'important');
-    inlineDiv.style.setProperty('min-height', '35px', 'important');
-    inlineDiv.style.setProperty('display', 'flex', 'important');
-    inlineDiv.style.setProperty('flex-direction', 'column', 'important');
-    inlineDiv.style.setProperty('box-sizing', 'border-box', 'important');
-
-    // Apply dark mode
-    chrome.storage.local.get(['darkMode'], (result) => {
-      const isDarkMode = result.darkMode || false;
-
-      if (isDarkMode) {
-        inlineDiv.style.setProperty('background-color', '#2d2d2d', 'important');
-        inlineDiv.style.setProperty('color', '#ffffff', 'important');
-        inlineDiv.style.setProperty('border-color', '#555', 'important');
-      } else {
-        inlineDiv.style.setProperty('background-color', 'white', 'important');
-        inlineDiv.style.setProperty('color', 'black', 'important');
-        inlineDiv.style.setProperty('border-color', '#ccc', 'important');
-      }
-    });
-
-    // Add event delegation for single-click gestures on inline content using EventManager
-    eventManager.addDelegatedListener('mousedown', '.inlineResultContent p, .inlineResultContent div, .inlineResultContent span, .inlineResultContent em, .inlineResultContent strong, .inlineResultContent b, .inlineResultContent i', (event, targetElement) => {
-      // Only handle if single-click is enabled
-      if (!singleClickGroupId) return;
-
-      if (!targetElement || !targetElement.textContent.trim()) return;
-
-      // Don't trigger on interactive elements
-      if (targetElement.tagName === 'BUTTON' ||
-          targetElement.tagName === 'INPUT' ||
-          targetElement.tagName === 'TEXTAREA' ||
-          targetElement.tagName === 'SELECT' ||
-          targetElement.tagName === 'A' ||
-          targetElement.closest('button, input, textarea, select, a') ||
-          targetElement.classList.contains('lookup-icon') ||
-          targetElement.closest('.popupResultHeader, .inlineResultHeader, .bottomResultHeader')) {
-        return;
-      }
-
-      // Store click data on the inline div for mouseup to access
-      inlineDiv._clickStartTime = Date.now();
-      inlineDiv._clickStartX = event.clientX;
-      inlineDiv._clickStartY = event.clientY;
-      inlineDiv._clickTargetElement = targetElement;
-    });
-
-    eventManager.addDelegatedListener('mouseup', '.inlineResultContent', (event) => {
-      // Only handle if we have a recorded mousedown
-      if (!inlineDiv._clickStartTime || !inlineDiv._clickTargetElement) return;
-
-      const clickDuration = Date.now() - inlineDiv._clickStartTime;
-      const clickDistance = Math.sqrt(
-        Math.pow(event.clientX - inlineDiv._clickStartX, 2) +
-        Math.pow(event.clientY - inlineDiv._clickStartY, 2)
-      );
-
-      // Check if this was a quick tap (not a selection or drag)
-      if (clickDuration < 250 && clickDistance < 5) {
-        // It's a tap! Trigger single-click
-        executeSingleClickQuery(inlineDiv._clickTargetElement, event);
-      }
-
-      // Reset tracking
-      inlineDiv._clickStartTime = 0;
-      inlineDiv._clickStartX = 0;
-      inlineDiv._clickStartY = 0;
-      inlineDiv._clickTargetElement = null;
-    });
-
-    // Create header div for close button and search field
-    const headerDiv = document.createElement('div');
-    headerDiv.className = 'inlineResultHeader';
-    headerDiv.style.setProperty('width', '100%', 'important');
-    headerDiv.style.setProperty('position', 'relative', 'important');
-    headerDiv.style.setProperty('flex-shrink', '0', 'important');
-    headerDiv.style.setProperty('display', 'flex', 'important');
-    headerDiv.style.setProperty('align-items', 'center', 'important');
-
-    // Create content div for scrollable content
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'inlineResultContent';
-    contentDiv.style.setProperty('width', '100%', 'important');
-    contentDiv.style.setProperty('flex', '1', 'important');
-    contentDiv.style.setProperty('overflow-y', 'auto', 'important');
-
-    // Set main div to flexbox
-    inlineDiv.style.setProperty('display', 'flex', 'important');
-    inlineDiv.style.setProperty('flex-direction', 'column', 'important');
-
-    // Add close button to header
-    const closeBtn = createCloseButton(inlineDiv, '-40px', '5px');
-    headerDiv.appendChild(closeBtn);
-
-    // Add search field if enabled
-    if (group.showSearchField && group.showSearchField !== 'none') {
-      const searchContainer = createSearchField(group, inlineDiv, boxId, initialWord);
-      headerDiv.appendChild(searchContainer);
-    }
-
-    // Assemble the structure
-    inlineDiv.appendChild(headerDiv);
-    inlineDiv.appendChild(contentDiv);
-
-    // Insert after the parent element
-    parentElement.parentNode.insertBefore(inlineDiv, parentElement.nextSibling);
-
-    // Store reference for later replacement
-    inlineDivs.push(inlineDiv);
+  if (displayMethod === 'inline') {
+    showInlineResult(definition, group, boxId, initialWord);
+  } else if (displayMethod === 'bottom') {
+    showBottomResult(definition, group, boxId, initialWord);
+  } else {
+    // Default to popup
+    showPopupResult(definition, group, boxId, initialWord);
   }
+
+  // Return location info for the caller
+  return { boxId, displayMethod };
+}
+
+
+
+// Show the result inline below the selected text (using shared createResultDiv)
+function showInlineResult(definition, group, boxId, initialWord = '') {
+  let inlineDiv = createResultDiv('inline', group, boxId, initialWord);
 
   // Check if flexible height is enabled
   const flexibleHeight = group.inlineSettings?.flexibleHeight !== false;
@@ -993,129 +946,9 @@ function showInlineResult(definition, group, boxId, initialWord = '') {
   inlineDiv.style.setProperty('display', 'flex', 'important');
 }
 
-// Show the result in a bottom panel
+// Show the result in a bottom panel (using shared createResultDiv)
 function showBottomResult(definition, group, boxId, initialWord = '') {
-  let bottomDiv = bottomDivs.find(div => div.dataset.boxId == boxId);
-
-  // If bottom div doesn't exist yet, create it
-  if (!bottomDiv) {
-    bottomDiv = document.createElement('div');
-    bottomDiv.dataset.boxId = boxId;
-    bottomDiv.style.setProperty('position', 'fixed', 'important');
-    bottomDiv.style.setProperty('bottom', '0', 'important');
-    bottomDiv.style.setProperty('left', '0', 'important');
-    bottomDiv.style.setProperty('width', '100%', 'important');
-    bottomDiv.style.setProperty('height', '30%', 'important');
-    bottomDiv.style.setProperty('border-top', '1px solid #ccc', 'important');
-    bottomDiv.style.setProperty('padding', '10px', 'important');
-    bottomDiv.style.setProperty('z-index', '999998', 'important');
-    bottomDiv.style.setProperty('font-size', '14px', 'important');
-    bottomDiv.style.setProperty('box-sizing', 'border-box', 'important');
-    bottomDiv.style.setProperty('display', 'flex', 'important');
-    bottomDiv.style.setProperty('flex-direction', 'column', 'important');
-    bottomDiv.style.setProperty('overflow-y', 'visible', 'important');
-
-    document.body.appendChild(bottomDiv);
-    bottomDivs.push(bottomDiv);
-
-    // Apply dark mode
-    chrome.storage.local.get(['darkMode'], (result) => {
-      const isDarkMode = result.darkMode || false;
-
-      if (isDarkMode) {
-        bottomDiv.style.setProperty('background-color', '#2d2d2d', 'important');
-        bottomDiv.style.setProperty('color', '#ffffff', 'important');
-        bottomDiv.style.setProperty('border-top-color', '#555', 'important');
-      } else {
-        bottomDiv.style.setProperty('background-color', 'white', 'important');
-        bottomDiv.style.setProperty('color', 'black', 'important');
-        bottomDiv.style.setProperty('border-top-color', '#ccc', 'important');
-      }
-    });
-
-    // Add event delegation for single-click gestures on bottom content using EventManager
-    eventManager.addDelegatedListener('mousedown', '.bottomResultContent p, .bottomResultContent div, .bottomResultContent span, .bottomResultContent em, .bottomResultContent strong, .bottomResultContent b, .bottomResultContent i', (event, targetElement) => {
-      // Only handle if single-click is enabled
-      if (!singleClickGroupId) return;
-
-      if (!targetElement || !targetElement.textContent.trim()) return;
-
-      // Don't trigger on interactive elements
-      if (targetElement.tagName === 'BUTTON' ||
-          targetElement.tagName === 'INPUT' ||
-          targetElement.tagName === 'TEXTAREA' ||
-          targetElement.tagName === 'SELECT' ||
-          targetElement.tagName === 'A' ||
-          targetElement.closest('button, input, textarea, select, a') ||
-          targetElement.classList.contains('lookup-icon') ||
-          targetElement.closest('.popupResultHeader, .inlineResultHeader, .bottomResultHeader')) {
-        return;
-      }
-
-      // Store click data on the bottom div for mouseup to access
-      bottomDiv._clickStartTime = Date.now();
-      bottomDiv._clickStartX = event.clientX;
-      bottomDiv._clickStartY = event.clientY;
-      bottomDiv._clickTargetElement = targetElement;
-    });
-
-    eventManager.addDelegatedListener('mouseup', '.bottomResultContent', (event) => {
-      // Only handle if we have a recorded mousedown
-      if (!bottomDiv._clickStartTime || !bottomDiv._clickTargetElement) return;
-
-      const clickDuration = Date.now() - bottomDiv._clickStartTime;
-      const clickDistance = Math.sqrt(
-        Math.pow(event.clientX - bottomDiv._clickStartX, 2) +
-        Math.pow(event.clientY - bottomDiv._clickStartY, 2)
-      );
-
-      // Check if this was a quick tap (not a selection or drag)
-      if (clickDuration < 250 && clickDistance < 5) {
-        // It's a tap! Trigger single-click
-        executeSingleClickQuery(bottomDiv._clickTargetElement, event);
-      }
-
-      // Reset tracking
-      bottomDiv._clickStartTime = 0;
-      bottomDiv._clickStartX = 0;
-      bottomDiv._clickStartY = 0;
-      bottomDiv._clickTargetElement = null;
-    });
-
-    // Create header div for close button and search field
-    const headerDiv = document.createElement('div');
-    headerDiv.className = 'bottomResultHeader';
-    headerDiv.style.setProperty('width', '100%', 'important');
-    headerDiv.style.setProperty('position', 'relative', 'important');
-    headerDiv.style.setProperty('flex-shrink', '0', 'important');
-    headerDiv.style.setProperty('display', 'flex', 'important');
-    headerDiv.style.setProperty('align-items', 'center', 'important');
-
-    // Create content div for scrollable content
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'bottomResultContent';
-    contentDiv.style.setProperty('width', '100%', 'important');
-    contentDiv.style.setProperty('flex', '1', 'important');
-    contentDiv.style.setProperty('overflow-y', 'auto', 'important');
-
-    // Set main div to flexbox
-    bottomDiv.style.setProperty('display', 'flex', 'important');
-    bottomDiv.style.setProperty('flex-direction', 'column', 'important');
-
-    // Add close button to header
-    const closeBtn = createCloseButton(bottomDiv, '-40px', '15px');
-    headerDiv.appendChild(closeBtn);
-
-    // Add search field if enabled
-    if (group.showSearchField && group.showSearchField !== 'none') {
-      const searchContainer = createSearchField(group, bottomDiv, boxId, initialWord);
-      headerDiv.appendChild(searchContainer);
-    }
-
-    // Assemble the structure
-    bottomDiv.appendChild(headerDiv);
-    bottomDiv.appendChild(contentDiv);
-  }
+  let bottomDiv = createResultDiv('bottom', group, boxId, initialWord);
 
   // Get content div
   const contentDiv = bottomDiv.querySelector('.bottomResultContent');
