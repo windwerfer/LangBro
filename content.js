@@ -174,10 +174,22 @@ let tripleClickGroupId = '';
 let hideGroupNames = false;
 let isDarkMode = false;
 
-// Load settings and query groups on startup
-loadSettings();
-loadQueryGroups();
-ensureDefaultQueryGroup();
+// Initialize extension asynchronously to ensure settings are loaded before listeners
+async function init() {
+  await loadSettings();
+  await loadQueryGroups();
+  await ensureDefaultQueryGroup();
+
+  // Initialize listeners after settings are loaded
+  if (document.readyState === 'loading') {
+    eventManager.addListener(document, 'DOMContentLoaded', initializeListeners);
+  } else {
+    initializeListeners();
+  }
+}
+
+// Start initialization
+init();
 
 // Create a default offline query group if none exist
 async function ensureDefaultQueryGroup() {
@@ -1863,10 +1875,14 @@ function executeTripleClickQuery(element) {
 
 // Add click listener for word segmentation POC using EventManager
 function addWordSegmentationListener() {
+    // only listen if not deactivated in the settings
+  if (singleClickGroupId === '') return;
   eventManager.addListener(document, 'click', handleWordSegmentationClick, { capture: true });
 }
 
 function handleWordSegmentationClick(event) {
+
+
   // Skip if user has an active selection (they were manually selecting text)
   if (window.getSelection().toString().trim()) {
     console.log('Skipping word segmentation - user has active selection');
@@ -1942,6 +1958,37 @@ function handleWordSegmentationClick(event) {
 
       console.log('Selected word (Intl.Segmenter):', clickedWord);
       console.log('Word boundaries:', wordStart, 'to', wordEnd);
+    }
+
+    if (singleClickGroupId !== 'selectWord') {
+      console.log('--------direct lookup:', singleClickGroupId);
+
+      // Find the selected query group
+      const selectedGroup = queryGroups.find(group => group.id === singleClickGroupId);
+      if (!selectedGroup || !selectedGroup.enabled) return;
+
+      console.log(`Executing direct lookup for group: ${selectedGroup.name}`);
+
+      // Create a temporary selection object for the clicked word
+      const tempSelection = {
+        selectedText: clickedWord,
+        wholeWord: clickedWord,
+        wholeParagraph: textContent
+      };
+
+      // Update global currentSelection for consistency
+      currentSelection = tempSelection;
+
+      // Choose text based on group's textSelectionMethod
+      const textSelectionMethod = selectedGroup.textSelectionMethod || 'selectedText';
+      const word = currentSelection[textSelectionMethod] || currentSelection.selectedText || '';
+
+      console.log(`Direct lookup query text: ${word}`);
+
+      // Show result window immediately with spinner, passing the selected word for search field
+      const locationInfo = showResult(null, selectedGroup, null, word);
+
+      lookupWord(word, selectedGroup, locationInfo);
     }
 
   } catch (error) {
