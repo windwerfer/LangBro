@@ -1428,6 +1428,13 @@ function executeSwipeQuery(element) {
 
   console.log(`Executing right swipe query for group: ${selectedGroup.name}`);
 
+  // Create a selection on the element for proper popup positioning
+  const selection = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  selection.removeAllRanges();
+  selection.addRange(range);
+
   // Create a temporary selection object for the paragraph
   const paragraphText = element.textContent.trim();
   const tempSelection = {
