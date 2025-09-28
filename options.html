@@ -34,7 +34,7 @@
     <button id="nav-groups">Query Groups</button>    
     <button id="nav-offline">Offline Dictionary</button>
     <button id="nav-web">Web Dictionarys / Translators</button>
-    <button id="nav-ai">AI API</button>
+    <button id="nav-ai">AI</button>
     <button id="nav-backup">Backup/Restore</button>
   </div>
 
@@ -277,10 +277,27 @@
       <div class="form-group">
         <label for="queryType">Query Type:</label>
         <select id="queryType">
-          <option value="offline">Offline (StarDict)</option>
-          <option value="web">Web API</option>
-          <option value="google_translate">Google Translate</option>
-          <option value="ai">AI Service</option>
+          <option value="offline">Offline Dictionary</option>
+          <option value="web">Web Dictionary / Translator</option>
+          <option value="ai">AI</option>
+        </select>
+      </div>
+
+      <!-- Web Service Selection (only shown when query type is web) -->
+      <div class="form-group" id="webServiceSelection" style="display: none;">
+        <label for="selectedWebService">Web Service:</label>
+        <select id="selectedWebService">
+          <option value="">Select a web service...</option>
+          <!-- Web services will be loaded here -->
+        </select>
+      </div>
+
+      <!-- AI Service Selection (only shown when query type is ai) -->
+      <div class="form-group" id="aiServiceSelection" style="display: none;">
+        <label for="selectedAiService">AI Service:</label>
+        <select id="selectedAiService">
+          <option value="">Select an AI service...</option>
+          <!-- AI services will be loaded here -->
         </select>
       </div>
 

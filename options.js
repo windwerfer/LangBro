@@ -518,6 +518,10 @@ document.addEventListener('DOMContentLoaded', () => {
     showQueryTypeSettings(queryTypeSelect.value);
     if (queryTypeSelect.value === 'offline') {
       loadAvailableDictionaries();
+    } else if (queryTypeSelect.value === 'web') {
+      loadWebServicesForSelection();
+    } else if (queryTypeSelect.value === 'ai') {
+      loadAiServicesForSelection();
     }
     updateDisplaySuggestionsVisibility();
   });
@@ -683,15 +687,10 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('inlineFlexibleHeight').checked = group.inlineSettings?.flexibleHeight !== false;
 
       // Populate type-specific settings
-      if (group.queryType === 'web' || group.queryType === 'google_translate') {
-        document.getElementById('webUrl').value = group.settings?.url || '';
-        document.getElementById('webJsonPath').value = group.settings?.jsonPath || '';
+      if (group.queryType === 'web') {
+        loadWebServicesForSelection(group.settings?.serviceId || '');
       } else if (group.queryType === 'ai') {
-        document.getElementById('aiProvider').value = group.settings?.provider || 'google';
-        document.getElementById('aiApiKey').value = group.settings?.apiKey || '';
-        document.getElementById('aiModel').value = group.settings?.model || 'gemini-2.5-flash';
-        document.getElementById('aiMaxTokens').value = group.settings?.maxTokens || 2048;
-        document.getElementById('aiPrompt').value = group.settings?.prompt || '';
+        loadAiServicesForSelection(group.settings?.serviceId || '');
       } else if (group.queryType === 'offline') {
         // Load selected dictionaries for offline groups
         loadAvailableDictionaries(group.settings?.selectedDictionaries || []);
@@ -730,23 +729,68 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function showQueryTypeSettings(queryType) {
-    // Hide all settings
+    // Hide all settings and service selections
     document.querySelectorAll('.query-type-settings').forEach(setting => {
       setting.style.display = 'none';
     });
+    document.getElementById('webServiceSelection').style.display = 'none';
+    document.getElementById('aiServiceSelection').style.display = 'none';
 
     // Show relevant settings
     if (queryType === 'offline') {
       offlineSettings.style.display = 'block';
-    } else if (queryType === 'web' || queryType === 'google_translate') {
-      webSettings.style.display = 'block';
-      // Pre-fill Google Translate URL and JSON path if selected
-      if (queryType === 'google_translate') {
-        document.getElementById('webUrl').value = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={lang_short}&dt=t&q={text}';
-        document.getElementById('webJsonPath').value = '0[0][0]';
-      }
+    } else if (queryType === 'web') {
+      document.getElementById('webServiceSelection').style.display = 'block';
     } else if (queryType === 'ai') {
-      aiSettings.style.display = 'block';
+      document.getElementById('aiServiceSelection').style.display = 'block';
+    }
+  }
+
+  // Load web services for selection dropdown
+  async function loadWebServicesForSelection(selectedServiceId = '') {
+    try {
+      const result = await chrome.storage.local.get(['webServices']);
+      const services = result.webServices || [];
+      const selectElement = document.getElementById('selectedWebService');
+
+      // Clear existing options except the first one
+      selectElement.innerHTML = '<option value="">Select a web service...</option>';
+
+      services.forEach(service => {
+        const option = document.createElement('option');
+        option.value = service.id;
+        option.textContent = service.name;
+        selectElement.appendChild(option);
+      });
+
+      // Set selected value
+      selectElement.value = selectedServiceId;
+    } catch (error) {
+      console.error('Error loading web services for selection:', error);
+    }
+  }
+
+  // Load AI services for selection dropdown
+  async function loadAiServicesForSelection(selectedServiceId = '') {
+    try {
+      const result = await chrome.storage.local.get(['aiServices']);
+      const services = result.aiServices || [];
+      const selectElement = document.getElementById('selectedAiService');
+
+      // Clear existing options except the first one
+      selectElement.innerHTML = '<option value="">Select an AI service...</option>';
+
+      services.forEach(service => {
+        const option = document.createElement('option');
+        option.value = service.id;
+        option.textContent = service.name;
+        selectElement.appendChild(option);
+      });
+
+      // Set selected value
+      selectElement.value = selectedServiceId;
+    } catch (error) {
+      console.error('Error loading AI services for selection:', error);
     }
   }
 
@@ -801,26 +845,20 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       settings = { selectedDictionaries };
-    } else if (queryType === 'web' || queryType === 'google_translate') {
-      const url = document.getElementById('webUrl').value.trim();
-      const jsonPath = document.getElementById('webJsonPath').value.trim();
-      if (!url) {
-        alert('Please enter a valid API URL.');
+    } else if (queryType === 'web') {
+      const selectedWebServiceId = document.getElementById('selectedWebService').value;
+      if (!selectedWebServiceId) {
+        alert('Please select a web service.');
         return;
       }
-      settings = { url, jsonPath: jsonPath || undefined };
+      settings = { serviceId: selectedWebServiceId };
     } else if (queryType === 'ai') {
-      const provider = document.getElementById('aiProvider').value;
-      const apiKey = document.getElementById('aiApiKey').value;
-      const model = document.getElementById('aiModel').value.trim();
-      const maxTokens = parseInt(document.getElementById('aiMaxTokens').value) || 2048;
-      const prompt = document.getElementById('aiPrompt').value.trim();
-
-      if (!apiKey || !model || !prompt) {
-        alert('Please fill in all AI settings.');
+      const selectedAiServiceId = document.getElementById('selectedAiService').value;
+      if (!selectedAiServiceId) {
+        alert('Please select an AI service.');
         return;
       }
-      settings = { provider, apiKey, model, maxTokens, prompt };
+      settings = { serviceId: selectedAiServiceId };
     }
 
     // Build popup settings if display method is popup
