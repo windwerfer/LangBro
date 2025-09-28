@@ -453,18 +453,17 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // AI provider change - always set default model
-  aiServiceProviderSelect.addEventListener('change', () => {
-    const provider = aiServiceProviderSelect.value;
-    if (provider === 'google') {
-      aiServiceModelSelect.value = 'gemini-2.5-flash';
-    } else if (provider === 'openai') {
-      aiServiceModelSelect.value = 'gpt-4o';
-    } else if (provider === 'anthropic') {
-      aiServiceModelSelect.value = 'claude-3-5-sonnet';
-    } else if (provider === 'xai') {
-      aiServiceModelSelect.value = 'grok-2';
-    }
-  });
+  const aiProviderElement = document.getElementById('aiServiceProvider');
+  const aiModelElement = document.getElementById('aiServiceModel');
+
+  if (aiProviderElement && aiModelElement) {
+    aiProviderElement.addEventListener('change', () => {
+      const provider = aiProviderElement.value;
+      if (provider === 'google' && !aiModelElement.value) {
+        aiModelElement.value = 'gemini-2.5-flash';
+      }
+    });
+  }
 
   // Save AI service button
   saveAiServiceBtn.addEventListener('click', () => {
@@ -540,14 +539,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // AI provider change - set default model (moved inside DOMContentLoaded)
-  const aiProviderElement = document.getElementById('aiProvider');
-  const aiModelElement = document.getElementById('aiModel');
+  const queryAiProviderElement = document.getElementById('aiProvider');
+  const queryAiModelElement = document.getElementById('aiModel');
 
-  if (aiProviderElement && aiModelElement) {
-    aiProviderElement.addEventListener('change', () => {
-      const provider = aiProviderElement.value;
-      if (provider === 'google' && !aiModelElement.value) {
-        aiModelElement.value = 'gemini-2.5-flash';
+  if (queryAiProviderElement && queryAiModelElement) {
+    queryAiProviderElement.addEventListener('change', () => {
+      const provider = queryAiProviderElement.value;
+      if (provider === 'google' && !queryAiModelElement.value) {
+        queryAiModelElement.value = 'gemini-2.5-flash';
       }
     });
   }
@@ -726,8 +725,8 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('popupHideOnClickOutside').checked = false;
 
       // Set AI defaults for new groups
-      document.getElementById('aiProvider').value = 'google';
-      document.getElementById('aiModel').value = 'gemini-2.5-flash';
+      // document.getElementById('aiServiceProvider').value = 'google';
+      // document.getElementById('aiServiceModel').value = 'gemini-2.5-flash';
     }
 
     groupForm.style.display = 'block';
