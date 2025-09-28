@@ -3,8 +3,9 @@
 
 import { fromEvent, merge, combineLatest, Observable } from 'rxjs';
 import { map, filter, debounceTime, throttleTime, switchMap, takeUntil, bufferTime, pairwise } from 'rxjs/operators';
+import { settings } from './settings-store.js';
 
-console.log('RxJS Content script loaded successfully v01');
+console.log('RxJS Content script loaded successfully v03');
 
 // Selection Event Stream
 // Merges selectionchange and keyup events, filters for valid text selections
@@ -21,9 +22,9 @@ const selection$ = merge(
   debounceTime(100)
 );
 
-// Log selection events
+// Log text selection events
 selection$.subscribe(({ selectedText }) => {
-  console.log('RxJS: Selection event detected:', selectedText);
+  console.log('RxJS: User selected text:', selectedText);
 });
 
 // Touch Gesture Streams
@@ -77,7 +78,7 @@ const swipe$ = touchStart$.pipe(
 
 // Log swipe gestures
 swipe$.subscribe(direction => {
-  console.log('RxJS: Swipe gesture detected:', direction);
+  console.log('RxJS: User swiped', direction);
 });
 
 // Mouse Gesture Streams
@@ -104,19 +105,29 @@ const mouseUp$ = fromEvent(document, 'mouseup').pipe(
 );
 
 // Click sequence detection for single/triple clicks
-const clickSequence$ = mouseDown$.pipe(
-  bufferTime(200), // 200ms window for click sequences
-  filter(clicks => clicks.length > 0),
-  map(clicks => ({
-    count: clicks.length,
-    target: clicks[0].target,
-    time: clicks[0].time
-  }))
+// Use reactive settings to determine buffer time
+const clickSequence$ = settings.select('tripleClickGroupId').pipe(
+  switchMap(tripleClickGroupId => {
+    const tripleClickEnabled = tripleClickGroupId && tripleClickGroupId !== '';
+    const clickBufferTime = tripleClickEnabled ? 1000 : 500;
+    console.log('RxJS: Click buffer time set to', clickBufferTime, 'ms (triple click enabled:', tripleClickEnabled, ')');
+
+    return mouseDown$.pipe(
+      bufferTime(clickBufferTime),
+      filter(clicks => clicks.length > 0),
+      map(clicks => ({
+        count: clicks.length,
+        target: clicks[0].target,
+        time: clicks[0].time
+      }))
+    );
+  })
 );
 
 // Log click sequences
 clickSequence$.subscribe(({ count, target }) => {
-  console.log('RxJS: Click sequence detected:', count, 'clicks on', target.tagName);
+  const clickType = count === 1 ? 'single' : count === 2 ? 'double' : count === 3 ? 'triple' : `${count}`;
+  console.log('RxJS: User clicked on text:', clickType, 'click');
 });
 
 // Icon click stream (delegated to document for dynamic icons)
@@ -129,21 +140,11 @@ const iconClick$ = fromEvent(document, 'click').pipe(
   }))
 );
 
-// Log icon clicks
-iconClick$.subscribe(({ icon }) => {
-  console.log('RxJS: Icon clicked:', icon.dataset.groupId);
-});
-
 // Document click stream for hiding results
 const documentClick$ = fromEvent(document, 'click').pipe(
   filter(event => !event.target.closest('.lookup-icon') &&
                   !event.target.closest('[data-box-id]'))
 );
-
-// Log document clicks (for hiding results)
-documentClick$.subscribe(() => {
-  console.log('RxJS: Document clicked (potential hide results)');
-});
 
 // Chrome runtime message stream
 // Note: chrome.runtime.onMessage is not directly observable, so we'll create a wrapper
@@ -155,11 +156,6 @@ const runtimeMessage$ = new Observable(subscriber => {
   return () => chrome.runtime.onMessage.removeListener(listener);
 });
 
-// Log runtime messages
-runtimeMessage$.subscribe(({ message }) => {
-  console.log('RxJS: Runtime message received:', message.action);
-});
-
 // Storage change stream
 const storageChange$ = new Observable(subscriber => {
   const listener = (changes, area) => {
@@ -169,25 +165,10 @@ const storageChange$ = new Observable(subscriber => {
   return () => chrome.storage.onChanged.removeListener(listener);
 });
 
-// Log storage changes
-storageChange$.subscribe(({ changes, area }) => {
-  console.log('RxJS: Storage changed in area:', area, Object.keys(changes));
-});
-
 // DOM ready stream
 const domReady$ = fromEvent(document, 'DOMContentLoaded').pipe(
   map(() => ({ ready: true }))
 );
-
-// Log DOM ready
-domReady$.subscribe(() => {
-  console.log('RxJS: DOM content loaded');
-});
-
-// Initialize all streams when DOM is ready
-domReady$.subscribe(() => {
-  console.log('RxJS: All event streams initialized and active');
-});
 
 // Export streams for later use (when adding functionality)
 export {
