@@ -358,27 +358,27 @@ const languageMap = {
   'vi': 'vietnamese'
 };
 
-// JSON path extraction function
+// JSON path extraction function - supports dot notation, bracket notation, and array indices
 function extractJsonPath(data, path) {
   if (!path || !path.trim()) return data;
 
   try {
-    const parts = path.split(/[\.\[\]]+/).filter(p => p !== '');
+    // Handle complex paths like "0[0][1]", "result.translation", "data[0].text"
+    const parts = parseJsonPath(path);
     let current = data;
 
     for (const part of parts) {
       if (current == null) return null;
 
-      // Handle array indices
-      if (/^\d+$/.test(part)) {
-        const index = parseInt(part, 10);
-        if (Array.isArray(current) && index < current.length) {
-          current = current[index];
+      if (typeof part === 'number') {
+        // Array index
+        if (Array.isArray(current) && part < current.length) {
+          current = current[part];
         } else {
           return null;
         }
-      } else {
-        // Handle object properties
+      } else if (typeof part === 'string') {
+        // Object property
         if (typeof current === 'object' && current !== null && part in current) {
           current = current[part];
         } else {
@@ -389,14 +389,95 @@ function extractJsonPath(data, path) {
 
     return current;
   } catch (error) {
-    console.error('JSON path extraction error:', error);
+    console.error('JSON path extraction error:', error, 'path:', path);
     return null;
   }
 }
 
+// Parse JSON path supporting various formats
+function parseJsonPath(path) {
+  const parts = [];
+  let current = '';
+  let i = 0;
+
+  while (i < path.length) {
+    const char = path[i];
+
+    if (char === '.' || char === '[') {
+      // End of previous part
+      if (current) {
+        parts.push(parsePathPart(current));
+        current = '';
+      }
+
+      if (char === '[') {
+        // Parse bracketed content
+        let bracketContent = '';
+        i++; // Skip '['
+        let depth = 1;
+
+        while (i < path.length && depth > 0) {
+          if (path[i] === '[') depth++;
+          else if (path[i] === ']') depth--;
+          else bracketContent += path[i];
+          i++;
+        }
+
+        // Skip closing ']'
+        if (path[i] === ']') i++;
+
+        if (bracketContent) {
+          parts.push(parsePathPart(bracketContent));
+        }
+      } else {
+        i++; // Skip '.'
+      }
+    } else {
+      current += char;
+      i++;
+    }
+  }
+
+  // Add remaining part
+  if (current) {
+    parts.push(parsePathPart(current));
+  }
+
+  return parts;
+}
+
+// Convert path part to appropriate type
+function parsePathPart(part) {
+  // Try to parse as number for array indices
+  const num = parseInt(part, 10);
+  if (!isNaN(num) && num.toString() === part) {
+    return num;
+  }
+  return part;
+}
+
 // Perform web API lookup
 async function performWebLookup(word, settings) {
-  if (!settings || !settings.url) {
+  let serviceSettings = settings;
+
+  // If settings is just a serviceId reference, look up the full service config
+  if (settings && settings.serviceId && !settings.url) {
+    const serviceId = settings.serviceId;
+    const webServices = await new Promise(resolve => {
+      chrome.storage.local.get(['webServices'], (result) => {
+        resolve(result.webServices || []);
+      });
+    });
+
+    const webService = webServices.find(service => service.id === serviceId);
+    if (!webService) {
+      throw new Error(`Web service with ID "${serviceId}" not found`);
+    }
+
+    serviceSettings = webService;
+  }
+
+  if (!serviceSettings || !serviceSettings.url) {
     throw new Error('Web API settings not configured');
   }
 
@@ -413,7 +494,7 @@ async function performWebLookup(word, settings) {
 
   console.log('Web lookup - original word:', word, 'encoded text:', text);
 
-  let url = settings.url;
+  let url = serviceSettings.url;
   url = url.replace(/\{text\}/g, text);
   url = url.replace(/\{lang\}/g, lang);
   url = url.replace(/\{lang_short\}/g, langShort);
@@ -424,8 +505,8 @@ async function performWebLookup(word, settings) {
 
   const headers = {};
 
-  if (settings.apiKey) {
-    headers['Authorization'] = `Bearer ${settings.apiKey}`;
+  if (serviceSettings.apiKey) {
+    headers['Authorization'] = `Bearer ${serviceSettings.apiKey}`;
     // Or other auth methods as needed
   }
 
@@ -446,8 +527,8 @@ async function performWebLookup(word, settings) {
     const data = await response.json();
 
     // If JSON path is specified, extract the specific data
-    if (settings.jsonPath) {
-      const extracted = extractJsonPath(data, settings.jsonPath);
+    if (serviceSettings.jsonPath) {
+      const extracted = extractJsonPath(data, serviceSettings.jsonPath);
       if (extracted !== null) {
         // Return the extracted value, converting to string if needed
         return typeof extracted === 'string' ? extracted : JSON.stringify(extracted, null, 2);
@@ -632,13 +713,32 @@ function parseAIMarkup(text) {
 
 // Perform AI service lookup
 async function performAILookup(word, settings) {
-  if (!settings || !settings.apiKey || !settings.model) {
+  let serviceSettings = settings;
+
+  // If settings is just a serviceId reference, look up the full service config
+  if (settings && settings.serviceId && !settings.apiKey) {
+    const serviceId = settings.serviceId;
+    const aiServices = await new Promise(resolve => {
+      chrome.storage.local.get(['aiServices'], (result) => {
+        resolve(result.aiServices || []);
+      });
+    });
+
+    const aiService = aiServices.find(service => service.id === serviceId);
+    if (!aiService) {
+      throw new Error(`AI service with ID "${serviceId}" not found`);
+    }
+
+    serviceSettings = aiService;
+  }
+
+  if (!serviceSettings || !serviceSettings.apiKey || !serviceSettings.model) {
     throw new Error('AI settings not configured');
   }
 
-  const prompt = (settings.prompt || 'You are a Tutor, give a grammar breakdown for: {text}').replace('{text}', word);
+  const prompt = (serviceSettings.prompt || 'You are a Tutor, give a grammar breakdown for: {text}').replace('{text}', word);
   // Note: For AI prompts, we don't URL encode {text} as it's not being sent in a URL
-  const maxTokens = settings.maxTokens || 2048;
+  const maxTokens = serviceSettings.maxTokens || 2048;
 
   let apiUrl, requestBody, headers;
 
