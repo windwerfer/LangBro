@@ -536,15 +536,18 @@ document.addEventListener('DOMContentLoaded', () => {
     showDisplayMethodSettings(displayMethodSelect.value);
   });
 
-  // AI provider change - set default model
-  document.getElementById('aiProvider').addEventListener('change', () => {
-    const provider = document.getElementById('aiProvider').value;
-    const modelInput = document.getElementById('aiModel');
+  // AI provider change - set default model (moved inside DOMContentLoaded)
+  const aiProviderElement = document.getElementById('aiProvider');
+  const aiModelElement = document.getElementById('aiModel');
 
-    if (provider === 'google' && !modelInput.value) {
-      modelInput.value = 'gemini-2.5-flash';
-    }
-  });
+  if (aiProviderElement && aiModelElement) {
+    aiProviderElement.addEventListener('change', () => {
+      const provider = aiProviderElement.value;
+      if (provider === 'google' && !aiModelElement.value) {
+        aiModelElement.value = 'gemini-2.5-flash';
+      }
+    });
+  }
 
   // Save group button
   saveGroupBtn.addEventListener('click', () => {
@@ -691,6 +694,8 @@ document.addEventListener('DOMContentLoaded', () => {
         loadWebServicesForSelection(group.settings?.serviceId || '');
       } else if (group.queryType === 'ai') {
         loadAiServicesForSelection(group.settings?.serviceId || '');
+        document.getElementById('aiMaxTokens').value = group.settings?.maxTokens || 2048;
+        document.getElementById('aiPrompt').value = group.settings?.prompt || 'You are a Tutor, give a grammar breakdown for: {text}';
       } else if (group.queryType === 'offline') {
         // Load selected dictionaries for offline groups
         loadAvailableDictionaries(group.settings?.selectedDictionaries || []);
@@ -743,6 +748,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('webServiceSelection').style.display = 'block';
     } else if (queryType === 'ai') {
       document.getElementById('aiServiceSelection').style.display = 'block';
+      aiSettings.style.display = 'block';
     }
   }
 
@@ -858,7 +864,9 @@ document.addEventListener('DOMContentLoaded', () => {
         alert('Please select an AI service.');
         return;
       }
-      settings = { serviceId: selectedAiServiceId };
+      const maxTokens = parseInt(document.getElementById('aiMaxTokens').value) || 2048;
+      const prompt = document.getElementById('aiPrompt').value.trim();
+      settings = { serviceId: selectedAiServiceId, maxTokens, prompt };
     }
 
     // Build popup settings if display method is popup

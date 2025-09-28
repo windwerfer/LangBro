@@ -396,22 +396,6 @@
       <!-- AI Settings -->
       <div id="aiSettings" class="query-type-settings" style="display: none;">
         <div class="form-group">
-          <label for="aiProvider">AI Provider:</label>
-          <select id="aiProvider">
-            <option value="openai">OpenAI</option>
-            <option value="anthropic">Anthropic</option>
-            <option value="google">Google AI</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="aiApiKey">API Key:</label>
-          <input type="password" id="aiApiKey" required>
-        </div>
-        <div class="form-group">
-          <label for="aiModel">Model:</label>
-          <input type="text" id="aiModel" placeholder="gpt-3.5-turbo" required>
-        </div>
-        <div class="form-group">
           <label for="aiMaxTokens">Max Tokens:</label>
           <input type="number" id="aiMaxTokens" placeholder="2048" value="2048" min="1" max="10000">
           <small>Maximum number of tokens to generate in the response</small>
