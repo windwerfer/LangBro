@@ -12,7 +12,7 @@ export class SettingsStore {
       // Configuration settings
       iconPlacement: 'underneath',
       iconOffset: 50,
-      iconSpacing: 10,
+      iconSpacing: 40,
       rightSwipeGroupId: '',
       singleClickGroupId: '',
       tripleClickGroupId: '',
@@ -82,7 +82,7 @@ export class SettingsStore {
       this.update({
         iconPlacement: settingsResult.iconPlacement || 'underneath',
         iconOffset: settingsResult.iconOffset || 50,
-        iconSpacing: settingsResult.iconSpacing || 10,
+        iconSpacing: settingsResult.iconSpacing || 60,
         rightSwipeGroupId: settingsResult.rightSwipeGroup || '',
         singleClickGroupId: settingsResult.singleClickGroup || '',
         tripleClickGroupId: settingsResult.tripleClickGroup || '',
