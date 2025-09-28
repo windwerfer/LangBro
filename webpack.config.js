@@ -44,7 +44,8 @@ module.exports = (env, argv) => {
           {
             loader: 'style-loader',
             options: {
-              injectType: 'styleTag'
+              injectType: 'lazyStyleTag',
+              insert: 'head'
             }
           },
           'css-loader'

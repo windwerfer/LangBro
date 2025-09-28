@@ -8,7 +8,7 @@ import { settings } from './settings-store.js';
 // Import CSS styles
 import './content-rxjs.css';
 
-console.log('RxJS Content script loaded successfully v03');
+console.log('RxJS Content script loaded successfully v04');
 
 // Selection Event Stream
 // Merges selectionchange and keyup events, filters for valid text selections
