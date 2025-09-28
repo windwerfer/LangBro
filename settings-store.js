@@ -10,7 +10,7 @@ export class SettingsStore {
     // Initialize with default values
     this.settings$ = new BehaviorSubject({
       // Configuration settings
-      iconPlacement: 'word',
+      iconPlacement: 'underneath',
       iconOffset: 50,
       iconSpacing: 10,
       rightSwipeGroupId: '',
@@ -80,7 +80,7 @@ export class SettingsStore {
 
       // Update settings with loaded values
       this.update({
-        iconPlacement: settingsResult.iconPlacement || 'word',
+        iconPlacement: settingsResult.iconPlacement || 'underneath',
         iconOffset: settingsResult.iconOffset || 50,
         iconSpacing: settingsResult.iconSpacing || 10,
         rightSwipeGroupId: settingsResult.rightSwipeGroup || '',

@@ -100,7 +100,7 @@ module.exports = (env, argv) => {
           {
             loader: 'style-loader',
             options: {
-              injectType: 'lazyStyleTag'
+              injectType: 'styleTag'
             }
           },
           'css-loader'

@@ -8,7 +8,7 @@ import { settings } from './settings-store.js';
 // Import CSS styles
 import './content-rxjs.css';
 
-console.log('RxJS Content script loaded successfully v04');
+console.log('RxJS Content script loaded successfully v05');
 
 // Selection Event Stream
 // Merges selectionchange and keyup events, filters for valid text selections
@@ -136,9 +136,14 @@ clickSequence$.subscribe(({ count, target }) => {
 // Icon click stream (delegated to document for dynamic icons)
 const iconClick$ = fromEvent(document, 'click').pipe(
   filter(event => event.target.classList.contains('lookup-icon') ||
-                  event.target.closest('.lookup-icon')),
+                  event.target.closest('.lookup-icon') ||
+                  event.target.classList.contains('langbro-lookup-icon') ||
+                  event.target.closest('.langbro-lookup-icon')),
   map(event => ({
-    icon: event.target.classList.contains('lookup-icon') ? event.target : event.target.closest('.lookup-icon'),
+    icon: event.target.classList.contains('lookup-icon') ? event.target :
+          event.target.closest('.lookup-icon') ? event.target.closest('.lookup-icon') :
+          event.target.classList.contains('langbro-lookup-icon') ? event.target :
+          event.target.closest('.langbro-lookup-icon'),
     originalEvent: event
   }))
 );
@@ -187,24 +192,8 @@ export {
 
 // ===== DISPLAY FUNCTIONALITY =====
 
-// Global state for result windows and icons
-let lookupIcons = [];
-let resultDivs = [];
-let inlineDivs = [];
-let bottomDivs = [];
-let selectedWord = '';
-let currentSelection = null;
-let queryGroups = [];
-let resultJustShown = false;
-let iconPlacement = 'word';
-let iconOffset = 50;
-let iconSpacing = 10;
-let boxIdCounter = 0;
-let rightSwipeGroupId = '';
-let singleClickGroupId = '';
-let tripleClickGroupId = '';
-let hideGroupNames = false;
-let isDarkMode = false;
+// Global state - now accessed via reactive settings store from './settings-store.js'
+// Use settings.current to read values, settings.update() to write, settings.select() for observables
 
 // ===== RESULT WINDOW CREATION =====
 
@@ -217,7 +206,7 @@ function createResultDiv(type, group, boxId, initialWord = '') {
 
   switch (type) {
     case 'popup':
-      divsArray = resultDivs;
+      divsArray = settings.current.resultDivs;
       classPrefix = 'popup';
       positionCallback = () => {
         const selection = window.getSelection();
@@ -241,7 +230,7 @@ function createResultDiv(type, group, boxId, initialWord = '') {
       };
       break;
     case 'inline':
-      divsArray = inlineDivs;
+      divsArray = settings.current.inlineDivs;
       classPrefix = 'inline';
       positionCallback = () => {
         // Find the parent text block of the selected text
@@ -277,7 +266,7 @@ function createResultDiv(type, group, boxId, initialWord = '') {
       };
       break;
     case 'bottom':
-      divsArray = bottomDivs;
+      divsArray = settings.current.bottomDivs;
       classPrefix = 'bottom';
       positionCallback = () => {
         // Already positioned fixed
@@ -296,7 +285,7 @@ function createResultDiv(type, group, boxId, initialWord = '') {
     resultDiv.className = `langbro-result langbro-${type}`;
 
     // Apply dark mode class if needed
-    if (isDarkMode) {
+    if (settings.current.isDarkMode) {
       resultDiv.classList.add('langbro-dark');
     }
 
@@ -388,7 +377,7 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
     searchButton.style.fontSize = '12px';
 
     // Apply dark mode to button
-    if (isDarkMode) {
+    if (settings.current.isDarkMode) {
       searchButton.style.backgroundColor = '#2d2d2d';
       searchButton.style.color = '#ffffff';
       searchButton.style.borderColor = '#555';
@@ -514,7 +503,7 @@ function showBottomResult(definition, group, boxId, initialWord = '') {
 // Show the result based on group's display method
 function showResult(definition, group, locationInfo, initialWord = '') {
   const displayMethod = locationInfo ? locationInfo.displayMethod : group.displayMethod || 'popup';
-  const boxId = locationInfo ? locationInfo.boxId : ++boxIdCounter;
+  const boxId = locationInfo ? locationInfo.boxId : settings.incrementBoxId();
 
   if (displayMethod === 'inline') {
     showInlineResult(definition, group, boxId, initialWord);
@@ -593,7 +582,7 @@ function showLookupIcons(selection) {
   hideLookupIcons();
 
   // Filter enabled groups
-  const enabledGroups = queryGroups.filter(group => group.enabled);
+  const enabledGroups = settings.current.queryGroups.filter(group => group.enabled);
   console.log('Enabled query groups:', enabledGroups.length);
   if (enabledGroups.length === 0) return;
 
@@ -608,7 +597,7 @@ function showLookupIcons(selection) {
     icon.className = 'langbro-lookup-icon';
 
     // Apply dark mode styling
-    if (isDarkMode) {
+    if (settings.current.isDarkMode) {
       icon.classList.add('langbro-dark');
     }
 
@@ -632,54 +621,54 @@ function showLookupIcons(selection) {
     icon.dataset.groupIndex = index;
 
     // Calculate position based on placement setting
-    let left, top = baseTop + iconOffset;
+    let left, top = baseTop + settings.current.iconOffset;
 
-    if (iconPlacement === 'right') {
-      // Position on right side of screen, from right to left
-      left = window.innerWidth + window.scrollX - 30 - 5 - (index * iconSpacing);
-    } else if (iconPlacement === 'left') {
-      // Position on left side of screen, from left to right
-      left = window.scrollX + 5 + (index * iconSpacing);
-    } else {
-      // 'word' (default): Position near the selected word, from right to left
-      left = rect.right + window.scrollX + 5 - (index * iconSpacing);
+if (settings.current.iconPlacement === 'right') {
+  // Position on right side of screen, from right to left
+  left = window.innerWidth + window.scrollX - 30 - 5 - (index * settings.current.iconSpacing);
+  top = baseTop + settings.current.iconOffset;
+} else if (settings.current.iconPlacement === 'left') {
+  // Position on left side of screen, from left to right
+  left = window.scrollX + 5 + (index * settings.current.iconSpacing);
+  top = baseTop + settings.current.iconOffset;
+} else  { // == (settings.current.iconPlacement === 'underneath')
+  // Position underneath the selected word
+  const wordCenter = rect.left + (rect.width / 2);
+  left = wordCenter + window.scrollX - (index * settings.current.iconSpacing);
+  top = rect.bottom + window.scrollY + 5;
 
-      // Ensure icons don't go off-screen to the left
-      const iconWidth = 20; // Approximate icon width
-      if (left < window.scrollX + 5) {
-        // If icon would go off-screen, reposition to the right side of the word
-        left = rect.right + window.scrollX + 5 + (index * iconSpacing);
-      }
-    }
+} 
 
-    // Ensure icons stay within viewport bounds
-    const iconWidth = 20;
-    const viewportLeft = window.scrollX;
-    const viewportRight = window.scrollX + window.innerWidth;
+// Ensure icons stay within viewport bounds (but respect placement setting)
+const iconWidth = 20;
+const viewportLeft = window.scrollX;
+const viewportRight = window.scrollX + window.innerWidth;
 
-    if (left < viewportLeft + 5) {
-      left = viewportLeft + 5;
-    } else if (left + iconWidth > viewportRight - 5) {
-      left = viewportRight - iconWidth - 5;
-    }
+if (left < viewportLeft + 5) {
+  left = viewportLeft + 5;
+}
+// Only push icons left if they would go off-screen to the right, and only for non-right placements
+else if (settings.current.iconPlacement !== 'right' && left + iconWidth > viewportRight - 5) {
+  left = viewportRight - iconWidth - 5;
+}
 
-    icon.style.left = left + 'px';
-    icon.style.top = top + 'px';
+icon.style.left = left + 'px';
+icon.style.top = top + 'px';
     icon.style.display = 'block';
 
     document.body.appendChild(icon);
-    lookupIcons.push(icon);
+    settings.update({ lookupIcons: [...settings.current.lookupIcons, icon] });
   });
 }
 
 // Hide all lookup icons
 function hideLookupIcons() {
-  lookupIcons.forEach(icon => {
+  settings.current.lookupIcons.forEach(icon => {
     if (icon.parentNode) {
       icon.parentNode.removeChild(icon);
     }
   });
-  lookupIcons = [];
+  settings.update({ lookupIcons: [] });
 }
 
 // Handle icon click for specific group
@@ -688,13 +677,13 @@ function handleIconClick(event, group) {
   event.preventDefault();
   event.stopPropagation();
   // console.log(currentSelection);console.log('xxx');
-  if (currentSelection) {
+  if (settings.current.currentSelection) {
     hideLookupIcons(); // Hide icons after click
     // Choose text based on group's textSelectionMethod
     const textSelectionMethod = group.textSelectionMethod || 'selectedText';
     console.log(`Using text selection method: ${textSelectionMethod}`);
-    console.log(currentSelection);
-    const word = currentSelection[textSelectionMethod] || currentSelection.selectedText || '';
+    console.log(settings.current.currentSelection);
+    const word = settings.current.currentSelection[textSelectionMethod] || settings.current.currentSelection.selectedText || '';
     console.log(`Sending Text: ${word}`);
 
     // Show result window immediately with spinner and initial word
@@ -731,9 +720,9 @@ function lookupWord(word, group, locationInfo) {
       const createGroupLabel = (group) => {
         if (group.icon && group.icon.endsWith('.png')) {
           const iconHtml = `<img src="${chrome.runtime.getURL(group.icon)}" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;" alt="${group.icon}">`;
-          return hideGroupNames ? iconHtml : `${iconHtml}${group.name}`;
+          return settings.current.hideGroupNames ? iconHtml : `${iconHtml}${group.name}`;
         } else {
-          return hideGroupNames ? group.icon : `${group.icon} ${group.name}`;
+          return settings.current.hideGroupNames ? group.icon : `${group.icon} ${group.name}`;
         }
       };
 
@@ -755,64 +744,8 @@ function lookupWord(word, group, locationInfo) {
 
 // ===== SETTINGS MANAGEMENT =====
 
-// Load settings from storage
-async function loadSettings() {
-  try {
-    const result = await chrome.storage.local.get(['iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'singleClickGroup', 'tripleClickGroup', 'hideGroupNames', 'darkMode']);
-    iconPlacement = result.iconPlacement || 'word';
-    iconOffset = result.iconOffset || 50;
-    iconSpacing = result.iconSpacing || 10;
-    rightSwipeGroupId = result.rightSwipeGroup || '';
-    singleClickGroupId = result.singleClickGroup || '';
-    tripleClickGroupId = result.tripleClickGroup || '';
-    hideGroupNames = result.hideGroupNames || false;
-    isDarkMode = result.darkMode || false;
-    console.log('Loaded icon settings:', { iconPlacement, iconOffset, iconSpacing, rightSwipeGroupId, singleClickGroupId, tripleClickGroupId, hideGroupNames, isDarkMode });
-  } catch (error) {
-    console.error('Error loading settings:', error);
-    iconPlacement = 'word';
-    iconOffset = 50;
-    iconSpacing = 10;
-    rightSwipeGroupId = '';
-    singleClickGroupId = '';
-    tripleClickGroupId = '';
-    hideGroupNames = false;
-    isDarkMode = false;
-  }
-}
-
-// Load query groups from storage
-async function loadQueryGroups() {
-  try {
-    const result = await chrome.storage.local.get(['queryGroups']);
-    let groups = result.queryGroups || [];
-
-    // Ensure all groups have displayMethod set
-    groups = groups.map(group => ({
-      ...group,
-      displayMethod: group.displayMethod || 'popup'
-    }));
-
-    // Save back if any groups were updated
-    if (groups.some((group, index) => !result.queryGroups[index]?.displayMethod)) {
-      await chrome.storage.local.set({ queryGroups: groups });
-    }
-
-    queryGroups = groups;
-    console.log('Loaded query groups:', queryGroups);
-  } catch (error) {
-    console.error('Error loading query groups:', error);
-    queryGroups = [];
-  }
-}
-
-// Listen for dark mode changes
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes.darkMode) {
-    isDarkMode = changes.darkMode.newValue || false;
-    console.log('Dark mode updated:', isDarkMode);
-  }
-});
+// Settings are now managed by the reactive settings store from './settings-store.js'
+// No manual loading/listening needed - the store handles everything automatically
 
 // ===== EVENT LISTENER CONNECTIONS =====
 
@@ -824,14 +757,16 @@ function setupEventListeners() {
   selection$.subscribe(({ selection, selectedText }) => {
     if (selectedText) {
       // Extract selection details
-      currentSelection = {
-        selectedText: selectedText,
-        wholeWord: getWholeWord(selection),
-        wholeParagraph: getWholeParagraph(selection)
-      };
+      settings.update({
+        currentSelection: {
+          selectedText: selectedText,
+          wholeWord: getWholeWord(selection),
+          wholeParagraph: getWholeParagraph(selection)
+        }
+      });
       showLookupIcons(selection);
     } else {
-      currentSelection = null;
+      settings.update({ currentSelection: null });
       hideLookupIcons();
     }
   });
@@ -839,8 +774,8 @@ function setupEventListeners() {
   // Connect icon click stream to handle icon clicks
   iconClick$.subscribe(({ icon, originalEvent }) => {
     const groupId = icon.dataset.groupId;
-    const group = queryGroups.find(g => g.id === groupId);
-    if (group && currentSelection) {
+    const group = settings.current.queryGroups.find(g => g.id === groupId);
+    if (group && settings.current.currentSelection) {
       handleIconClick(originalEvent, group);
     }
   });
@@ -848,7 +783,7 @@ function setupEventListeners() {
   // Connect document click stream to hide result windows
   documentClick$.subscribe(() => {
     // Hide popup result divs if clicked outside and hideOnClickOutside is enabled
-    resultDivs.forEach(div => {
+    settings.current.resultDivs.forEach(div => {
       if (div && div.dataset.hideOnClickOutside === 'true') {
         div.style.display = 'none';
       }
@@ -859,9 +794,9 @@ function setupEventListeners() {
   // Connect runtime message stream to handle background script messages
   runtimeMessage$.subscribe(({ message, sender, sendResponse }) => {
     if (message.action === 'updateQueryGroups') {
-      queryGroups = message.groups || [];
+      settings.update({ queryGroups: message.groups || [] });
       // Update icons if word is currently selected
-      if (currentSelection && currentSelection.selectedText) {
+      if (settings.current.currentSelection && settings.current.currentSelection.selectedText) {
         const selection = window.getSelection();
         if (selection.toString().trim()) {
           showLookupIcons(selection);
@@ -871,20 +806,8 @@ function setupEventListeners() {
   });
 
   // Connect storage change stream to update settings dynamically
-  storageChange$.subscribe(({ changes, area }) => {
-    if (area === 'local') {
-      if (changes.darkMode) {
-        isDarkMode = changes.darkMode.newValue || false;
-        console.log('RxJS: Dark mode updated:', isDarkMode);
-      }
-      // Update other settings as needed
-      if (changes.iconPlacement || changes.iconOffset || changes.iconSpacing ||
-          changes.rightSwipeGroup || changes.singleClickGroup || changes.tripleClickGroup ||
-          changes.hideGroupNames) {
-        loadSettings(); // Reload all settings
-      }
-    }
-  });
+  // Note: Settings store automatically handles reactive updates from storage
+  // No manual listener needed - the settings store subscribes to chrome.storage.onChanged
 
   console.log('RxJS: Event listeners setup complete');
 }
@@ -955,10 +878,8 @@ function getWholeParagraph(selection) {
 
 // ===== INITIALIZATION =====
 
-// Initialize extension asynchronously to ensure settings are loaded before listeners
+// Initialize extension - settings store loads automatically
 async function init() {
-  await loadSettings();
-  await loadQueryGroups();
   setupEventListeners();
   console.log('RxJS Content script initialization complete');
 }

@@ -1,2 +1,3 @@
 - do not generate .xpi files, i will do that manually
 - warn me if manifest.json is changed, because i need to restart firefox! or the changes will not be updated. highlight this message as much as possible, that i really, really see it. use as many warning emoji as you can (eg ❌ ⚠️ 🚨 💡) to really drive home the point for this one!!
+- for 'content-rxjs.js': use the reactive `settings` object from './settings-store.js' for all settings instead of maintaining global state variables - this ensures reactive, automatic updates when settings change
