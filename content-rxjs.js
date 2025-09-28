@@ -5,10 +5,23 @@ import { fromEvent, merge, combineLatest, Observable } from 'rxjs';
 import { map, filter, debounceTime, throttleTime, switchMap, takeUntil, bufferTime, pairwise } from 'rxjs/operators';
 import { settings } from './settings-store.js';
 
-// Import CSS styles
-import './content-rxjs.css';
-
 console.log('RxJS Content script loaded successfully v05');
+
+// Inject CSS styles programmatically (more reliable for Firefox extensions)
+function injectStyles() {
+  if (document.getElementById('langbro-content-styles')) {
+    return; // Already injected
+  }
+
+  const linkElement = document.createElement('link');
+  linkElement.id = 'langbro-content-styles';
+  linkElement.rel = 'stylesheet';
+  linkElement.href = chrome.runtime.getURL('content-rxjs.css');
+  document.head.appendChild(linkElement);
+}
+
+// Inject styles immediately
+injectStyles();
 
 // Selection Event Stream
 // Merges selectionchange and keyup events, filters for valid text selections
