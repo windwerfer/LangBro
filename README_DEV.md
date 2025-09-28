@@ -7,3 +7,5 @@
 (it took me a bit to setup, but basicly, add 
     devtool: 'source-map', 
 to webpack.config.js and then run `npm run watch` to create a js pack of the content-rxjs.js that firefox understands how to debug..     )
+
+!!!! if you change the manifest.json, you need to restart firefox dev!!! otherwise the settings will not reload!!!!
