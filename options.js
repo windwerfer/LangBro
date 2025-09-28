@@ -895,7 +895,7 @@ document.addEventListener('DOMContentLoaded', () => {
       displayMethod: displayMethodSelect.value,
       textSelectionMethod: textSelectionMethodSelect.value,
       showSearchField: showSearchFieldSelect.value,
-      displaySuggestions: parseInt(displaySuggestionsInput.value) || 20,
+      displaySuggestions: displaySuggestionsInput.value.trim() === '' ? 20 : (parseInt(displaySuggestionsInput.value) || 0),
       popupSettings,
       inlineSettings,
       settings,
