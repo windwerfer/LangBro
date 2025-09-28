@@ -573,8 +573,11 @@ function showBottomResult(definition, group, boxId, initialWord = '') {
 
 // Show the result based on group's display method
 function showResult(definition, group, locationInfo, initialWord = '') {
+
   const displayMethod = locationInfo ? locationInfo.displayMethod : group.displayMethod || 'popup';
   const boxId = locationInfo ? locationInfo.boxId : settings.incrementBoxId();
+  
+  console.log(displayMethod, group);
 
   if (displayMethod === 'inline') {
     showInlineResult(definition, group, boxId, initialWord);

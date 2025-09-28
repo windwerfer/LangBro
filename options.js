@@ -108,18 +108,26 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Load settings
-  chrome.storage.local.get(['darkMode', 'hideGroupNames', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'singleClickGroup', 'tripleClickGroup'], (result) => {
-    console.log('Loaded settings:', result);
-    darkModeCheckbox.checked = result.darkMode || false;
-    hideGroupNamesCheckbox.checked = result.hideGroupNames || false;
-    targetLanguageSelect.value = result.targetLanguage || 'en';
-    iconPlacementSelect.value = result.iconPlacement || 'word';
-    iconOffsetInput.value = result.iconOffset || 50;
-    iconSpacingInput.value = result.iconSpacing || 10;
-    rightSwipeGroupSelect.value = result.rightSwipeGroup || '';
-    singleClickGroupSelect.value = result.singleClickGroup || '';
-    tripleClickGroupSelect.value = result.tripleClickGroup || '';
-  });
+  async function loadSettings() {
+    try {
+      const result = await chrome.storage.local.get(['darkMode', 'hideGroupNames', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'singleClickGroup', 'tripleClickGroup']);
+      console.log('Loaded settings:', result);
+      darkModeCheckbox.checked = result.darkMode || false;
+      hideGroupNamesCheckbox.checked = result.hideGroupNames || false;
+      targetLanguageSelect.value = result.targetLanguage || 'en';
+      iconPlacementSelect.value = result.iconPlacement || 'word';
+      iconOffsetInput.value = result.iconOffset || 50;
+      iconSpacingInput.value = result.iconSpacing || 10;
+      rightSwipeGroupSelect.value = result.rightSwipeGroup || '';
+      singleClickGroupSelect.value = result.singleClickGroup || '';
+      tripleClickGroupSelect.value = result.tripleClickGroup || '';
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+  }
+
+  // Initial load
+  loadSettings();
 
   // Save settings when changed
   darkModeCheckbox.addEventListener('change', () => {
@@ -862,14 +870,14 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (queryType === 'web') {
       const selectedWebServiceId = document.getElementById('selectedWebService').value;
       if (!selectedWebServiceId) {
-        alert('Please select a web service.');
+        alert('Please select a web service. You must first create web services in the "Web Services" tab.');
         return;
       }
       settings = { serviceId: selectedWebServiceId };
     } else if (queryType === 'ai') {
       const selectedAiServiceId = document.getElementById('selectedAiService').value;
       if (!selectedAiServiceId) {
-        alert('Please select an AI service.');
+        alert('Please select an AI service. You must first create AI services in the "AI Services" tab.');
         return;
       }
       const maxTokens = parseInt(document.getElementById('aiMaxTokens').value) || 2048;
@@ -1098,22 +1106,24 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error('Invalid settings file format');
       }
 
-      await chrome.storage.local.set(importData.data);
+      // Preserve existing services if import doesn't contain them
+      const existingSettings = await chrome.storage.local.get(['webServices', 'aiServices']);
+      const mergedSettings = {
+        ...importData.data,
+        // Use services from import if they exist, otherwise preserve current ones
+        webServices: importData.data.hasOwnProperty('webServices') ? importData.data.webServices : (existingSettings.webServices || []),
+        aiServices: importData.data.hasOwnProperty('aiServices') ? importData.data.aiServices : (existingSettings.aiServices || [])
+      };
+
+      await chrome.storage.local.set(mergedSettings);
 
       // Reload settings in UI
-      chrome.storage.local.get(['darkMode', 'hideGroupNames', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'tripleClickGroup'], (result) => {
-        darkModeCheckbox.checked = result.darkMode || false;
-        hideGroupNamesCheckbox.checked = result.hideGroupNames || false;
-        targetLanguageSelect.value = result.targetLanguage || 'en';
-        iconPlacementSelect.value = result.iconPlacement || 'word';
-        iconOffsetInput.value = result.iconOffset || 50;
-        iconSpacingInput.value = result.iconSpacing || 10;
-        rightSwipeGroupSelect.value = result.rightSwipeGroup || '';
-        tripleClickGroupSelect.value = result.tripleClickGroup || '';
-      });
+      await loadSettings();
 
-      // Reload query groups
-      loadQueryGroups();
+      // Reload query groups, web services, and AI services
+      await loadQueryGroups();
+      await loadWebServices();
+      await loadAiServices();
 
       showBackupStatus('Settings imported successfully!', 'success', 'settingsStatus');
     } catch (error) {
@@ -1312,8 +1322,16 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error('Invalid backup file format');
       }
 
-      // Restore settings
-      await chrome.storage.local.set(backupData.settings);
+      // Restore settings - preserve existing services if backup doesn't contain them
+      const existingSettings = await chrome.storage.local.get(['webServices', 'aiServices']);
+      const mergedSettings = {
+        ...backupData.settings,
+        // Use services from backup if they exist, otherwise preserve current ones
+        webServices: backupData.settings.hasOwnProperty('webServices') ? backupData.settings.webServices : (existingSettings.webServices || []),
+        aiServices: backupData.settings.hasOwnProperty('aiServices') ? backupData.settings.aiServices : (existingSettings.aiServices || [])
+      };
+
+      await chrome.storage.local.set(mergedSettings);
 
       // Restore dictionaries
       const db = await getStructuredDB();
@@ -1323,20 +1341,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      // Reload UI
-      chrome.storage.local.get(['darkMode', 'hideGroupNames', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'tripleClickGroup'], (result) => {
-        darkModeCheckbox.checked = result.darkMode || false;
-        hideGroupNamesCheckbox.checked = result.hideGroupNames || false;
-        targetLanguageSelect.value = result.targetLanguage || 'en';
-        iconPlacementSelect.value = result.iconPlacement || 'word';
-        iconOffsetInput.value = result.iconOffset || 50;
-        iconSpacingInput.value = result.iconSpacing || 10;
-        rightSwipeGroupSelect.value = result.rightSwipeGroup || '';
-        tripleClickGroupSelect.value = result.tripleClickGroup || '';
-      });
+      // Reload UI settings
+      await loadSettings();
 
-      loadQueryGroups();
-      loadCurrentDict();
+      await loadQueryGroups();
+      await loadWebServices(); // Reload web services from backup
+      await loadAiServices(); // Reload AI services from backup
+      await loadCurrentDict();
 
       // Notify background script to reload parser
       chrome.runtime.sendMessage({ action: 'reloadParser' });
