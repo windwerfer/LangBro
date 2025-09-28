@@ -729,7 +729,11 @@ async function performAILookup(word, settings) {
       throw new Error(`AI service with ID "${serviceId}" not found`);
     }
 
-    serviceSettings = aiService;
+    // Merge query group settings (maxTokens, prompt) with service config
+    serviceSettings = {
+      ...aiService,  // Base service config (apiKey, model, provider)
+      ...settings,   // Override with query group settings (maxTokens, prompt)
+    };
   }
 
   if (!serviceSettings || !serviceSettings.apiKey || !serviceSettings.model) {
@@ -742,16 +746,16 @@ async function performAILookup(word, settings) {
 
   let apiUrl, requestBody, headers;
 
-  switch (settings.provider) {
+  switch (serviceSettings.provider) {
     case 'openai':
       apiUrl = 'https://api.openai.com/v1/chat/completions';
       requestBody = {
-        model: settings.model,
+        model: serviceSettings.model,
         messages: [{ role: 'user', content: prompt }],
         max_tokens: maxTokens
       };
       headers = {
-        'Authorization': `Bearer ${settings.apiKey}`,
+        'Authorization': `Bearer ${serviceSettings.apiKey}`,
         'Content-Type': 'application/json'
       };
       break;
@@ -759,19 +763,19 @@ async function performAILookup(word, settings) {
     case 'anthropic':
       apiUrl = 'https://api.anthropic.com/v1/messages';
       requestBody = {
-        model: settings.model,
+        model: serviceSettings.model,
         max_tokens: maxTokens,
         messages: [{ role: 'user', content: prompt }]
       };
       headers = {
-        'x-api-key': settings.apiKey,
+        'x-api-key': serviceSettings.apiKey,
         'Content-Type': 'application/json',
         'anthropic-version': '2023-06-01'
       };
       break;
 
     case 'google':
-      apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`;
+      apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${serviceSettings.model}:generateContent?key=${serviceSettings.apiKey}`;
       requestBody = {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { maxOutputTokens: maxTokens }
@@ -782,7 +786,7 @@ async function performAILookup(word, settings) {
       break;
 
     default:
-      throw new Error(`Unsupported AI provider: ${settings.provider}`);
+      throw new Error(`Unsupported AI provider: ${serviceSettings.provider}`);
   }
 
   const response = await fetch(apiUrl, {
@@ -799,7 +803,7 @@ async function performAILookup(word, settings) {
 
   // Extract response based on provider
   let rawResponse;
-  switch (settings.provider) {
+  switch (serviceSettings.provider) {
     case 'openai':
       rawResponse = data.choices?.[0]?.message?.content || 'No response from OpenAI';
       break;
