@@ -52,6 +52,29 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveGroupBtn = document.getElementById('saveGroupBtn');
   const cancelGroupBtn = document.getElementById('cancelGroupBtn');
 
+  // Web services elements
+  const addWebServiceBtn = document.getElementById('addWebServiceBtn');
+  const webServicesList = document.getElementById('webServicesList');
+  const webServiceForm = document.getElementById('webServiceForm');
+  const webServiceFormTitle = document.getElementById('webServiceFormTitle');
+  const webServiceNameInput = document.getElementById('webServiceName');
+  const webServiceUrlInput = document.getElementById('webServiceUrl');
+  const webServiceJsonPathInput = document.getElementById('webServiceJsonPath');
+  const saveWebServiceBtn = document.getElementById('saveWebServiceBtn');
+  const cancelWebServiceBtn = document.getElementById('cancelWebServiceBtn');
+
+  // AI services elements
+  const addAiServiceBtn = document.getElementById('addAiServiceBtn');
+  const aiServicesList = document.getElementById('aiServicesList');
+  const aiServiceForm = document.getElementById('aiServiceForm');
+  const aiServiceFormTitle = document.getElementById('aiServiceFormTitle');
+  const aiServiceNameInput = document.getElementById('aiServiceName');
+  const aiServiceProviderSelect = document.getElementById('aiServiceProvider');
+  const aiServiceApiKeyInput = document.getElementById('aiServiceApiKey');
+  const aiServiceModelSelect = document.getElementById('aiServiceModel');
+  const saveAiServiceBtn = document.getElementById('saveAiServiceBtn');
+  const cancelAiServiceBtn = document.getElementById('cancelAiServiceBtn');
+
   // Query type settings
   const offlineSettings = document.getElementById('offlineSettings');
   const webSettings = document.getElementById('webSettings');
@@ -60,6 +83,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const textSelectionMethodSelect = document.getElementById('textSelectionMethod');
 
   let currentEditingGroup = null;
+  let currentEditingWebService = null;
+  let currentEditingAiService = null;
 
   // Navigation setup
   navButtons.forEach(button => {
@@ -395,6 +420,58 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Query Groups functionality
   loadQueryGroups();
+
+  // Web Services functionality
+  loadWebServices();
+
+  // AI Services functionality
+  loadAiServices();
+
+  // Add web service button
+  addWebServiceBtn.addEventListener('click', () => {
+    currentEditingWebService = null;
+    showWebServiceForm();
+  });
+
+  // Save web service button
+  saveWebServiceBtn.addEventListener('click', () => {
+    saveWebService();
+  });
+
+  // Cancel web service button
+  cancelWebServiceBtn.addEventListener('click', () => {
+    hideWebServiceForm();
+  });
+
+  // Add AI service button
+  addAiServiceBtn.addEventListener('click', () => {
+    currentEditingAiService = null;
+    showAiServiceForm();
+  });
+
+  // AI provider change - always set default model
+  aiServiceProviderSelect.addEventListener('change', () => {
+    const provider = aiServiceProviderSelect.value;
+    if (provider === 'google') {
+      aiServiceModelSelect.value = 'gemini-2.5-flash';
+    } else if (provider === 'openai') {
+      aiServiceModelSelect.value = 'gpt-4o';
+    } else if (provider === 'anthropic') {
+      aiServiceModelSelect.value = 'claude-3-5-sonnet';
+    } else if (provider === 'xai') {
+      aiServiceModelSelect.value = 'grok-2';
+    }
+  });
+
+  // Save AI service button
+  saveAiServiceBtn.addEventListener('click', () => {
+    saveAiService();
+  });
+
+  // Cancel AI service button
+  cancelAiServiceBtn.addEventListener('click', () => {
+    hideAiServiceForm();
+  });
 
   // Add group button
   addGroupBtn.addEventListener('click', () => {
@@ -1209,4 +1286,415 @@ document.addEventListener('DOMContentLoaded', () => {
     // Reset file input
     event.target.value = '';
   });
+
+  // Web Services functionality
+  async function loadWebServices() {
+    try {
+      const result = await chrome.storage.local.get(['webServices']);
+      const services = result.webServices || [];
+      renderWebServices(services);
+    } catch (error) {
+      console.error('Error loading web services:', error);
+    }
+  }
+
+  function renderWebServices(services) {
+    webServicesList.innerHTML = '';
+
+    if (services.length === 0) {
+      webServicesList.innerHTML = '<p style="color: #666; font-style: italic;">No web services configured. Click "Add New Service" to create one.</p>';
+      return;
+    }
+
+    services.forEach((service, index) => {
+      const serviceDiv = document.createElement('div');
+      serviceDiv.className = 'query-group'; // Reuse the same styling
+
+      const headerDiv = document.createElement('div');
+      headerDiv.style.display = 'flex';
+      headerDiv.style.alignItems = 'center';
+      headerDiv.style.justifyContent = 'space-between';
+
+      const infoDiv = document.createElement('div');
+      infoDiv.style.display = 'flex';
+      infoDiv.style.alignItems = 'center';
+      infoDiv.style.gap = '10px';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = service.name;
+      nameSpan.style.fontWeight = 'bold';
+
+      const urlSpan = document.createElement('span');
+      urlSpan.textContent = service.url;
+      urlSpan.style.fontSize = '12px';
+      urlSpan.style.color = '#666';
+      urlSpan.style.maxWidth = '300px';
+      urlSpan.style.overflow = 'hidden';
+      urlSpan.style.textOverflow = 'ellipsis';
+
+      const jsonPathSpan = document.createElement('span');
+      if (service.jsonPath) {
+        jsonPathSpan.textContent = `Path: ${service.jsonPath}`;
+        jsonPathSpan.style.fontSize = '11px';
+        jsonPathSpan.style.color = '#888';
+      }
+
+      infoDiv.appendChild(nameSpan);
+      infoDiv.appendChild(urlSpan);
+      if (service.jsonPath) {
+        infoDiv.appendChild(jsonPathSpan);
+      }
+
+      const buttonsDiv = document.createElement('div');
+
+      const editBtn = document.createElement('button');
+      editBtn.textContent = 'Edit';
+      editBtn.onclick = () => editWebService(index);
+
+      const duplicateBtn = document.createElement('button');
+      duplicateBtn.textContent = 'Duplicate';
+      duplicateBtn.style.marginLeft = '5px';
+      duplicateBtn.onclick = () => duplicateWebService(index);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.style.marginLeft = '5px';
+      deleteBtn.onclick = () => deleteWebService(index);
+
+      buttonsDiv.appendChild(editBtn);
+      buttonsDiv.appendChild(duplicateBtn);
+      buttonsDiv.appendChild(deleteBtn);
+
+      headerDiv.appendChild(infoDiv);
+      headerDiv.appendChild(buttonsDiv);
+
+      serviceDiv.appendChild(headerDiv);
+      webServicesList.appendChild(serviceDiv);
+    });
+  }
+
+  function showWebServiceForm(service = null) {
+    if (service) {
+      webServiceFormTitle.textContent = 'Edit Web Service';
+      webServiceNameInput.value = service.name || '';
+      webServiceUrlInput.value = service.url || '';
+      webServiceJsonPathInput.value = service.jsonPath || '';
+    } else {
+      webServiceFormTitle.textContent = 'Add Web Service';
+      webServiceNameInput.value = '';
+      webServiceUrlInput.value = '';
+      webServiceJsonPathInput.value = '';
+    }
+
+    webServiceForm.style.display = 'block';
+    webServiceNameInput.focus();
+  }
+
+  function hideWebServiceForm() {
+    webServiceForm.style.display = 'none';
+    currentEditingWebService = null;
+  }
+
+  async function saveWebService() {
+    const name = webServiceNameInput.value.trim();
+    const url = webServiceUrlInput.value.trim();
+    const jsonPath = webServiceJsonPathInput.value.trim();
+
+    if (!name) {
+      alert('Please enter a service name.');
+      return;
+    }
+
+    if (!url) {
+      alert('Please enter a valid API URL.');
+      return;
+    }
+
+    // Basic URL validation
+    try {
+      new URL(url);
+    } catch (error) {
+      alert('Please enter a valid URL.');
+      return;
+    }
+
+    const service = {
+      id: currentEditingWebService !== null ? currentEditingWebService.id : Date.now().toString(),
+      name,
+      url,
+      jsonPath: jsonPath || undefined
+    };
+
+    try {
+      const result = await chrome.storage.local.get(['webServices']);
+      const services = result.webServices || [];
+
+      if (currentEditingWebService !== null) {
+        // Update existing service
+        const index = services.findIndex(s => s.id === currentEditingWebService.id);
+        if (index !== -1) {
+          services[index] = service;
+        }
+      } else {
+        // Add new service
+        services.push(service);
+      }
+
+      await chrome.storage.local.set({ webServices: services });
+      renderWebServices(services);
+      hideWebServiceForm();
+    } catch (error) {
+      console.error('Error saving web service:', error);
+      alert('Error saving web service.');
+    }
+  }
+
+  function editWebService(index) {
+    chrome.storage.local.get(['webServices'], (result) => {
+      const services = result.webServices || [];
+      currentEditingWebService = services[index];
+      showWebServiceForm(currentEditingWebService);
+    });
+  }
+
+  async function duplicateWebService(index) {
+    try {
+      const result = await chrome.storage.local.get(['webServices']);
+      const services = result.webServices || [];
+      const originalService = services[index];
+
+      const duplicatedService = {
+        ...originalService,
+        id: Date.now().toString(),
+        name: `${originalService.name} (Copy)`
+      };
+
+      services.push(duplicatedService);
+      await chrome.storage.local.set({ webServices: services });
+      renderWebServices(services);
+    } catch (error) {
+      console.error('Error duplicating web service:', error);
+      alert('Error duplicating web service.');
+    }
+  }
+
+  async function deleteWebService(index) {
+    if (!confirm('Are you sure you want to delete this web service?')) {
+      return;
+    }
+
+    try {
+      const result = await chrome.storage.local.get(['webServices']);
+      const services = result.webServices || [];
+      services.splice(index, 1);
+      await chrome.storage.local.set({ webServices: services });
+      renderWebServices(services);
+    } catch (error) {
+      console.error('Error deleting web service:', error);
+    }
+  }
+
+  // AI Services functionality
+  async function loadAiServices() {
+    try {
+      const result = await chrome.storage.local.get(['aiServices']);
+      const services = result.aiServices || [];
+      renderAiServices(services);
+    } catch (error) {
+      console.error('Error loading AI services:', error);
+    }
+  }
+
+  function renderAiServices(services) {
+    aiServicesList.innerHTML = '';
+
+    if (services.length === 0) {
+      aiServicesList.innerHTML = '<p style="color: #666; font-style: italic;">No AI services configured. Click "Add New AI Service" to create one.</p>';
+      return;
+    }
+
+    services.forEach((service, index) => {
+      const serviceDiv = document.createElement('div');
+      serviceDiv.className = 'query-group'; // Reuse the same styling
+
+      const headerDiv = document.createElement('div');
+      headerDiv.style.display = 'flex';
+      headerDiv.style.alignItems = 'center';
+      headerDiv.style.justifyContent = 'space-between';
+
+      const infoDiv = document.createElement('div');
+      infoDiv.style.display = 'flex';
+      infoDiv.style.alignItems = 'center';
+      infoDiv.style.gap = '10px';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = service.name;
+      nameSpan.style.fontWeight = 'bold';
+
+      const providerSpan = document.createElement('span');
+      providerSpan.textContent = service.provider;
+      providerSpan.style.fontSize = '12px';
+      providerSpan.style.color = '#666';
+      providerSpan.style.textTransform = 'capitalize';
+
+      const modelSpan = document.createElement('span');
+      modelSpan.textContent = service.model;
+      modelSpan.style.fontSize = '11px';
+      modelSpan.style.color = '#888';
+
+      infoDiv.appendChild(nameSpan);
+      infoDiv.appendChild(providerSpan);
+      infoDiv.appendChild(modelSpan);
+
+      const buttonsDiv = document.createElement('div');
+
+      const editBtn = document.createElement('button');
+      editBtn.textContent = 'Edit';
+      editBtn.onclick = () => editAiService(index);
+
+      const duplicateBtn = document.createElement('button');
+      duplicateBtn.textContent = 'Duplicate';
+      duplicateBtn.style.marginLeft = '5px';
+      duplicateBtn.onclick = () => duplicateAiService(index);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.style.marginLeft = '5px';
+      deleteBtn.onclick = () => deleteAiService(index);
+
+      buttonsDiv.appendChild(editBtn);
+      buttonsDiv.appendChild(duplicateBtn);
+      buttonsDiv.appendChild(deleteBtn);
+
+      headerDiv.appendChild(infoDiv);
+      headerDiv.appendChild(buttonsDiv);
+
+      serviceDiv.appendChild(headerDiv);
+      aiServicesList.appendChild(serviceDiv);
+    });
+  }
+
+  function showAiServiceForm(service = null) {
+    if (service) {
+      aiServiceFormTitle.textContent = 'Edit AI Service';
+      aiServiceNameInput.value = service.name || '';
+      aiServiceProviderSelect.value = service.provider || 'google';
+      aiServiceModelSelect.value = service.model || '';
+      aiServiceApiKeyInput.value = service.apiKey || '';
+    } else {
+      aiServiceFormTitle.textContent = 'Add AI Service';
+      aiServiceNameInput.value = '';
+      aiServiceProviderSelect.value = 'google';
+      aiServiceModelSelect.value = 'gemini-2.5-flash';
+      aiServiceApiKeyInput.value = '';
+    }
+
+    aiServiceForm.style.display = 'block';
+    aiServiceNameInput.focus();
+  }
+
+  function hideAiServiceForm() {
+    aiServiceForm.style.display = 'none';
+    currentEditingAiService = null;
+  }
+
+
+
+  async function saveAiService() {
+    const name = aiServiceNameInput.value.trim();
+    const provider = aiServiceProviderSelect.value;
+    const apiKey = aiServiceApiKeyInput.value.trim();
+    const model = aiServiceModelSelect.value.trim();
+
+    if (!name) {
+      alert('Please enter a service name.');
+      return;
+    }
+
+    if (!apiKey) {
+      alert('Please enter an API key.');
+      return;
+    }
+
+    if (!model) {
+      alert('Please enter a model name.');
+      return;
+    }
+
+    const service = {
+      id: currentEditingAiService !== null ? currentEditingAiService.id : Date.now().toString(),
+      name,
+      provider,
+      apiKey,
+      model
+    };
+
+    try {
+      const result = await chrome.storage.local.get(['aiServices']);
+      const services = result.aiServices || [];
+
+      if (currentEditingAiService !== null) {
+        // Update existing service
+        const index = services.findIndex(s => s.id === currentEditingAiService.id);
+        if (index !== -1) {
+          services[index] = service;
+        }
+      } else {
+        // Add new service
+        services.push(service);
+      }
+
+      await chrome.storage.local.set({ aiServices: services });
+      renderAiServices(services);
+      hideAiServiceForm();
+    } catch (error) {
+      console.error('Error saving AI service:', error);
+      alert('Error saving AI service.');
+    }
+  }
+
+  function editAiService(index) {
+    chrome.storage.local.get(['aiServices'], (result) => {
+      const services = result.aiServices || [];
+      currentEditingAiService = services[index];
+      showAiServiceForm(currentEditingAiService);
+    });
+  }
+
+  async function duplicateAiService(index) {
+    try {
+      const result = await chrome.storage.local.get(['aiServices']);
+      const services = result.aiServices || [];
+      const originalService = services[index];
+
+      const duplicatedService = {
+        ...originalService,
+        id: Date.now().toString(),
+        name: `${originalService.name} (Copy)`
+      };
+
+      services.push(duplicatedService);
+      await chrome.storage.local.set({ aiServices: services });
+      renderAiServices(services);
+    } catch (error) {
+      console.error('Error duplicating AI service:', error);
+      alert('Error duplicating AI service.');
+    }
+  }
+
+  async function deleteAiService(index) {
+    if (!confirm('Are you sure you want to delete this AI service?')) {
+      return;
+    }
+
+    try {
+      const result = await chrome.storage.local.get(['aiServices']);
+      const services = result.aiServices || [];
+      services.splice(index, 1);
+      await chrome.storage.local.set({ aiServices: services });
+      renderAiServices(services);
+    } catch (error) {
+      console.error('Error deleting AI service:', error);
+    }
+  }
 });

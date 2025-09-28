@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>WordClick Dictionary Settings</title>
+  <title>Langbro Settings</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
     .nav { background: #f5f5f5; padding: 10px; border-bottom: 1px solid #ddd; }
@@ -31,8 +31,10 @@
 <body>
   <div class="nav">
     <button id="nav-main" class="active">Main Settings</button>
-    <button id="nav-import">Import Dictionary</button>
-    <button id="nav-groups">Query Groups</button>
+    <button id="nav-groups">Query Groups</button>    
+    <button id="nav-offline">Offline Dictionary</button>
+    <button id="nav-web">Web Dictionarys / Translators</button>
+    <button id="nav-ai">AI API</button>
     <button id="nav-backup">Backup/Restore</button>
   </div>
 
@@ -135,9 +137,9 @@
     </div>
   </div>
 
-  <!-- Import Dictionary Page -->
-  <div id="page-import" class="page">
-    <h2>Import Dictionary</h2>
+  <!-- Offline Dictionary Page -->
+  <div id="page-offline" class="page">
+    <h2>Offline Dictionary</h2>
 
     <h3>Upload StarDict Dictionary</h3>
     <p>Select the .ifo file (other files will be auto-selected):</p>
@@ -149,6 +151,95 @@
     <h3>Loaded Dictionaries</h3>
     <button id="checkDictsBtn">Check Dicts</button>
     <div id="dictList"></div>
+  </div>
+
+  <!-- Web Dictionarys / Translators Page -->
+  <div id="page-web" class="page">
+    <h2>Web Dictionarys / Translators</h2>
+
+    <button id="addWebServiceBtn" style="margin-bottom: 20px; background: #28a745; color: white; border: 1px solid #28a745;">Add New Service</button>
+
+    <!-- Web Service Form (hidden by default) -->
+    <div id="webServiceForm" style="display: none; margin: 20px 0; border: 1px solid #ddd; padding: 20px; border-radius: 4px; background: #f9f9f9;">
+      <h3 id="webServiceFormTitle">Add Web Service</h3>
+
+      <div class="form-group">
+        <label for="webServiceName">Service Name:</label>
+        <input type="text" id="webServiceName" placeholder="e.g., Dictionary API, Google Translate" required>
+      </div>
+
+      <div class="form-group">
+        <label for="webServiceUrl">API URL:</label>
+        <input type="url" id="webServiceUrl" placeholder="https://api.example.com/lookup?word={text}" required>
+        <small>Use {text} for selected text, {lang} for full language name, {lang_short} for 2-letter code</small>
+        <br><small>Examples:</small>
+        <br><small>• Dictionary API: https://api.dictionaryapi.dev/api/v2/entries/{lang_short}/{text}</small>
+        <br><small>• Translation API: https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={lang_short}&dt=t&q={text}</small>
+      </div>
+
+      <div class="form-group">
+        <label for="webServiceJsonPath">JSON Path (optional):</label>
+        <input type="text" id="webServiceJsonPath" placeholder="data.translation or 0[0][1]">
+        <small>Extract specific data from JSON response (e.g., 'result.translation' or 'data[0].text')</small>
+      </div>
+
+      <div style="margin-top: 20px;">
+        <button id="saveWebServiceBtn">Save Service</button>
+        <button id="cancelWebServiceBtn">Cancel</button>
+      </div>
+    </div>
+
+    <div id="webServicesList">
+      <!-- Web services will be loaded here -->
+      <p style="color: #666; font-style: italic;">Loading web services...</p>
+    </div>
+  </div>
+
+  <!-- AI API Page -->
+  <div id="page-ai" class="page">
+    <h2>AI API</h2>
+
+    <button id="addAiServiceBtn" style="margin-bottom: 20px; background: #28a745; color: white; border: 1px solid #28a745;">Add New AI Service</button>
+
+    <!-- AI Service Form (hidden by default) -->
+    <div id="aiServiceForm" style="display: none; margin: 20px 0; border: 1px solid #ddd; padding: 20px; border-radius: 4px; background: #f9f9f9;">
+      <h3 id="aiServiceFormTitle">Add AI Service</h3>
+
+      <div class="form-group">
+        <label for="aiServiceName">Service Name:</label>
+        <input type="text" id="aiServiceName" placeholder="e.g., My OpenAI Service, Claude Assistant" required>
+      </div>
+
+      <div class="form-group">
+        <label for="aiServiceProvider">AI Provider:</label>
+        <select id="aiServiceProvider" required>
+          <option value="google">Google AI</option>
+          <option value="openai">OpenAI</option>
+          <option value="anthropic">Anthropic Claude</option>
+          <option value="xai">xAI</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="aiServiceApiKey">API Key:</label>
+        <input type="password" id="aiServiceApiKey" placeholder="Enter your API key" required>
+      </div>
+
+      <div class="form-group">
+        <label for="aiServiceModel">Model:</label>
+        <input type="text" id="aiServiceModel" placeholder="gemini-2.5-flash" required>
+      </div>
+
+      <div style="margin-top: 20px;">
+        <button id="saveAiServiceBtn">Save Service</button>
+        <button id="cancelAiServiceBtn">Cancel</button>
+      </div>
+    </div>
+
+    <div id="aiServicesList">
+      <!-- AI services will be loaded here -->
+      <p style="color: #666; font-style: italic;">Loading AI services...</p>
+    </div>
   </div>
 
   <!-- Query Groups Page -->
