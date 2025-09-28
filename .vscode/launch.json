@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch Extension in Firefox",
+            "type": "firefox",
+            "request": "launch",
+            "reAttach": true,
+            "addonPath": "${workspaceFolder}"
+        },
+        {
+            "name": "Attach to Firefox (Existing)",
+            "type": "firefox",
+            "request": "attach"
+        }
+    ]
+}
