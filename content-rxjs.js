@@ -1,4 +1,4 @@
-// Content script for WordClick Dictionary v2 - RxJS Implementation
+// Content script for langbro Dictionary v2 - RxJS Implementation
 // Handles text selection and displays multiple lookup icons for query groups
 
 import { fromEvent, merge, combineLatest, Observable } from 'rxjs';
@@ -293,20 +293,20 @@ function createResultDiv(type, group, boxId, initialWord = '') {
     resultDiv = document.createElement('div');
     resultDiv.dataset.boxId = boxId;
     resultDiv.dataset.groupId = group.id;
-    resultDiv.className = `wordclick-result wordclick-${type}`;
+    resultDiv.className = `langbro-result langbro-${type}`;
 
     // Apply dark mode class if needed
     if (isDarkMode) {
-      resultDiv.classList.add('wordclick-dark');
+      resultDiv.classList.add('langbro-dark');
     }
 
     // Type-specific base styles
     if (type === 'popup') {
-      resultDiv.classList.add('wordclick-popup');
+      resultDiv.classList.add('langbro-popup');
     } else if (type === 'inline') {
-      resultDiv.classList.add('wordclick-inline');
+      resultDiv.classList.add('langbro-inline');
     } else if (type === 'bottom') {
-      resultDiv.classList.add('wordclick-bottom');
+      resultDiv.classList.add('langbro-bottom');
       // Apply bottom settings height if available
       if (group.bottomSettings?.height) {
         resultDiv.style.height = group.bottomSettings.height;
@@ -315,11 +315,11 @@ function createResultDiv(type, group, boxId, initialWord = '') {
 
     // Create header div for close button and search field
     const headerDiv = document.createElement('div');
-    headerDiv.className = 'wordclick-result-header';
+    headerDiv.className = 'langbro-result-header';
 
     // Create content div for scrollable content
     const contentDiv = document.createElement('div');
-    contentDiv.className = 'wordclick-result-content';
+    contentDiv.className = 'langbro-result-content';
 
     // Add close button to header
     const closeBtn = createCloseButton(resultDiv);
@@ -355,7 +355,7 @@ function createResultDiv(type, group, boxId, initialWord = '') {
 function createCloseButton(targetDiv) {
   const closeBtn = document.createElement('button');
   closeBtn.textContent = 'X';
-  closeBtn.className = 'wordclick-close-btn';
+  closeBtn.className = 'langbro-close-btn';
   closeBtn.onclick = (e) => {
     e.stopPropagation(); // Prevent event bubbling
     targetDiv.style.display = 'none';
@@ -366,11 +366,11 @@ function createCloseButton(targetDiv) {
 // Create search field container for result windows
 function createSearchField(group, resultDiv, boxId, initialWord = '') {
   const searchContainer = document.createElement('div');
-  searchContainer.className = 'wordclick-search-container';
+  searchContainer.className = 'langbro-search-container';
 
   const searchInput = document.createElement('input');
   searchInput.type = 'text';
-  searchInput.className = 'wordclick-search-input';
+  searchInput.className = 'langbro-search-input';
   searchInput.placeholder = 'Search...';
   searchInput.value = initialWord; // Set initial word
 
@@ -420,7 +420,7 @@ function showPopupResult(definition, group, boxId, initialWord = '') {
   resultDiv.style.height = popupSettings.height;
 
   // Get content div
-  const contentDiv = resultDiv.querySelector('.wordclick-result-content');
+  const contentDiv = resultDiv.querySelector('.langbro-result-content');
   if (!contentDiv) return;
 
   // Clear content and show spinner or result
@@ -461,7 +461,7 @@ function showInlineResult(definition, group, boxId, initialWord = '') {
   }
 
   // Get content div
-  const contentDiv = inlineDiv.querySelector('.wordclick-result-content');
+  const contentDiv = inlineDiv.querySelector('.langbro-result-content');
   if (!contentDiv) return;
 
   // Clear content and show spinner or result
@@ -492,7 +492,7 @@ function showBottomResult(definition, group, boxId, initialWord = '') {
   let bottomDiv = createResultDiv('bottom', group, boxId, initialWord);
 
   // Get content div
-  const contentDiv = bottomDiv.querySelector('.wordclick-result-content');
+  const contentDiv = bottomDiv.querySelector('.langbro-result-content');
   if (!contentDiv) return;
 
   // Clear content and show spinner or result
@@ -553,13 +553,13 @@ function sanitizeDictHTML(html) {
 // Create spinner element for loading states
 function createSpinner(groupName = 'Loading...') {
   const spinnerContainer = document.createElement('div');
-  spinnerContainer.className = 'wordclick-spinner-container';
+  spinnerContainer.className = 'langbro-spinner-container';
 
   const spinner = document.createElement('div');
-  spinner.className = 'wordclick-spinner';
+  spinner.className = 'langbro-spinner';
 
   const text = document.createElement('span');
-  text.className = 'wordclick-spinner-text';
+  text.className = 'langbro-spinner-text';
   text.textContent = groupName;
 
   spinnerContainer.appendChild(spinner);
@@ -573,7 +573,7 @@ function performSearch(query, group, resultDiv, boxId) {
   if (!query) return;
 
   // Get content div
-  const contentDiv = resultDiv.querySelector('.wordclick-result-content');
+  const contentDiv = resultDiv.querySelector('.langbro-result-content');
   if (!contentDiv) return;
 
   // Show spinner
@@ -605,11 +605,11 @@ function showLookupIcons(selection) {
   enabledGroups.forEach((group, index) => {
     // Create icon element
     const icon = document.createElement('div');
-    icon.className = 'wordclick-lookup-icon';
+    icon.className = 'langbro-lookup-icon';
 
     // Apply dark mode styling
     if (isDarkMode) {
-      icon.classList.add('wordclick-dark');
+      icon.classList.add('langbro-dark');
     }
 
     // Handle image icons vs text icons

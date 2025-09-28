@@ -1,4 +1,4 @@
-// Options page script for WordClick Dictionary v2
+// Options page script for langbro Dictionary v2
 document.addEventListener('DOMContentLoaded', () => {
   console.log('Options page loaded');
 
@@ -1068,7 +1068,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const a = document.createElement('a');
       a.href = url;
-      a.download = `wordclick-settings-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `langbro-settings-${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1142,8 +1142,8 @@ document.addEventListener('DOMContentLoaded', () => {
         version: 3,
         format: 'group',
         timestamp: Date.now(),
-        id: 'wordclick-export',
-        title: 'WordClick Dictionary Export',
+        id: 'langbro-export',
+        title: 'langbro Dictionary Export',
         entries: []
       };
 
@@ -1173,7 +1173,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const a = document.createElement('a');
       a.href = url;
-      a.download = `wordclick-dictionaries-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `langbro-dictionaries-${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1282,7 +1282,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const a = document.createElement('a');
       a.href = url;
-      a.download = `wordclick-full-backup-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `langbro-full-backup-${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

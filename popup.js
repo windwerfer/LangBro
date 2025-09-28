@@ -1,4 +1,4 @@
-// Popup script for WordClick Dictionary
+// Popup script for langbro Dictionary
 document.addEventListener('DOMContentLoaded', () => {
   const optionsBtn = document.getElementById('optionsBtn');
   const statusDiv = document.getElementById('status');

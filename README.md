@@ -1,4 +1,4 @@
-# WordClick Dictionary Extension
+# langbro Dictionary Extension
 
 A Chrome/Firefox extension for looking up StarDict dictionary definitions by selecting words on web pages.
 

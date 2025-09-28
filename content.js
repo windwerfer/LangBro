@@ -1,4 +1,4 @@
-// Content script for WordClick Dictionary v2
+// Content script for langbro Dictionary v2
 // Handles text selection and displays multiple lookup icons for query groups
 
 console.log('Content script loaded');

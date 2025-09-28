@@ -1,4 +1,4 @@
-// Background script for WordClick Dictionary
+// Background script for langbro Dictionary
 // Manages StarDictParser instance and message passing
 try {
   importScripts('structured-db.js');
@@ -174,12 +174,12 @@ async function getStructuredDB() {
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
-  console.log('LOG', 'WordClick Dictionary installed');
+  console.log('LOG', 'langbro Dictionary installed');
   await initDB();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-  console.log('LOG', 'WordClick Dictionary startup');
+  console.log('LOG', 'langbro Dictionary startup');
   await initDB();
 });
 

@@ -1,4 +1,4 @@
-// Settings store for WordClick Dictionary v2
+// Settings store for langbro Dictionary v2
 // Reactive state management for extension settings and UI state
 
 import { BehaviorSubject, Observable } from 'rxjs';

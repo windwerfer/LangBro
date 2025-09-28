@@ -1,7 +1,7 @@
 {
   "name": "langbro-extension",
   "version": "0.2.0",
-  "description": "WordClick Dictionary extension with RxJS support",
+  "description": "langbro Dictionary extension with RxJS support",
   "scripts": {
     "build:rxjs": "webpack --mode=production --config webpack.config.js",
     "build:dev": "webpack --mode=development --config webpack.config.js",
