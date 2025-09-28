@@ -378,8 +378,9 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
 
   searchContainer.appendChild(searchInput);
 
-  // Add search button if "on pressing enter" mode
+  // Handle different search modes
   if (group.showSearchField === 'onPressingEnter') {
+    // Add search button
     const searchButton = document.createElement('button');
     searchButton.innerHTML = '🔍';
     searchButton.style.padding = '2px 6px';
@@ -405,6 +406,63 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
         performSearch(searchInput.value.trim(), group, resultDiv, boxId);
       }
     });
+  } else if (group.showSearchField === 'liveResults') {
+    // Live results mode - add debounced input handler
+    const performLiveSearch = (query) => {
+      if (query.length > 2) {
+        // Perform live search for queries longer than 2 characters
+        performSearch(query, group, resultDiv, boxId);
+      } else if (query.length === 0) {
+        // Clear results when field is empty
+        const contentDiv = resultDiv.querySelector('.langbro-result-content');
+        if (contentDiv) {
+          contentDiv.innerHTML = '';
+          const placeholder = document.createElement('div');
+          placeholder.textContent = 'Start typing to search...';
+          placeholder.style.color = '#666';
+          placeholder.style.fontStyle = 'italic';
+          contentDiv.appendChild(placeholder);
+        }
+      }
+    };
+
+    // Debounced input handler for live results
+    let searchTimeout;
+    searchInput.addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      const query = searchInput.value.trim();
+
+      if (query.length === 0) {
+        performLiveSearch(query);
+      } else {
+        searchTimeout = setTimeout(() => {
+          performLiveSearch(query);
+        }, 300); // 300ms debounce
+      }
+    });
+
+    // Handle Enter key for live results too (immediate search)
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        clearTimeout(searchTimeout);
+        performSearch(searchInput.value.trim(), group, resultDiv, boxId);
+      }
+    });
+
+    // Initialize with placeholder if empty
+    if (!initialWord) {
+      setTimeout(() => {
+        const contentDiv = resultDiv.querySelector('.langbro-result-content');
+        if (contentDiv && !contentDiv.hasChildNodes()) {
+          contentDiv.innerHTML = '';
+          const placeholder = document.createElement('div');
+          placeholder.textContent = 'Start typing to search...';
+          placeholder.style.color = '#666';
+          placeholder.style.fontStyle = 'italic';
+          contentDiv.appendChild(placeholder);
+        }
+      }, 50);
+    }
   }
 
   return searchContainer;
