@@ -82,6 +82,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const displayMethodSelect = document.getElementById('displayMethod');
   const textSelectionMethodSelect = document.getElementById('textSelectionMethod');
 
+  // Display method settings elements
+  const bottomHeightInput = document.getElementById('bottomHeight');
+
   let currentEditingGroup = null;
   let currentEditingWebService = null;
   let currentEditingAiService = null;
@@ -689,6 +692,9 @@ document.addEventListener('DOMContentLoaded', () => {
       // Populate inline settings
       document.getElementById('inlineFlexibleHeight').checked = group.inlineSettings?.flexibleHeight !== false;
 
+      // Populate bottom panel settings
+      bottomHeightInput.value = group.bottomSettings?.height || '200px';
+
       // Populate type-specific settings
       if (group.queryType === 'web') {
         loadWebServicesForSelection(group.settings?.serviceId || '');
@@ -804,12 +810,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // Hide all display method settings by default
     document.getElementById('popupSettings').style.display = 'none';
     document.getElementById('inlineSettings').style.display = 'none';
+    document.getElementById('bottomSettings').style.display = 'none';
 
     // Show relevant settings based on display method
     if (displayMethod === 'popup') {
       document.getElementById('popupSettings').style.display = 'block';
     } else if (displayMethod === 'inline') {
       document.getElementById('inlineSettings').style.display = 'block';
+    } else if (displayMethod === 'bottom') {
+      document.getElementById('bottomSettings').style.display = 'block';
     }
   }
 
@@ -887,6 +896,14 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     }
 
+    // Build bottom panel settings if display method is bottom
+    let bottomSettings = {};
+    if (displayMethodSelect.value === 'bottom') {
+      bottomSettings = {
+        height: bottomHeightInput.value || '200px'
+      };
+    }
+
     const group = {
       id: currentEditingGroup !== null ? currentEditingGroup.id : Date.now().toString(),
       name,
@@ -898,6 +915,7 @@ document.addEventListener('DOMContentLoaded', () => {
       displaySuggestions: displaySuggestionsInput.value.trim() === '' ? 20 : (parseInt(displaySuggestionsInput.value) || 0),
       popupSettings,
       inlineSettings,
+      bottomSettings,
       settings,
       enabled: currentEditingGroup ? currentEditingGroup.enabled : true
     };
