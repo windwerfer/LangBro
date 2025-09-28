@@ -245,38 +245,8 @@ function createResultDiv(type, group, boxId, initialWord = '') {
     case 'inline':
       divsArray = settings.current.inlineDivs;
       classPrefix = 'inline';
-      positionCallback = () => {
-        // Find the parent text block of the selected text
-        const selection = window.getSelection();
-        if (selection.rangeCount === 0) {
-          // Fallback to popup if no selection found
-          return;
-        }
-
-        const range = selection.getRangeAt(0);
-        let parentElement = range.commonAncestorContainer;
-
-        // If it's a text node, get the parent element
-        if (parentElement.nodeType === Node.TEXT_NODE) {
-          parentElement = parentElement.parentElement;
-        }
-
-        // Find the closest p or div element
-        while (parentElement && parentElement !== document.body) {
-          if (parentElement.tagName === 'P' || parentElement.tagName === 'DIV') {
-            break;
-          }
-          parentElement = parentElement.parentElement;
-        }
-
-        if (!parentElement || parentElement === document.body) {
-          // Fallback to popup if no suitable parent found
-          return;
-        }
-
-        // Insert after the parent element
-        parentElement.parentNode.insertBefore(resultDiv, parentElement.nextSibling);
-      };
+      // Positioning handled in showInlineResult for inline elements
+      positionCallback = null;
       break;
     case 'bottom':
       divsArray = settings.current.bottomDivs;
@@ -504,7 +474,63 @@ function showPopupResult(definition, group, boxId, initialWord = '') {
 
 // Show the result inline below the selected text
 function showInlineResult(definition, group, boxId, initialWord = '') {
-  let inlineDiv = createResultDiv('inline', group, boxId, initialWord);
+  // First check if result div exists in tracking array
+  let inlineDiv = settings.current.inlineDivs.find(div => div.dataset.boxId == boxId);
+
+  if (!inlineDiv) {
+    // Need to create a new inline result element
+
+    // Use the stored targetElement from when the selection was made
+    const targetElement = settings.current.currentSelection?.targetElement;
+
+    if (!targetElement || !targetElement.parentNode) {
+      // Fallback to popup if no suitable parent found
+      showPopupResult(definition, group, boxId, initialWord);
+      return;
+    }
+
+    // Create a sibling element of the same type as targetElement
+    inlineDiv = document.createElement(targetElement.tagName.toLowerCase());
+
+    // Copy inline classes but exclude langbro classes
+    const classList = Array.from(targetElement.classList);
+    inlineDiv.className = classList.filter(cls => !cls.includes('langbro')).join(' ');
+
+    // Apply our langbro-inline styling
+    inlineDiv.classList.add('langbro-result', 'langbro-inline');
+
+    // Set data attributes
+    inlineDiv.dataset.boxId = boxId;
+    inlineDiv.dataset.groupId = group.id;
+
+    // Create header div for close button and search field
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'langbro-result-header';
+
+    // Create content div for scrollable content
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'langbro-result-content';
+
+    // Add close button to header
+    const closeBtn = createCloseButton(inlineDiv);
+    headerDiv.appendChild(closeBtn);
+
+    // Add search field if enabled
+    if (group.showSearchField && group.showSearchField !== 'none') {
+      const searchContainer = createSearchField(group, inlineDiv, boxId, initialWord);
+      headerDiv.appendChild(searchContainer);
+    }
+
+    // Assemble the structure
+    inlineDiv.appendChild(headerDiv);
+    inlineDiv.appendChild(contentDiv);
+
+    // Insert as sibling after the target element
+    targetElement.parentNode.insertBefore(inlineDiv, targetElement.nextSibling);
+
+    // Add to tracking array
+    settings.current.inlineDivs.push(inlineDiv);
+  }
 
   // Check if flexible height is enabled
   const flexibleHeight = group.inlineSettings?.flexibleHeight !== false;
@@ -830,12 +856,37 @@ function setupEventListeners() {
   // Connect selection stream to show lookup icons
   selection$.subscribe(({ selection, selectedText }) => {
     if (selectedText) {
-      // Extract selection details
+      // Extract selection details and target element
+      const range = selection.getRangeAt(0);
+      let targetElement = range.commonAncestorContainer;
+
+      // If it's a text node, get the parent element
+      if (targetElement.nodeType === Node.TEXT_NODE) {
+        targetElement = targetElement.parentElement;
+      }
+
+      // Find the closest text-containing element
+      let closestElement = targetElement;
+      while (closestElement && closestElement !== document.body) {
+        const acceptableTags = ['P', 'DIV', 'SPAN', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'TD', 'TH', 'BLOCKQUOTE', 'ARTICLE', 'SECTION'];
+        if (acceptableTags.includes(closestElement.tagName)) {
+          break;
+        }
+        closestElement = closestElement.parentElement;
+      }
+
       settings.update({
         currentSelection: {
           selectedText: selectedText,
           wholeWord: getWholeWord(selection),
-          wholeParagraph: getWholeParagraph(selection)
+          wholeParagraph: getWholeParagraph(selection),
+          targetElement: closestElement,
+          range: {
+            startContainer: range.startContainer,
+            startOffset: range.startOffset,
+            endContainer: range.endContainer,
+            endOffset: range.endOffset
+          }
         }
       });
       showLookupIcons(selection);
