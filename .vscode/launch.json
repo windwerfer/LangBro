@@ -6,7 +6,13 @@
             "type": "firefox",
             "request": "launch",
             "reAttach": true,
-            "addonPath": "${workspaceFolder}"
+            "addonPath": "${workspaceFolder}",
+            "pathMappings": [
+                {
+                    "url": "webpack://langbro-extension/content-rxjs.js",
+                    "path": "${workspaceFolder}/content-rxjs.js"
+                }
+            ]
         },
         {
             "name": "Attach to Firefox (Existing)",
