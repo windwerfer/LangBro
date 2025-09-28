@@ -1,0 +1,244 @@
+/* Content script styles for WordClick Dictionary v2 - RxJS Implementation */
+
+/* Base styles for result windows */
+.wordclick-result {
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  box-sizing: border-box;
+  z-index: 999999;
+  border-radius: 4px;
+  padding: 10px;
+  max-width: 100%;
+  word-wrap: break-word;
+}
+
+/* Header styles for all result windows */
+.wordclick-result-header {
+  position: relative;
+  flex-shrink: 0;
+  padding: 5px 10px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Content area styles */
+.wordclick-result-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 5px 10px;
+  min-height: 20px;
+}
+
+/* Close button styles */
+.wordclick-close-btn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: black;
+  color: white;
+  border: 1px solid #666;
+  border-radius: 3px;
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0px;
+  z-index: 1000001;
+}
+
+/* Search field container */
+.wordclick-search-container {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: 25px; /* Leave space for close button */
+  flex: 1;
+}
+
+.wordclick-search-input {
+  flex: 1;
+  padding: 2px 5px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-size: 12px;
+  min-width: 0;
+}
+
+/* Popup result window */
+.wordclick-popup {
+  position: absolute;
+  border: 1px solid #ccc;
+  background-color: white;
+  color: black;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  width: 300px;
+  height: 100px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Inline result window */
+.wordclick-inline {
+  position: relative;
+  border: 1px solid #ccc;
+  background-color: white;
+  color: black;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  min-height: 35px;
+}
+
+/* Bottom panel result window */
+.wordclick-bottom {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  border-top: 1px solid #ccc;
+  background-color: white;
+  color: black;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  height: 200px; /* Default height, can be overridden */
+  overflow-y: visible;
+  z-index: 999998;
+}
+
+/* Lookup icon styles */
+.wordclick-lookup-icon {
+  position: absolute;
+  border-radius: 3px;
+  padding: 2px 4px;
+  cursor: pointer;
+  z-index: 999999;
+  font-size: 14px;
+  font-weight: bold;
+  border: 1px solid #ccc;
+  background-color: white;
+  color: black;
+}
+
+/* Spinner styles */
+.wordclick-spinner-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 50px;
+}
+
+.wordclick-spinner {
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #3498db;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  animation: wordclick-spin 2s linear infinite;
+}
+
+.wordclick-spinner-text {
+  margin-left: 10px;
+}
+
+@keyframes wordclick-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Search suggestions dropdown */
+.wordclick-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #ccc;
+  border-top: none;
+  border-radius: 0 0 3px 3px;
+  z-index: 1000000;
+  background: white;
+}
+
+.wordclick-suggestion-item {
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 1px solid #eee;
+}
+
+.wordclick-suggestion-item:hover {
+  background-color: #f0f0f0;
+}
+
+/* Dictionary content styles */
+.dict-type { color: green; }
+.dict-pron { color: brown; }
+.dict-level { font-size: 0.7em; }
+
+/* ===== DARK MODE STYLES ===== */
+
+.wordclick-dark .wordclick-result {
+  background-color: #2d2d2d;
+  color: #ffffff;
+  border-color: #555;
+}
+
+.wordclick-dark .wordclick-popup {
+  background-color: #2d2d2d;
+  color: #ffffff;
+  border-color: #555;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.wordclick-dark .wordclick-inline {
+  background-color: #2d2d2d;
+  color: #ffffff;
+  border-color: #555;
+}
+
+.wordclick-dark .wordclick-bottom {
+  background-color: #2d2d2d;
+  color: #ffffff;
+  border-top-color: #555;
+}
+
+.wordclick-dark .wordclick-lookup-icon {
+  background-color: black;
+  color: gray;
+  border-color: gray;
+}
+
+.wordclick-dark .wordclick-search-input {
+  background-color: #1e1e1e;
+  color: #ffffff;
+  border-color: #555;
+}
+
+.wordclick-dark .wordclick-suggestions {
+  background-color: #1e1e1e;
+  border-color: #555;
+  color: #ffffff;
+}
+
+.wordclick-dark .wordclick-suggestion-item {
+  border-bottom-color: #333;
+}
+
+.wordclick-dark .wordclick-suggestion-item:hover {
+  background-color: #333;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .wordclick-popup {
+    width: 90vw !important;
+    max-width: 400px;
+  }
+
+  .wordclick-bottom {
+    height: 150px;
+  }
+}
