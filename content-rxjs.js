@@ -889,11 +889,33 @@ function getWholeParagraph(selection) {
   return selection.toString().trim();
 }
 
+// ===== DARK MODE MANAGEMENT =====
+
+// Apply dark mode to document body based on settings
+function setupDarkModeListener() {
+  console.log('RxJS: Setting up dark mode listener');
+
+  // Subscribe to dark mode changes
+  settings.select('isDarkMode').subscribe(isDarkMode => {
+    console.log('RxJS: Dark mode updated:', isDarkMode);
+
+    if (isDarkMode) {
+      document.body.classList.add('langbro-dark');
+    } else {
+      document.body.classList.remove('langbro-dark');
+    }
+
+
+  });
+}
+
+
 // ===== INITIALIZATION =====
 
 // Initialize extension - settings store loads automatically
 async function init() {
   setupEventListeners();
+  setupDarkModeListener();
   console.log('RxJS Content script initialization complete');
 }
 
