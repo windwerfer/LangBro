@@ -6,3 +6,4 @@ version_1/
 node_modules/
 package-lock.json
 dist/
+*.lnk
