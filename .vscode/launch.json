@@ -9,6 +9,10 @@
             "addonPath": "${workspaceFolder}",
             "pathMappings": [
                 {
+                    "url": "webpack://langbro-extension/node_modules/style-loader/dist/runtime/insertBySelector.js",
+                    "path": "webpack://langbro-extension/node_modules/style-loader/dist/runtime/insertBySelector.js"
+                },
+                {
                     "url": "webpack://langbro-extension/content-rxjs.js",
                     "path": "${workspaceFolder}/content-rxjs.js"
                 }

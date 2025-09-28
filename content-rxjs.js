@@ -814,12 +814,152 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
 });
 
+// ===== EVENT LISTENER CONNECTIONS =====
+
+// Connect RxJS streams to display functions
+function setupEventListeners() {
+  console.log('RxJS: Setting up event listeners');
+
+  // Connect selection stream to show lookup icons
+  selection$.subscribe(({ selection, selectedText }) => {
+    if (selectedText) {
+      // Extract selection details
+      currentSelection = {
+        selectedText: selectedText,
+        wholeWord: getWholeWord(selection),
+        wholeParagraph: getWholeParagraph(selection)
+      };
+      showLookupIcons(selection);
+    } else {
+      currentSelection = null;
+      hideLookupIcons();
+    }
+  });
+
+  // Connect icon click stream to handle icon clicks
+  iconClick$.subscribe(({ icon, originalEvent }) => {
+    const groupId = icon.dataset.groupId;
+    const group = queryGroups.find(g => g.id === groupId);
+    if (group && currentSelection) {
+      handleIconClick(originalEvent, group);
+    }
+  });
+
+  // Connect document click stream to hide result windows
+  documentClick$.subscribe(() => {
+    // Hide popup result divs if clicked outside and hideOnClickOutside is enabled
+    resultDivs.forEach(div => {
+      if (div && div.dataset.hideOnClickOutside === 'true') {
+        div.style.display = 'none';
+      }
+    });
+    // Note: Inline and bottom panel result divs do not auto-hide on click outside
+  });
+
+  // Connect runtime message stream to handle background script messages
+  runtimeMessage$.subscribe(({ message, sender, sendResponse }) => {
+    if (message.action === 'updateQueryGroups') {
+      queryGroups = message.groups || [];
+      // Update icons if word is currently selected
+      if (currentSelection && currentSelection.selectedText) {
+        const selection = window.getSelection();
+        if (selection.toString().trim()) {
+          showLookupIcons(selection);
+        }
+      }
+    }
+  });
+
+  // Connect storage change stream to update settings dynamically
+  storageChange$.subscribe(({ changes, area }) => {
+    if (area === 'local') {
+      if (changes.darkMode) {
+        isDarkMode = changes.darkMode.newValue || false;
+        console.log('RxJS: Dark mode updated:', isDarkMode);
+      }
+      // Update other settings as needed
+      if (changes.iconPlacement || changes.iconOffset || changes.iconSpacing ||
+          changes.rightSwipeGroup || changes.singleClickGroup || changes.tripleClickGroup ||
+          changes.hideGroupNames) {
+        loadSettings(); // Reload all settings
+      }
+    }
+  });
+
+  console.log('RxJS: Event listeners setup complete');
+}
+
+// ===== TEXT SELECTION UTILITIES =====
+
+// Function to extract whole word around selection
+function getWholeWord(selection) {
+  if (selection.rangeCount === 0) return '';
+
+  const range = selection.getRangeAt(0);
+  const text = range.toString().trim();
+  if (!text) return '';
+
+  // Get the parent text node
+  let node = range.startContainer;
+  if (node.nodeType !== Node.TEXT_NODE) {
+    // If not a text node, find the first text node descendant
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    node = walker.nextNode();
+    if (!node) return text;
+  }
+
+  const fullText = node.textContent;
+  const startOffset = range.startOffset;
+  const endOffset = range.endOffset;
+
+  // Find word boundaries (space characters)
+  let wordStart = startOffset;
+  let wordEnd = endOffset;
+
+  // Expand left until space or start
+  while (wordStart > 0 && !/\s/.test(fullText[wordStart - 1])) {
+    wordStart--;
+  }
+
+  // Expand right until space or end
+  while (wordEnd < fullText.length && !/\s/.test(fullText[wordEnd])) {
+    wordEnd++;
+  }
+
+  return fullText.substring(wordStart, wordEnd).trim();
+}
+
+// Function to extract whole paragraph around selection
+function getWholeParagraph(selection) {
+  if (selection.rangeCount === 0) return '';
+
+  const range = selection.getRangeAt(0);
+  let element = range.commonAncestorContainer;
+
+  // If it's a text node, get the parent element
+  if (element.nodeType === Node.TEXT_NODE) {
+    element = element.parentElement;
+  }
+
+  // Find the closest P or DIV element
+  while (element && element !== document.body) {
+    if (element.tagName === 'P' || element.tagName === 'DIV') {
+      return element.textContent.trim();
+    }
+    element = element.parentElement;
+  }
+
+  // Fallback: return selected text if no suitable paragraph found
+  return selection.toString().trim();
+}
+
 // ===== INITIALIZATION =====
 
 // Initialize extension asynchronously to ensure settings are loaded before listeners
 async function init() {
   await loadSettings();
   await loadQueryGroups();
+  setupEventListeners();
   console.log('RxJS Content script initialization complete');
 }
 

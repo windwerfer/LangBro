@@ -37,6 +37,18 @@ module.exports = (env, argv) => {
             ]
           }
         }
+      },
+      {
+        test: /\.css$/,
+        use: [
+          {
+            loader: 'style-loader',
+            options: {
+              injectType: 'styleTag'
+            }
+          },
+          'css-loader'
+        ]
       }
     ]
   },
