@@ -241,6 +241,43 @@ function findClosestTextElement(element) {
   return null; // No suitable element found
 }
 
+// Update the current selection in settings store
+function updateCurrentSelection(selection, selectedText) {
+  // Extract selection details and target element
+  const range = selection.getRangeAt(0);
+  let targetElement = range.commonAncestorContainer;
+
+  // If it's a text node, get the parent element
+  if (targetElement.nodeType === Node.TEXT_NODE) {
+    targetElement = targetElement.parentElement;
+  }
+
+  // Find the closest text-containing element
+  const closestElement = findClosestTextElement(targetElement);
+
+  // Calculate context immediately for selected text
+  let context = '';
+  if (selectedText && selectedText.trim()) {
+    context = calculateContext(range, selectedText);
+  }
+
+  settings.update({
+    currentSelection: {
+      selectedText: selectedText,
+      wholeWord: getWholeWord(selection),
+      wholeParagraph: getWholeParagraph(selection),
+      targetElement: closestElement,
+      context: context,
+      range: {
+        startContainer: range.startContainer,
+        startOffset: range.startOffset,
+        endContainer: range.endContainer,
+        endOffset: range.endOffset
+      }
+    }
+  });
+}
+
 // ===== DISPLAY FUNCTIONALITY =====
 
 // Global state - now accessed via reactive settings store from './settings-store.js'
@@ -1041,6 +1078,9 @@ function handleSingleClickWordMarking(x, y, group) {
   // Select the word visually in the document
   selectWordUnderCursor(x, y, word);
 
+  // Update settings store with current selection
+  updateCurrentSelection(window.getSelection(), word);
+
   // Show result window immediately with spinner and the clicked word
   const locationInfo = showResult(null, group, null, word);
   lookupWord(word, group, locationInfo);
@@ -1334,39 +1374,7 @@ function setupEventListeners() {
   selection$.subscribe(({ selection, selectedText }) => {
     console.log('RxJS: selection stream fired - selectedText:', selectedText, 'skipIconDisplay:', window.skipIconDisplay);
     if (selectedText && !window.skipIconDisplay) {
-      // Extract selection details and target element
-      const range = selection.getRangeAt(0);
-      let targetElement = range.commonAncestorContainer;
-
-      // If it's a text node, get the parent element
-      if (targetElement.nodeType === Node.TEXT_NODE) {
-        targetElement = targetElement.parentElement;
-      }
-
-      // Find the closest text-containing element
-      const closestElement = findClosestTextElement(targetElement);
-
-    // Calculate context immediately for selected text
-    let context = '';
-    if (selectedText && selectedText.trim()) {
-      context = calculateContext(range, selectedText);
-    }
-
-    settings.update({
-      currentSelection: {
-        selectedText: selectedText,
-        wholeWord: getWholeWord(selection),
-        wholeParagraph: getWholeParagraph(selection),
-        targetElement: closestElement,
-        context: context,
-        range: {
-          startContainer: range.startContainer,
-          startOffset: range.startOffset,
-          endContainer: range.endContainer,
-          endOffset: range.endOffset
-        }
-      }
-    });
+      updateCurrentSelection(selection, selectedText);
       showLookupIcons(selection);
     } else if (!selectedText && !window.skipIconDisplay) {
       settings.update({ currentSelection: null });
