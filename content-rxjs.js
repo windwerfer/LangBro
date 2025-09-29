@@ -1423,10 +1423,12 @@ function setupEventListeners() {
 
             let selectedText = '';
             let selectionSuccess = false;
+            let range = null;
 
             if (hasSelectedText) {
               // Use existing selection
               selectedText = currentSelection.toString().trim();
+              range = currentSelection.getRangeAt(0).cloneRange();
               console.log(`RxJS: Using existing selection for right swipe: "${selectedText}"`);
               selectionSuccess = true;
             } else {
@@ -1436,7 +1438,7 @@ function setupEventListeners() {
               if (selectParagraphUnderCursor(x, y)) {
                 // Capture the range and text before clearing selection
                 const selection = window.getSelection();
-                const range = selection.getRangeAt(0).cloneRange();
+                range = selection.getRangeAt(0).cloneRange();
                 selectedText = selection.toString().trim();
 
                 // Clear the visual selection immediately
