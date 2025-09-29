@@ -228,7 +228,7 @@ export {
 
 // Find the closest text-containing element by traversing up the DOM tree
 function findClosestTextElement(element) {
-  const acceptableTags = ['P', 'DIV', 'SPAN', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'TD', 'TH', 'BLOCKQUOTE', 'ARTICLE', 'SECTION'];
+  const acceptableTags = ['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE', 'ARTICLE']; //, 'SECTION', 'LI', 'TD', 'TH', 'SPAN'];
 
   let closestElement = element;
   while (closestElement && closestElement !== document.body) {
@@ -260,30 +260,41 @@ function createResultDiv(type, group, boxId, initialWord = '') {
       divsArray = settings.current.resultDivs;
       classPrefix = 'popup';
       positionCallback = () => {
-        // Use persistent selection if available, otherwise current selection
-        let selection = window.getSelection();
-        if (!selection.rangeCount > 0 && savedRange) {
-          // Temporarily restore the selection for positioning
-          selection.removeAllRanges();
-          selection.addRange(savedRange);
-        }
+        // Use stored selection range from settings for positioning
+        const storedSelection = settings.current.currentSelection;
+        if (storedSelection && storedSelection.range) {
+          // Create a temporary range from stored range data
+          try {
+            const range = document.createRange();
+            range.setStart(storedSelection.range.startContainer, storedSelection.range.startOffset);
+            range.setEnd(storedSelection.range.endContainer, storedSelection.range.endOffset);
 
-        if (selection.rangeCount > 0) {
-          const range = selection.getRangeAt(0);
-          const rect = range.getBoundingClientRect();
-          let left = rect.left + window.scrollX;
-          let top = rect.bottom + window.scrollY + 5;
+            const rect = range.getBoundingClientRect();
+            let left = rect.left + window.scrollX;
+            let top = rect.bottom + window.scrollY + 5;
 
-          // Adjust if it would go off screen
-          if (left + 300 > window.innerWidth + window.scrollX) {
-            left = window.innerWidth + window.scrollX - 310;
+            // Adjust if it would go off screen
+            if (left + 300 > window.innerWidth + window.scrollX) {
+              left = window.innerWidth + window.scrollX - 310;
+            }
+            if (top + 100 > window.innerHeight + window.scrollY) {
+              top = rect.top + window.scrollY - 110;
+            }
+
+            resultDiv.style.left = left + 'px';
+            resultDiv.style.top = top + 'px';
+          } catch (error) {
+            console.error('Error positioning popup with stored range:', error);
+            // Fallback to center of screen
+            resultDiv.style.left = '50%';
+            resultDiv.style.top = '50%';
+            resultDiv.style.transform = 'translate(-50%, -50%)';
           }
-          if (top + 100 > window.innerHeight + window.scrollY) {
-            top = rect.top + window.scrollY - 110;
-          }
-
-          resultDiv.style.left = left + 'px';
-          resultDiv.style.top = top + 'px';
+        } else {
+          // Fallback: center on screen if no stored selection
+          resultDiv.style.left = '50%';
+          resultDiv.style.top = '50%';
+          resultDiv.style.transform = 'translate(-50%, -50%)';
         }
       };
       break;
