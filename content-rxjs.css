@@ -233,6 +233,15 @@
   color: #ffffff;
 }
 
+.langbro-dark .langbro-search-button {
+  padding: 2px 6px;
+  border: 1px solid #555;
+  border-radius: 3px;
+  background: #1e1e1e;
+  cursor: pointer;
+  font-size: 12px;
+}
+
 .langbro-dark .suggestion-item {
   border-bottom-color: #333;
 }

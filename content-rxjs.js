@@ -366,6 +366,7 @@ function createCloseButton(targetDiv) {
 // Add suggestions event handlers to a search input
 function addSuggestionsHandlers(searchInput, resultDiv, group, boxId) {
   let suggestionsTimeout;
+  let blurTimeout;
 
   searchInput.addEventListener('input', () => {
     clearTimeout(suggestionsTimeout);
@@ -403,6 +404,7 @@ function addSuggestionsHandlers(searchInput, resultDiv, group, boxId) {
 
   // Show suggestions when input gains focus or is clicked (if it has content)
   const showSuggestionsIfContent = async () => {
+    clearTimeout(blurTimeout); // Cancel any pending blur timeout
     const query = searchInput.value.trim();
     if (query.length > 0) {
       try {
@@ -435,7 +437,7 @@ function addSuggestionsHandlers(searchInput, resultDiv, group, boxId) {
   // Hide suggestions when input loses focus
   searchInput.addEventListener('blur', () => {
     // Delay hiding to allow clicking on suggestions
-    setTimeout(() => hideSuggestions(resultDiv), 150);
+    blurTimeout = setTimeout(() => hideSuggestions(resultDiv), 150);
   });
 }
 
@@ -574,10 +576,10 @@ function showSuggestions(suggestions, searchInput, resultDiv, group, boxId) {
 
     suggestionItem.addEventListener('click', () => {
       searchInput.value = suggestion;
-      searchInput.focus();
       hideSuggestions(resultDiv);
       // Trigger search directly without dispatching input event to avoid showing suggestions again
       performSearch(suggestion, group, resultDiv, boxId);
+      // Don't focus here to avoid triggering showSuggestionsIfContent
     });
 
     suggestionsDiv.appendChild(suggestionItem);
