@@ -1423,8 +1423,10 @@ function setupEventListeners() {
               // Select text based on group's textSelectionMethod
               const textSelectionMethod = group.textSelectionMethod || 'selectedText';
               console.log(`RxJS: Right swipe - selecting text using method: ${textSelectionMethod}`);
-
-              selectedText = selectTextUnderCursor(x, y, textSelectionMethod);
+              if (selectParagraphUnderCursor(x, y)) {
+                selectedText = window.getSelection().toString().trim();
+              }
+              // selectedText = selectTextUnderCursor(x, y, textSelectionMethod);
               selectionSuccess = selectedText !== null;
             }
 
