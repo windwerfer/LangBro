@@ -453,7 +453,7 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
   searchContainer.appendChild(searchInput);
 
   // Check if suggestions should be enabled (only for offline groups with displaySuggestions > 0)
-  const suggestionsEnabled = group.queryType === 'offline' && (group.displaySuggestions || 20) > 0;
+  const suggestionsEnabled = group.queryType === 'offline' && group.displaySuggestions !== 0;
   console.log(`CONTENT: Suggestions enabled for group ${group.name}: ${suggestionsEnabled} (displaySuggestions: ${group.displaySuggestions})`);
 
   // Handle different search modes

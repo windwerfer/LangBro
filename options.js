@@ -687,7 +687,7 @@ document.addEventListener('DOMContentLoaded', () => {
       displayMethodSelect.value = group.displayMethod || 'popup';
       textSelectionMethodSelect.value = group.textSelectionMethod || 'selectedText';
       showSearchFieldSelect.value = group.showSearchField || 'none';
-      displaySuggestionsInput.value = group.displaySuggestions || 20;
+      displaySuggestionsInput.value = group.displaySuggestions !== undefined ? group.displaySuggestions : 20;
       showQueryTypeSettings(group.queryType);
       showDisplayMethodSettings(group.displayMethod || 'popup');
 
