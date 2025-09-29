@@ -5,6 +5,7 @@ import { fromEvent, merge, combineLatest, Observable } from 'rxjs';
 import { map, filter, debounceTime, throttleTime, switchMap, takeUntil, bufferTime, pairwise } from 'rxjs/operators';
 import { settings } from './settings-store.js';
 
+
 console.log('RxJS Content script loaded successfully v05');
 
 // the settings object is not exposed to the debug console. print settings on init
@@ -124,7 +125,7 @@ const mouseUp$ = fromEvent(document, 'mouseup').pipe(
 );
 
 // Click sequence detection for single/triple clicks
-// Use reactive settings to determine buffer time
+// Use reactive settings to determine buffer time and handle single-click word marking
 const clickSequence$ = settings.select('tripleClickGroupId').pipe(
   switchMap(tripleClickGroupId => {
     const tripleClickEnabled = tripleClickGroupId && tripleClickGroupId !== '';
@@ -137,7 +138,9 @@ const clickSequence$ = settings.select('tripleClickGroupId').pipe(
       map(clicks => ({
         count: clicks.length,
         target: clicks[0].target,
-        time: clicks[0].time
+        time: clicks[0].time,
+        x: clicks[0].x,
+        y: clicks[0].y
       }))
     );
   })
@@ -148,6 +151,22 @@ clickSequence$.subscribe(({ count, target }) => {
   const clickType = count === 1 ? 'single' : count === 2 ? 'double' : count === 3 ? 'triple' : `${count}`;
   console.log('RxJS: User clicked on text:', clickType, 'click');
 });
+
+// Single-click word marking stream when singleClickGroupId is set
+const singleClickWordMarking$ = combineLatest([
+  settings.select('singleClickGroupId'),
+  mouseDown$.pipe(
+    filter(event => !settings.current.currentSelection?.selectedText) // Only when no text is selected
+  )
+]).pipe(
+  filter(([singleClickGroupId, clickEvent]) => singleClickGroupId && singleClickGroupId !== ''),
+  map(([singleClickGroupId, clickEvent]) => ({
+    groupId: singleClickGroupId,
+    x: clickEvent.x,
+    y: clickEvent.y,
+    target: clickEvent.target
+  }))
+);
 
 // Icon click stream (delegated to document for dynamic icons)
 const iconClick$ = fromEvent(document, 'click').pipe(
@@ -225,7 +244,14 @@ function createResultDiv(type, group, boxId, initialWord = '') {
       divsArray = settings.current.resultDivs;
       classPrefix = 'popup';
       positionCallback = () => {
-        const selection = window.getSelection();
+        // Use persistent selection if available, otherwise current selection
+        let selection = window.getSelection();
+        if (!selection.rangeCount > 0 && savedRange) {
+          // Temporarily restore the selection for positioning
+          selection.removeAllRanges();
+          selection.addRange(savedRange);
+        }
+
         if (selection.rangeCount > 0) {
           const range = selection.getRangeAt(0);
           const rect = range.getBoundingClientRect();
@@ -605,8 +631,16 @@ function showResult(definition, group, locationInfo, initialWord = '') {
 
   const displayMethod = locationInfo ? locationInfo.displayMethod : group.displayMethod || 'popup';
   const boxId = locationInfo ? locationInfo.boxId : settings.incrementBoxId();
-  
+
   console.log(displayMethod, group);
+
+  // Preserve current selection before creating result windows
+  // This prevents result window creation from clearing the document selection
+  const currentSelection = window.getSelection();
+  let savedRange = null;
+  if (currentSelection.rangeCount > 0) {
+    savedRange = currentSelection.getRangeAt(0).cloneRange();
+  }
 
   if (displayMethod === 'inline') {
     showInlineResult(definition, group, boxId, initialWord);
@@ -615,6 +649,17 @@ function showResult(definition, group, locationInfo, initialWord = '') {
   } else {
     // Default to popup
     showPopupResult(definition, group, boxId, initialWord);
+  }
+
+  // Restore the saved selection after result window is created
+  if (savedRange) {
+    try {
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(savedRange);
+    } catch (error) {
+      console.error('Error restoring selection:', error);
+    }
   }
 
   // Return location info for the caller
@@ -795,6 +840,207 @@ function handleIconClick(event, group) {
   }
 }
 
+// Handle single-click word marking for specific group
+function handleSingleClickWordMarking(x, y, group) {
+  console.log(`Single-click word marking for group: ${group.name} (${group.icon}) at (${x}, ${y})`);
+
+  // Get the word under the cursor
+  const word = getWordUnderCursor(x, y);
+  if (!word) {
+    console.log('RxJS: No word found under cursor');
+    return;
+  }
+
+  console.log(`RxJS: Found word under cursor: "${word}"`);
+
+  // Select the word visually in the document
+  selectWordUnderCursor(x, y, word);
+
+  // Show result window immediately with spinner and the clicked word
+  const locationInfo = showResult(null, group, null, word);
+  lookupWord(word, group, locationInfo);
+}
+
+// Select the word under cursor to highlight it visually
+function selectWordUnderCursor(x, y, targetWord) {
+  try {
+    // Get the element at the click position
+    const element = document.elementFromPoint(x, y);
+
+    // Find the text node that contains the clicked position
+    let textNode = null;
+    let clickOffset = 0;
+
+    // Check if the element itself is a text node
+    if (element.nodeType === Node.TEXT_NODE) {
+      textNode = element;
+    } else {
+      // Find text nodes within the element
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+
+      while (walker.nextNode()) {
+        const currentNode = walker.currentNode;
+        const rect = document.createRange();
+        rect.selectNodeContents(currentNode);
+        const rectBounds = rect.getBoundingClientRect();
+        if (rectBounds.left <= x && rectBounds.right >= x && rectBounds.top <= y && rectBounds.bottom >= y) {
+          textNode = currentNode;
+          break;
+        }
+      }
+    }
+
+    if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+      const textContent = textNode.textContent;
+
+      // Calculate the character offset in the text node
+      let caretPosition = null;
+
+      if (document.caretRangeFromPoint) {
+        // Chrome/Edge/Safari
+        const range = document.caretRangeFromPoint(x, y);
+        if (range && (range.startContainer === textNode || textNode.contains(range.startContainer))) {
+          caretPosition = range.startOffset;
+        }
+      } else if (document.caretPositionFromPoint) {
+        // Firefox
+        caretPosition = document.caretPositionFromPoint(x, y);
+        if (caretPosition && (caretPosition.offsetNode === textNode || textNode.contains(caretPosition.offsetNode))) {
+          caretPosition = caretPosition.offset;
+        } else {
+          caretPosition = null;
+        }
+      }
+
+      if (caretPosition !== null) {
+        // Count characters to this position
+        const tempRange = document.createRange();
+        tempRange.setStart(textNode, 0);
+        tempRange.setEnd(textNode, caretPosition);
+        const charOffset = tempRange.toString().length;
+
+        // Use Intl.Segmenter to find the exact word boundaries
+        try {
+          const segmenter = new Intl.Segmenter('th', { granularity: 'word' });
+          const segments = segmenter.segment(textContent);
+          let wordStart = -1;
+          let wordEnd = -1;
+
+          // Find the segment that contains the click position
+          for (const segment of segments) {
+            if (segment.index <= charOffset && charOffset < segment.index + segment.segment.length) {
+              wordStart = segment.index;
+              wordEnd = segment.index + segment.segment.length;
+              break;
+            }
+          }
+
+          if (wordStart !== -1 && wordEnd !== -1) {
+            // Create a range for the word and select it
+            const selection = window.getSelection();
+            const range = document.createRange();
+
+            // Find the character positions in the text node
+            let charsCounted = 0;
+            let rangeStartOffset = 0;
+            let rangeEndOffset = 0;
+
+            for (let i = 0; i < textNode.length; i++) {
+              const charRange = document.createRange();
+              charRange.setStart(textNode, i);
+              charRange.setEnd(textNode, i + 1);
+              const charLength = charRange.toString().length;
+
+              if (charsCounted <= wordStart && wordStart < charsCounted + charLength) {
+                rangeStartOffset = i;
+              }
+              if (charsCounted < wordEnd && wordEnd <= charsCounted + charLength) {
+                rangeEndOffset = i + 1;
+                break;
+              }
+
+              charsCounted += charLength;
+            }
+
+            // Set the range for the word
+            range.setStart(textNode, rangeStartOffset);
+            range.setEnd(textNode, rangeEndOffset);
+
+            // Clear any existing selection and select the word
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            console.log(`RxJS: Selected word "${targetWord}" in document`);
+          }
+        } catch (error) {
+          console.error('Intl.Segmenter error during selection:', error);
+          // Fallback to basic word selection
+          selectWordBasic(textNode, textContent, charOffset, targetWord);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error selecting word under cursor:', error);
+  }
+}
+
+// Fallback function to select word using basic text boundaries
+function selectWordBasic(textNode, textContent, charOffset, targetWord) {
+  try {
+    // Find word boundaries around the offset
+    let wordStart = charOffset;
+    let wordEnd = charOffset;
+
+    // Expand left until space or punctuation
+    while (wordStart > 0 && !/\s|[.,!?;:]/.test(textContent[wordStart - 1])) {
+      wordStart--;
+    }
+
+    // Expand right until space or punctuation
+    while (wordEnd < textContent.length && !/\s|[.,!?;:]/.test(textContent[wordEnd])) {
+      wordEnd++;
+    }
+
+    // Create ranges to find character positions
+    const fullRange = document.createRange();
+    fullRange.selectNodeContents(textNode);
+    const fullText = fullRange.toString();
+
+    let startOffset = 0;
+    let endOffset = 0;
+    let charsProcessed = 0;
+
+    for (let i = 0; i < textNode.length; i++) {
+      const charRange = document.createRange();
+      charRange.setStart(textNode, i);
+      charRange.setEnd(textNode, i + 1);
+      const charLength = charRange.toString().length;
+
+      if (charsProcessed <= wordStart && wordStart < charsProcessed + charLength) {
+        startOffset = i;
+      }
+      if (charsProcessed < wordEnd && wordEnd <= charsProcessed + charLength) {
+        endOffset = i + 1;
+        break;
+      }
+
+      charsProcessed += charLength;
+    }
+
+    // Select the word
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.setStart(textNode, startOffset);
+    range.setEnd(textNode, endOffset);
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    console.log(`RxJS: Selected word "${targetWord}" in document (basic method)`);
+  } catch (error) {
+    console.error('Error in basic word selection:', error);
+  }
+}
+
 // Lookup the word via background script for specific query group
 function lookupWord(word, group, locationInfo) {
   console.log(word);
@@ -933,6 +1179,15 @@ function setupEventListeners() {
     }
   });
 
+  // Connect single-click word marking stream
+  singleClickWordMarking$.subscribe(({ groupId, x, y, target }) => {
+    const group = settings.current.queryGroups.find(g => g.id === groupId);
+    if (group) {
+      handleSingleClickWordMarking(x, y, group);
+    }
+    console.log('lost selection');
+  });
+
   // Connect storage change stream to update settings dynamically
   // Note: Settings store automatically handles reactive updates from storage
   // No manual listener needed - the settings store subscribes to chrome.storage.onChanged
@@ -941,6 +1196,106 @@ function setupEventListeners() {
 }
 
 // ===== TEXT SELECTION UTILITIES =====
+
+// Function to extract word under cursor using Intl.Segmenter for Thai language support
+function getWordUnderCursor(x, y) {
+  // Get the element at the click position
+  const element = document.elementFromPoint(x, y);
+
+  // Find the text node that contains the clicked position
+  let textNode = null;
+  let clickOffset = 0;
+
+  // Check if the element itself is a text node
+  if (element.nodeType === Node.TEXT_NODE) {
+    textNode = element;
+  } else {
+    // Find text nodes within the element
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+
+    while (walker.nextNode()) {
+      const currentNode = walker.currentNode;
+      const rect = document.createRange();
+      rect.selectNodeContents(currentNode);
+      const rectBounds = rect.getBoundingClientRect();
+      if (rectBounds.left <= x && rectBounds.right >= x && rectBounds.top <= y && rectBounds.bottom >= y) {
+        textNode = currentNode;
+        break;
+      }
+    }
+  }
+
+  if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+    const textContent = textNode.textContent;
+
+    // Calculate the character offset in the text node
+    // Handle different browser APIs for getting caret position
+    let caretPosition = null;
+
+    if (document.caretRangeFromPoint) {
+      // Chrome/Edge/Safari
+      const range = document.caretRangeFromPoint(x, y);
+      if (range && (range.startContainer === textNode || textNode.contains(range.startContainer))) {
+        caretPosition = range.startOffset;
+      }
+    } else if (document.caretPositionFromPoint) {
+      // Firefox
+      caretPosition = document.caretPositionFromPoint(x, y);
+      if (caretPosition && (caretPosition.offsetNode === textNode || textNode.contains(caretPosition.offsetNode))) {
+        caretPosition = caretPosition.offset;
+      } else {
+        caretPosition = null;
+      }
+    }
+
+    if (caretPosition !== null) {
+      // Count characters to this position
+      const tempRange = document.createRange();
+      tempRange.setStart(textNode, 0);
+      tempRange.setEnd(textNode, caretPosition);
+      clickOffset = tempRange.toString().length;
+    }
+
+    // Use Intl.Segmenter to segment the text into words
+    try {
+      const segmenter = new Intl.Segmenter('th', { granularity: 'word' });
+      const segments = segmenter.segment(textContent);
+
+      // Find the segment that contains the click position
+      for (const segment of segments) {
+        if (segment.index <= clickOffset && clickOffset < segment.index + segment.segment.length) {
+          return segment.segment.trim();
+        }
+      }
+    } catch (error) {
+      console.error('Intl.Segmenter error:', error);
+      // Fallback to basic word extraction
+      return getWordAtOffset(textContent, clickOffset);
+    }
+  }
+
+  return '';
+}
+
+// Fallback function to extract word at character offset without Intl.Segmenter
+function getWordAtOffset(text, offset) {
+  // Find word boundaries around the offset
+  let wordStart = offset;
+  let wordEnd = offset;
+
+  // Expand left until space or punctuation
+  while (wordStart > 0 && !/\s|[.,!?;:]/.test(text[wordStart - 1])) {
+    wordStart--;
+  }
+
+  // Expand right until space or punctuation
+  while (wordEnd < text.length && !/\s|[.,!?;:]/.test(text[wordEnd])) {
+    wordEnd++;
+  }
+
+  const word = text.substring(wordStart, wordEnd).trim();
+  return word;
+}
 
 // Function to extract whole word around selection
 function getWholeWord(selection) {
