@@ -7,6 +7,9 @@ import { settings } from './settings-store.js';
 
 console.log('RxJS Content script loaded successfully v05');
 
+// the settings object is not exposed to the debug console. print settings on init
+console.log(settings.current);
+
 // Inject CSS styles programmatically (more reliable for Firefox extensions)
 function injectStyles() {
   if (document.getElementById('langbro-content-styles')) {
@@ -851,7 +854,7 @@ function lookupWord(word, group, locationInfo) {
 
 // Connect RxJS streams to display functions
 function setupEventListeners() {
-  console.log('RxJS: Setting up event listeners');
+  // console.log('RxJS: Setting up event listeners');
 
   // Connect selection stream to show lookup icons
   selection$.subscribe(({ selection, selectedText }) => {
@@ -1005,11 +1008,11 @@ function getWholeParagraph(selection) {
 
 // Apply dark mode to document body based on settings
 function setupDarkModeListener() {
-  console.log('RxJS: Setting up dark mode listener');
+  // console.log('RxJS: Setting up dark mode listener');
 
   // Subscribe to dark mode changes
   settings.select('isDarkMode').subscribe(isDarkMode => {
-    console.log('RxJS: Dark mode updated:', isDarkMode);
+    // console.log('RxJS: Dark mode updated:', isDarkMode);
 
     if (isDarkMode) {
       document.body.classList.add('langbro-dark');
@@ -1026,6 +1029,7 @@ function setupDarkModeListener() {
 
 // Initialize extension - settings store loads automatically
 async function init() {
+  // console.log('----------init-----------');
   setupEventListeners();
   setupDarkModeListener();
   console.log('RxJS Content script initialization complete');

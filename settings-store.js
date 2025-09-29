@@ -61,7 +61,7 @@ export class SettingsStore {
   // Load initial settings from chrome storage
   async loadInitialSettings() {
     try {
-      console.log('SettingsStore: Loading initial settings...');
+      // console.log('SettingsStore: Loading initial settings...');
 
       // Load all settings in parallel
       const [settingsResult, groupsResult] = await Promise.all([
