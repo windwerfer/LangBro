@@ -91,7 +91,7 @@ const swipe$ = touchStart$.pipe(
       Math.abs(deltaX) > 50 && // Min 50px horizontal movement
       Math.abs(deltaY) < 50 // Max 50px vertical movement
     ),
-    map(({ deltaX }) => deltaX > 0 ? 'right' : 'left')
+    map(({ deltaX, start }) => ({ direction: deltaX > 0 ? 'right' : 'left', x: start.x, y: start.y }))
   ))
 );
 
@@ -1198,6 +1198,48 @@ function selectWordBasic(textNode, textContent, charOffset, targetWord) {
   }
 }
 
+// Select the paragraph under cursor to highlight it visually
+function selectParagraphUnderCursor(x, y) {
+  try {
+    // Get the element at the click position
+    const element = document.elementFromPoint(x, y);
+
+    if (!element) {
+      console.log('RxJS: No element found under cursor for paragraph selection');
+      return false;
+    }
+
+    // Find the closest P or DIV element (paragraph container)
+    let paragraphElement = element;
+    while (paragraphElement && paragraphElement !== document.body) {
+      if (paragraphElement.tagName === 'P' || paragraphElement.tagName === 'DIV') {
+        break;
+      }
+      paragraphElement = paragraphElement.parentElement;
+    }
+
+    if (!paragraphElement || paragraphElement === document.body) {
+      console.log('RxJS: No suitable paragraph element found under cursor');
+      return false;
+    }
+
+    // Select all text content of the paragraph element
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(paragraphElement);
+
+    // Clear any existing selection and select the paragraph
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    console.log(`RxJS: Selected paragraph in document: "${paragraphElement.textContent.trim().substring(0, 50)}..."`);
+    return true;
+  } catch (error) {
+    console.error('Error selecting paragraph under cursor:', error);
+    return false;
+  }
+}
+
 // Lookup the word via background script for specific query group
 function lookupWord(word, group, locationInfo) {
   console.log(word);
@@ -1293,7 +1335,6 @@ function setupEventListeners() {
       currentSelection: {
         selectedText: selectedText,
         wholeWord: getWholeWord(selection),
-        wholeParagraph: getWholeParagraph(selection),
         targetElement: closestElement,
         context: context,
         range: {
@@ -1360,22 +1401,44 @@ function setupEventListeners() {
   // Connect swipe gesture stream
   settings.select('rightSwipeGroupId').subscribe(rightSwipeGroupId => {
     if (rightSwipeGroupId && rightSwipeGroupId !== '') {
-      const swipeSubscription = swipe$.subscribe(direction => {
+      const swipeSubscription = swipe$.subscribe(({ direction, x, y }) => {
         if (direction === 'right') {
           console.log('RxJS: Right swipe detected, executing group:', rightSwipeGroupId);
           const group = settings.current.queryGroups.find(g => g.id === rightSwipeGroupId);
           if (group) {
-            // Get the word under the cursor (using approximate center of screen for now)
-            const word = getWordUnderCursor(window.innerWidth / 2, window.innerHeight / 2);
-            if (word) {
-              console.log(`RxJS: Found word "${word}" for right swipe lookup`);
-              // Select the word visually in the document
-              selectWordUnderCursor(window.innerWidth / 2, window.innerHeight / 2, word);
-              // Show result window
-              const locationInfo = showResult(null, group, null, word);
-              lookupWord(word, group, locationInfo);
+            // Check if text is already selected
+            const currentSelection = window.getSelection();
+            const hasSelectedText = currentSelection && currentSelection.toString().trim();
+
+            let selectedText = '';
+            let selectionSuccess = false;
+
+            if (hasSelectedText) {
+              // Use existing selection
+              selectedText = currentSelection.toString().trim();
+              console.log(`RxJS: Using existing selection for right swipe: "${selectedText}"`);
+              selectionSuccess = true;
             } else {
-              console.log('RxJS: No word found for right swipe');
+              // Select text based on group's textSelectionMethod
+              const textSelectionMethod = group.textSelectionMethod || 'selectedText';
+              console.log(`RxJS: Right swipe - selecting text using method: ${textSelectionMethod}`);
+
+              if (textSelectionMethod === 'wholeParagraph') {
+                selectionSuccess = selectParagraphUnderCursor(x, y);
+                if (selectionSuccess) {
+                  selectedText = window.getSelection().toString().trim();
+                }
+              } 
+              
+            }
+
+            if (selectionSuccess && selectedText) {
+              console.log(`RxJS: Right swipe lookup with text: "${selectedText.substring(0, 50)}..."`);
+              // Show result window
+              const locationInfo = showResult(null, group, null, selectedText);
+              lookupWord(selectedText, group, locationInfo);
+            } else {
+              console.log('RxJS: No text found/selected for right swipe');
             }
           }
         }
