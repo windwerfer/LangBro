@@ -1357,6 +1357,40 @@ function setupEventListeners() {
     }
   });
 
+  // Connect swipe gesture stream
+  settings.select('rightSwipeGroupId').subscribe(rightSwipeGroupId => {
+    if (rightSwipeGroupId && rightSwipeGroupId !== '') {
+      const swipeSubscription = swipe$.subscribe(direction => {
+        if (direction === 'right') {
+          console.log('RxJS: Right swipe detected, executing group:', rightSwipeGroupId);
+          const group = settings.current.queryGroups.find(g => g.id === rightSwipeGroupId);
+          if (group) {
+            // Get the word under the cursor (using approximate center of screen for now)
+            const word = getWordUnderCursor(window.innerWidth / 2, window.innerHeight / 2);
+            if (word) {
+              console.log(`RxJS: Found word "${word}" for right swipe lookup`);
+              // Select the word visually in the document
+              selectWordUnderCursor(window.innerWidth / 2, window.innerHeight / 2, word);
+              // Show result window
+              const locationInfo = showResult(null, group, null, word);
+              lookupWord(word, group, locationInfo);
+            } else {
+              console.log('RxJS: No word found for right swipe');
+            }
+          }
+        }
+      });
+      // Store the subscription so it can be cleaned up if settings change
+      window.currentSwipeSubscription = swipeSubscription;
+    } else {
+      // Unsubscribe if rightSwipeGroupId is cleared
+      if (window.currentSwipeSubscription) {
+        window.currentSwipeSubscription.unsubscribe();
+        window.currentSwipeSubscription = null;
+      }
+    }
+  });
+
   // Connect storage change stream to update settings dynamically
   // Note: Settings store automatically handles reactive updates from storage
   // No manual listener needed - the settings store subscribes to chrome.storage.onChanged
