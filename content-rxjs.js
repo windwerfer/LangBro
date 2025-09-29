@@ -859,7 +859,7 @@ function handleSingleClickWordMarking(x, y, group) {
     // Select the word visually in the document
     selectWordUnderCursor(x, y, word);
 
-    // Icons will be automatically shown by the selection stream
+    console.log('RxJS: selectWord mode - word selected, lookup icons should now appear');
     return;
   }
 
@@ -1128,6 +1128,7 @@ function setupEventListeners() {
 
   // Connect selection stream to show lookup icons
   selection$.subscribe(({ selection, selectedText }) => {
+    console.log('RxJS: selection stream fired - selectedText:', selectedText, 'skipIconDisplay:', window.skipIconDisplay);
     if (selectedText && !window.skipIconDisplay) {
       // Extract selection details and target element
       const range = selection.getRangeAt(0);
@@ -1205,11 +1206,14 @@ function setupEventListeners() {
 
   // Connect single-click word marking stream
   singleClickWordMarking$.subscribe(({ groupId, x, y, target }) => {
-    const group = settings.current.queryGroups.find(g => g.id === groupId);
-    if (group) {
+    let group = settings.current.queryGroups.find(g => g.id === groupId);
+    if (!group && groupId === 'selectWord') {
+      // Special case: create a placeholder group for selectWord functionality
+      group = { id: 'selectWord', name: 'Select Word', icon: '🎯' };
+    }
+    if (group) {  // handles singleClickGroupId: "valid_groupId" or "selectWord"
       handleSingleClickWordMarking(x, y, group);
     }
-    console.log('lost selection');
   });
 
   // Connect storage change stream to update settings dynamically
