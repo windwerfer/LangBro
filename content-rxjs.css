@@ -149,7 +149,7 @@
 }
 
 /* Search suggestions dropdown */
-.langbro-suggestions {
+.search-suggestions {
   position: absolute;
   top: 100%;
   left: 0;
@@ -163,13 +163,13 @@
   background: white;
 }
 
-.langbro-suggestion-item {
+.suggestion-item {
   padding: 4px 8px;
   cursor: pointer;
   border-bottom: 1px solid #eee;
 }
 
-.langbro-suggestion-item:hover {
+.suggestion-item-hover {
   background-color: #f0f0f0;
 }
 
@@ -217,17 +217,18 @@
   border-color: #555;
 }
 
-.langbro-dark .langbro-suggestions {
+/* Search suggestions dark mode */
+.langbro-dark .search-suggestions {
   background-color: #1e1e1e;
   border-color: #555;
   color: #ffffff;
 }
 
-.langbro-dark .langbro-suggestion-item {
+.langbro-dark .suggestion-item {
   border-bottom-color: #333;
 }
 
-.langbro-dark .langbro-suggestion-item:hover {
+.langbro-dark .suggestion-item-hover {
   background-color: #333;
 }
 
