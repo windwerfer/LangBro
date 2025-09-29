@@ -66,6 +66,15 @@
   min-width: 0;
 }
 
+.langbro-search-button {
+  padding: 2px 6px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: white;
+  cursor: pointer;
+  font-size: 12px;
+}
+
 /* Popup result window */
 .langbro-popup {
   position: absolute;

@@ -363,6 +363,82 @@ function createCloseButton(targetDiv) {
   return closeBtn;
 }
 
+// Add suggestions event handlers to a search input
+function addSuggestionsHandlers(searchInput, resultDiv, group, boxId) {
+  let suggestionsTimeout;
+
+  searchInput.addEventListener('input', () => {
+    clearTimeout(suggestionsTimeout);
+    const query = searchInput.value.trim();
+
+    if (query.length > 0) {
+      suggestionsTimeout = setTimeout(async () => {
+        try {
+          console.log('CONTENT: Requesting suggestions for word:', query, 'dictionaries:', group.settings?.selectedDictionaries);
+          const response = await chrome.runtime.sendMessage({
+            action: 'getSuggestions',
+            word: query,
+            maxResults: group.displaySuggestions || 20,
+            selectedDictionaries: group.settings?.selectedDictionaries || []
+          });
+          console.log('CONTENT: Received suggestions response:', response);
+
+          if (response.suggestions && response.suggestions.length > 0) {
+            console.log('CONTENT: Showing suggestions:', response.suggestions);
+            showSuggestions(response.suggestions, searchInput, resultDiv, group, boxId);
+          } else {
+            console.log('CONTENT: No suggestions to show, hiding dropdown');
+            hideSuggestions(resultDiv);
+          }
+        } catch (error) {
+          console.error('CONTENT: Error getting suggestions:', error);
+          hideSuggestions(resultDiv);
+        }
+      }, 300); // 0.3 second delay for suggestions
+    } else {
+      console.log('CONTENT: Query is empty, hiding suggestions');
+      hideSuggestions(resultDiv);
+    }
+  });
+
+  // Show suggestions when input gains focus or is clicked (if it has content)
+  const showSuggestionsIfContent = async () => {
+    const query = searchInput.value.trim();
+    if (query.length > 0) {
+      try {
+        console.log('CONTENT: Requesting suggestions on focus/click for word:', query, 'dictionaries:', group.settings?.selectedDictionaries);
+        const response = await chrome.runtime.sendMessage({
+          action: 'getSuggestions',
+          word: query,
+          maxResults: group.displaySuggestions || 20,
+          selectedDictionaries: group.settings?.selectedDictionaries || []
+        });
+        console.log('CONTENT: Received suggestions response on focus/click:', response);
+
+        if (response.suggestions && response.suggestions.length > 0) {
+          console.log('CONTENT: Showing suggestions on focus/click:', response.suggestions);
+          showSuggestions(response.suggestions, searchInput, resultDiv, group, boxId);
+        } else {
+          console.log('CONTENT: No suggestions to show on focus/click, hiding dropdown');
+          hideSuggestions(resultDiv);
+        }
+      } catch (error) {
+        console.error('CONTENT: Error getting suggestions on focus/click:', error);
+        hideSuggestions(resultDiv);
+      }
+    }
+  };
+
+  searchInput.addEventListener('focus', showSuggestionsIfContent);
+  searchInput.addEventListener('click', showSuggestionsIfContent);
+
+  // Hide suggestions when input loses focus
+  searchInput.addEventListener('blur', () => {
+    // Delay hiding to allow clicking on suggestions
+    setTimeout(() => hideSuggestions(resultDiv), 150);
+  });
+}
+
 // Create search field container for result windows
 function createSearchField(group, resultDiv, boxId, initialWord = '') {
   const searchContainer = document.createElement('div');
@@ -384,20 +460,8 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
   if (group.showSearchField === 'onPressingEnter') {
     // Add search button
     const searchButton = document.createElement('button');
+    searchButton.className = 'langbro-search-button';
     searchButton.innerHTML = '🔍';
-    searchButton.style.padding = '2px 6px';
-    searchButton.style.border = '1px solid #ccc';
-    searchButton.style.borderRadius = '3px';
-    searchButton.style.background = 'white';
-    searchButton.style.cursor = 'pointer';
-    searchButton.style.fontSize = '12px';
-
-    // Apply dark mode to button
-    if (settings.current.isDarkMode) {
-      searchButton.style.backgroundColor = '#2d2d2d';
-      searchButton.style.color = '#ffffff';
-      searchButton.style.borderColor = '#555';
-    }
 
     searchButton.onclick = () => performSearch(searchInput.value.trim(), group, resultDiv, boxId);
     searchContainer.appendChild(searchButton);
@@ -411,78 +475,7 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
 
     // If suggestions are enabled, add input handler for suggestions
     if (suggestionsEnabled) {
-      // Use debouncing for suggestions
-      let suggestionTimeout;
-      searchInput.addEventListener('input', () => {
-        clearTimeout(suggestionTimeout);
-        const query = searchInput.value.trim();
-
-        if (query.length > 0) {
-          suggestionTimeout = setTimeout(async () => {
-            try {
-              console.log('CONTENT: Requesting suggestions for word:', query, 'dictionaries:', group.settings?.selectedDictionaries);
-              const response = await chrome.runtime.sendMessage({
-                action: 'getSuggestions',
-                word: query,
-                maxResults: group.displaySuggestions || 20,
-                selectedDictionaries: group.settings?.selectedDictionaries || []
-              });
-              console.log('CONTENT: Received suggestions response:', response);
-
-              if (response.suggestions && response.suggestions.length > 0) {
-                console.log('CONTENT: Showing suggestions:', response.suggestions);
-                showSuggestions(response.suggestions, searchInput, resultDiv, group, boxId);
-              } else {
-                console.log('CONTENT: No suggestions to show, hiding dropdown');
-                hideSuggestions(resultDiv);
-              }
-            } catch (error) {
-              console.error('CONTENT: Error getting suggestions:', error);
-              hideSuggestions(resultDiv);
-            }
-          }, 300); // 0.3 second delay for faster suggestions
-        } else {
-          console.log('CONTENT: Query is empty, hiding suggestions');
-          hideSuggestions(resultDiv);
-        }
-      });
-
-      // Show suggestions when input gains focus or is clicked (if it has content)
-      const showSuggestionsIfContent = async () => {
-        const query = searchInput.value.trim();
-        if (query.length > 0) {
-          try {
-            console.log('CONTENT: Requesting suggestions on focus/click for word:', query, 'dictionaries:', group.settings?.selectedDictionaries);
-            const response = await chrome.runtime.sendMessage({
-              action: 'getSuggestions',
-              word: query,
-              maxResults: group.displaySuggestions || 20,
-              selectedDictionaries: group.settings?.selectedDictionaries || []
-            });
-            console.log('CONTENT: Received suggestions response on focus/click:', response);
-
-            if (response.suggestions && response.suggestions.length > 0) {
-              console.log('CONTENT: Showing suggestions on focus/click:', response.suggestions);
-              showSuggestions(response.suggestions, searchInput, resultDiv, group, boxId);
-            } else {
-              console.log('CONTENT: No suggestions to show on focus/click, hiding dropdown');
-              hideSuggestions(resultDiv);
-            }
-          } catch (error) {
-            console.error('CONTENT: Error getting suggestions on focus/click:', error);
-            hideSuggestions(resultDiv);
-          }
-        }
-      };
-
-      searchInput.addEventListener('focus', showSuggestionsIfContent);
-      searchInput.addEventListener('click', showSuggestionsIfContent);
-
-      // Hide suggestions when input loses focus
-      searchInput.addEventListener('blur', () => {
-        // Delay hiding to allow clicking on suggestions
-        setTimeout(() => hideSuggestions(resultDiv), 150);
-      });
+      addSuggestionsHandlers(searchInput, resultDiv, group, boxId);
     }
   } else if (group.showSearchField === 'liveResults') {
     // Live results mode - add debounced input handler
@@ -529,77 +522,7 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
 
     // If suggestions are enabled, add input handler for suggestions (only suggestions, no search)
     if (suggestionsEnabled) {
-      let onlySuggestionsTimeout;
-      searchInput.addEventListener('input', () => {
-        clearTimeout(onlySuggestionsTimeout);
-        const query = searchInput.value.trim();
-
-        if (query.length > 0) {
-          onlySuggestionsTimeout = setTimeout(async () => {
-            try {
-              console.log('CONTENT: Requesting suggestions for word:', query, 'dictionaries:', group.settings?.selectedDictionaries);
-              const response = await chrome.runtime.sendMessage({
-                action: 'getSuggestions',
-                word: query,
-                maxResults: group.displaySuggestions || 20,
-                selectedDictionaries: group.settings?.selectedDictionaries || []
-              });
-              console.log('CONTENT: Received suggestions response:', response);
-
-              if (response.suggestions && response.suggestions.length > 0) {
-                console.log('CONTENT: Showing suggestions:', response.suggestions);
-                showSuggestions(response.suggestions, searchInput, resultDiv, group, boxId);
-              } else {
-                console.log('CONTENT: No suggestions to show, hiding dropdown');
-                hideSuggestions(resultDiv);
-              }
-            } catch (error) {
-              console.error('CONTENT: Error getting suggestions:', error);
-              hideSuggestions(resultDiv);
-            }
-          }, 300); // 0.3 second delay for suggestions only
-        } else {
-          console.log('CONTENT: Query is empty, hiding suggestions');
-          hideSuggestions(resultDiv);
-        }
-      });
-
-      // Show suggestions when input gains focus or is clicked (if it has content)
-      const showSuggestionsIfContent = async () => {
-        const query = searchInput.value.trim();
-        if (query.length > 0) {
-          try {
-            console.log('CONTENT: Requesting suggestions on focus/click for word:', query, 'dictionaries:', group.settings?.selectedDictionaries);
-            const response = await chrome.runtime.sendMessage({
-              action: 'getSuggestions',
-              word: query,
-              maxResults: group.displaySuggestions || 20,
-              selectedDictionaries: group.settings?.selectedDictionaries || []
-            });
-            console.log('CONTENT: Received suggestions response on focus/click:', response);
-
-            if (response.suggestions && response.suggestions.length > 0) {
-              console.log('CONTENT: Showing suggestions on focus/click:', response.suggestions);
-              showSuggestions(response.suggestions, searchInput, resultDiv, group, boxId);
-            } else {
-              console.log('CONTENT: No suggestions to show on focus/click, hiding dropdown');
-              hideSuggestions(resultDiv);
-            }
-          } catch (error) {
-            console.error('CONTENT: Error getting suggestions on focus/click:', error);
-            hideSuggestions(resultDiv);
-          }
-        }
-      };
-
-      searchInput.addEventListener('focus', showSuggestionsIfContent);
-      searchInput.addEventListener('click', showSuggestionsIfContent);
-
-      // Hide suggestions when input loses focus
-      searchInput.addEventListener('blur', () => {
-        // Delay hiding to allow clicking on suggestions
-        setTimeout(() => hideSuggestions(resultDiv), 150);
-      });
+      addSuggestionsHandlers(searchInput, resultDiv, group, boxId);
     }
 
     // Initialize with placeholder if empty
