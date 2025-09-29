@@ -1207,7 +1207,8 @@ function lookupWord(word, group, locationInfo) {
       word: word,
       groupId: group.id,
       queryType: group.queryType,
-      settings: group.settings
+      settings: group.settings,
+      context: settings.current.currentSelection?.context || ''
     };
 
     chrome.runtime.sendMessage(message, (response) => {
@@ -1282,20 +1283,27 @@ function setupEventListeners() {
         closestElement = closestElement.parentElement;
       }
 
-      settings.update({
-        currentSelection: {
-          selectedText: selectedText,
-          wholeWord: getWholeWord(selection),
-          wholeParagraph: getWholeParagraph(selection),
-          targetElement: closestElement,
-          range: {
-            startContainer: range.startContainer,
-            startOffset: range.startOffset,
-            endContainer: range.endContainer,
-            endOffset: range.endOffset
-          }
+    // Calculate context immediately for selected text
+    let context = '';
+    if (selectedText && selectedText.trim()) {
+      context = calculateContext(range, selectedText);
+    }
+
+    settings.update({
+      currentSelection: {
+        selectedText: selectedText,
+        wholeWord: getWholeWord(selection),
+        wholeParagraph: getWholeParagraph(selection),
+        targetElement: closestElement,
+        context: context,
+        range: {
+          startContainer: range.startContainer,
+          startOffset: range.startOffset,
+          endContainer: range.endContainer,
+          endOffset: range.endOffset
         }
-      });
+      }
+    });
       showLookupIcons(selection);
     } else if (!selectedText && !window.skipIconDisplay) {
       settings.update({ currentSelection: null });
@@ -1518,6 +1526,79 @@ function getWholeParagraph(selection) {
 
   // Fallback: return selected text if no suitable paragraph found
   return selection.toString().trim();
+}
+
+// Function to calculate context around selected text
+// This calculates words before and after the selection based on AI group settings
+function calculateContext(range, selectedText) {
+  if (!range || !selectedText || !selectedText.trim()) return '';
+
+  try {
+    let node = range.startContainer;
+    if (node.nodeType !== Node.TEXT_NODE) {
+      // If not a text node, find the first text node descendant
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      node = walker.nextNode();
+      if (!node) return selectedText;
+    }
+
+    const fullText = node.textContent;
+    const startOffset = range.startOffset;
+    const endOffset = range.endOffset;
+
+    // Get AI groups to determine maximum context needed
+    const aiGroups = settings.current.queryGroups.filter(group =>
+      group.queryType === 'ai' &&
+      group.enabled &&
+      group.settings?.sendContext
+    );
+
+    if (aiGroups.length === 0) return selectedText; // No AI groups need context
+
+    // Use the maximum context settings from enabled AI groups
+    const maxWordsBefore = Math.max(...aiGroups.map(g => g.settings.wordsBefore || 40));
+    const maxWordsAfter = Math.max(...aiGroups.map(g => g.settings.wordsAfter || 40));
+
+    // Split text into words using Intl.Segmenter for Thai language support
+    const segmenter = new Intl.Segmenter('th', { granularity: 'word' });
+    const segments = Array.from(segmenter.segment(fullText));
+    const words = segments.map(s => s.segment).filter(word => word.trim().length > 0);
+
+    // Find which words are included in the selection
+    let selectedWords = [];
+    let wordStartIndex = -1;
+    let wordEndIndex = -1;
+
+    let charCount = 0;
+    for (let i = 0; i < words.length; i++) {
+      const wordStart = charCount;
+      const wordLength = words[i].length;
+      const wordEnd = wordStart + wordLength;
+
+      if (wordStart < endOffset && startOffset < wordEnd) {
+        if (wordStartIndex === -1) wordStartIndex = i;
+        selectedWords.push(words[i]);
+        wordEndIndex = i;
+      }
+
+      charCount += wordLength;
+    }
+
+    if (selectedWords.length === 0) return selectedText;
+
+    // Calculate context indices
+    const startIndex = Math.max(0, wordStartIndex - maxWordsBefore);
+    const endIndex = Math.min(words.length - 1, wordEndIndex + maxWordsAfter);
+
+    // Extract context words
+    const contextWords = words.slice(startIndex, endIndex + 1);
+
+    return contextWords.join('');
+
+  } catch (error) {
+    console.error('Error calculating context:', error);
+    return selectedText; // Fallback to selected text
+  }
 }
 
 // ===== DARK MODE MANAGEMENT =====

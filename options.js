@@ -559,6 +559,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // AI send context checkbox change
+  const aiSendContextCheckbox = document.getElementById('aiSendContext');
+  const aiContextSettings = document.getElementById('aiContextSettings');
+
+  if (aiSendContextCheckbox && aiContextSettings) {
+    aiSendContextCheckbox.addEventListener('change', () => {
+      aiContextSettings.style.display = aiSendContextCheckbox.checked ? 'block' : 'none';
+    });
+  }
+
   // Save group button
   saveGroupBtn.addEventListener('click', () => {
     saveQueryGroup();
@@ -709,6 +719,10 @@ document.addEventListener('DOMContentLoaded', () => {
         loadAiServicesForSelection(group.settings?.serviceId || '');
         document.getElementById('aiMaxTokens').value = group.settings?.maxTokens || 2048;
         document.getElementById('aiPrompt').value = group.settings?.prompt || 'You are a Tutor, give a grammar breakdown for: {text}';
+        document.getElementById('aiSendContext').checked = group.settings?.sendContext || false;
+        document.getElementById('aiWordsBefore').value = group.settings?.wordsBefore || 40;
+        document.getElementById('aiWordsAfter').value = group.settings?.wordsAfter || 40;
+        document.getElementById('aiContextSettings').style.display = group.settings?.sendContext ? 'block' : 'none';
       } else if (group.queryType === 'offline') {
         // Load selected dictionaries for offline groups
         loadAvailableDictionaries(group.settings?.selectedDictionaries || []);
@@ -882,7 +896,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       const maxTokens = parseInt(document.getElementById('aiMaxTokens').value) || 2048;
       const prompt = document.getElementById('aiPrompt').value.trim();
-      settings = { serviceId: selectedAiServiceId, maxTokens, prompt };
+      const sendContext = document.getElementById('aiSendContext').checked;
+      const wordsBefore = parseInt(document.getElementById('aiWordsBefore').value) || 40;
+      const wordsAfter = parseInt(document.getElementById('aiWordsAfter').value) || 40;
+      settings = { serviceId: selectedAiServiceId, maxTokens, prompt, sendContext, wordsBefore, wordsAfter };
     }
 
     // Build popup settings if display method is popup

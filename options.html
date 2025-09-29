@@ -410,6 +410,26 @@
           <small>Maximum number of tokens to generate in the response</small>
         </div>
         <div class="form-group">
+          <label>
+            <input type="checkbox" id="aiSendContext" />
+            Send additional context to the AI
+          </label>
+          <small>Include surrounding text from the webpage with the selected word</small>
+        </div>
+        <div class="form-group" id="aiContextSettings" style="display: none;">
+          <div style="display: flex; gap: 10px;">
+            <div>
+              <label for="aiWordsBefore">Words before selection:</label>
+              <input type="number" id="aiWordsBefore" value="40" min="0" max="500" style="width: 60px;">
+            </div>
+            <div>
+              <label for="aiWordsAfter">Words after selection:</label>
+              <input type="number" id="aiWordsAfter" value="40" min="0" max="500" style="width: 60px;">
+            </div>
+          </div>
+          <small>The full context will be available in AI prompts as {context} variable</small>
+        </div>
+        <div class="form-group">
           <label class="lPrompt" for="aiPrompt">Prompt Template:</label>
           <textarea id="aiPrompt" rows="3" placeholder="You are a Tutor, give a grammar breakdown for: {text}">You are a Tutor, give a grammar breakdown for: {text}</textarea>
         </div>

@@ -251,7 +251,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           definition = await performWebLookup(word, request.settings);
         } else if (request.queryType === 'ai') {
           // AI service lookup
-          definition = await performAILookup(word, request.settings);
+          definition = await performAILookup(word, request.context || '', request.settings);
         } else {
           throw new Error(`Unknown query type: ${request.queryType}`);
         }
@@ -712,7 +712,7 @@ function parseAIMarkup(text) {
 }
 
 // Perform AI service lookup
-async function performAILookup(word, settings) {
+async function performAILookup(word, context, settings) {
   let serviceSettings = settings;
 
   // If settings is just a serviceId reference, look up the full service config
@@ -740,7 +740,11 @@ async function performAILookup(word, settings) {
     throw new Error('AI settings not configured');
   }
 
-  const prompt = (serviceSettings.prompt || 'You are a Tutor, give a grammar breakdown for: {text}').replace('{text}', word);
+  let prompt = serviceSettings.prompt || 'You are a Tutor, give a grammar breakdown for: {text}';
+  prompt = prompt.replace('{text}', word);
+  // Only include context if the group setting allows it
+  const contextToUse = serviceSettings.sendContext && context ? context : '';
+  prompt = prompt.replace('{context}', contextToUse);
   // Note: For AI prompts, we don't URL encode {text} as it's not being sent in a URL
   const maxTokens = serviceSettings.maxTokens || 2048;
 
