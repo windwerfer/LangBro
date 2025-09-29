@@ -24,17 +24,17 @@ function injectStyles() {
 injectStyles();
 
 // Selection Event Stream
-// Merges selectionchange and keyup events, filters for valid text selections
+// Merges selectionchange, keyup, and mousedown events to track all selection changes
 const selection$ = merge(
   fromEvent(document, 'selectionchange'),
-  fromEvent(document, 'keyup')
+  fromEvent(document, 'keyup'),
+  fromEvent(document, 'mousedown')  // For faster response to selection changes
 ).pipe(
   map(() => {
     const selection = window.getSelection();
     const selectedText = selection.toString().trim();
     return { selection, selectedText };
   }),
-  filter(({ selectedText }) => selectedText.length > 0),
   debounceTime(100)
 );
 
