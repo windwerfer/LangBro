@@ -224,6 +224,23 @@ export {
   domReady$
 };
 
+// ===== UTILITY FUNCTIONS =====
+
+// Find the closest text-containing element by traversing up the DOM tree
+function findClosestTextElement(element) {
+  const acceptableTags = ['P', 'DIV', 'SPAN', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'TD', 'TH', 'BLOCKQUOTE', 'ARTICLE', 'SECTION'];
+
+  let closestElement = element;
+  while (closestElement && closestElement !== document.body) {
+    if (acceptableTags.includes(closestElement.tagName)) {
+      return closestElement;
+    }
+    closestElement = closestElement.parentElement;
+  }
+
+  return null; // No suitable element found
+}
+
 // ===== DISPLAY FUNCTIONALITY =====
 
 // Global state - now accessed via reactive settings store from './settings-store.js'
@@ -1316,14 +1333,7 @@ function setupEventListeners() {
       }
 
       // Find the closest text-containing element
-      let closestElement = targetElement;
-      while (closestElement && closestElement !== document.body) {
-        const acceptableTags = ['P', 'DIV', 'SPAN', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'TD', 'TH', 'BLOCKQUOTE', 'ARTICLE', 'SECTION'];
-        if (acceptableTags.includes(closestElement.tagName)) {
-          break;
-        }
-        closestElement = closestElement.parentElement;
-      }
+      const closestElement = findClosestTextElement(targetElement);
 
     // Calculate context immediately for selected text
     let context = '';
@@ -1424,7 +1434,13 @@ function setupEventListeners() {
               const textSelectionMethod = group.textSelectionMethod || 'selectedText';
               console.log(`RxJS: Right swipe - selecting text using method: ${textSelectionMethod}`);
               if (selectParagraphUnderCursor(x, y)) {
-                selectedText = window.getSelection().toString().trim();
+                // Capture the range and text before clearing selection
+                const selection = window.getSelection();
+                const range = selection.getRangeAt(0).cloneRange();
+                selectedText = selection.toString().trim();
+
+                // Clear the visual selection immediately
+                selection.removeAllRanges();
               }
               // selectedText = selectTextUnderCursor(x, y, textSelectionMethod);
               selectionSuccess = selectedText !== null;
@@ -1432,6 +1448,41 @@ function setupEventListeners() {
 
             if (selectionSuccess && selectedText) {
               console.log(`RxJS: Right swipe lookup with text: "${selectedText.substring(0, 50)}..."`);
+
+              // Update currentSelection with targetElement for inline display support
+              // Use the captured range since we cleared the visual selection
+              let targetElement = range.commonAncestorContainer;
+
+              // If it's a text node, get the parent element
+              if (targetElement.nodeType === Node.TEXT_NODE) {
+                targetElement = targetElement.parentElement;
+              }
+
+              // Find the closest text-containing element
+              const closestElement = findClosestTextElement(targetElement);
+
+              // Calculate context for selected text
+              let context = '';
+              if (selectedText && selectedText.trim()) {
+                context = calculateContext(range, selectedText);
+              }
+
+              settings.update({
+                currentSelection: {
+                  selectedText: selectedText,
+                  wholeWord: getWholeWord({ getRangeAt: () => range, rangeCount: 1 }),
+                  wholeParagraph: getWholeParagraph({ getRangeAt: () => range, rangeCount: 1 }),
+                  targetElement: closestElement,
+                  context: context,
+                  range: {
+                    startContainer: range.startContainer,
+                    startOffset: range.startOffset,
+                    endContainer: range.endContainer,
+                    endOffset: range.endOffset
+                  }
+                }
+              });
+
               // Show result window
               const locationInfo = showResult(null, group, null, selectedText);
               lookupWord(selectedText, group, locationInfo);
