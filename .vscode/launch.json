@@ -1,7 +1,6 @@
 {
     "version": "0.2.0",
     "configurations": [
-
         {
             "name": "Launch Extension in Firefox",
             "type": "firefox",
@@ -9,6 +8,10 @@
             "reAttach": true,
             "addonPath": "${workspaceFolder}",
             "pathMappings": [
+                {
+                    "url": "webpack://langbro-extension/settings-store.js",
+                    "path": "${workspaceFolder}/settings-store.js"
+                },
                 {
                     "url": "webpack://langbro-extension/content-rxjs.js",
                     "path": "${workspaceFolder}/content-rxjs.js"

@@ -90,8 +90,8 @@ export class SettingsStore {
         isDarkMode: settingsResult.darkMode || false,
         queryGroups: groupsResult.queryGroups || []
       });
-
-      console.log('SettingsStore: Initial settings loaded successfully');
+      console.log('SettingsStore: ', this.current);
+      // console.log('SettingsStore: Initial settings loaded successfully');
     } catch (error) {
       console.error('SettingsStore: Failed to load initial settings:', error);
       // Keep default values on error

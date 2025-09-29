@@ -8,8 +8,7 @@ import { settings } from './settings-store.js';
 
 console.log('RxJS Content script loaded successfully v05');
 
-// the settings object is not exposed to the debug console. print settings on init
-console.log(settings.current);
+
 
 // Inject CSS styles programmatically (more reliable for Firefox extensions)
 function injectStyles() {
@@ -152,10 +151,10 @@ clickSequence$.subscribe(({ count, target }) => {
   console.log('RxJS: User clicked on text:', clickType, 'click');
 });
 
-// Single-click word marking stream when singleClickGroupId is set
+// Single-click word marking stream when singleClickGroupId is set (use mouseup to avoid browser clearing selection)
 const singleClickWordMarking$ = combineLatest([
   settings.select('singleClickGroupId'),
-  mouseDown$.pipe(
+  mouseUp$.pipe(
     filter(event => !settings.current.currentSelection?.selectedText) // Only when no text is selected
   )
 ]).pipe(
@@ -842,7 +841,32 @@ function handleIconClick(event, group) {
 
 // Handle single-click word marking for specific group
 function handleSingleClickWordMarking(x, y, group) {
-  console.log(`Single-click word marking for group: ${group.name} (${group.icon}) at (${x}, ${y})`);
+  console.log(`Single-click word marking for group: ${group.name} (${group.id}) at (${x}, ${y})`);
+
+  // Special case: if group ID is "selectWord", just select the word and show icons without lookup
+  if (group.id === 'selectWord') {
+    console.log('RxJS: selectWord mode - selecting word and showing icons only');
+
+    // Get the word under the cursor
+    const word = getWordUnderCursor(x, y);
+    if (!word) {
+      console.log('RxJS: No word found under cursor');
+      return;
+    }
+
+    console.log(`RxJS: Found word under cursor: "${word}"`);
+
+    // Select the word visually in the document
+    selectWordUnderCursor(x, y, word);
+
+    // Icons will be automatically shown by the selection stream
+    return;
+  }
+
+  // Normal single-click behavior: prevent lookup icons from appearing during single-click word marking
+  window.skipIconDisplay = true;
+  // Clear the flag after the selection event has been processed
+  setTimeout(() => delete window.skipIconDisplay, 200);
 
   // Get the word under the cursor
   const word = getWordUnderCursor(x, y);
@@ -1104,7 +1128,7 @@ function setupEventListeners() {
 
   // Connect selection stream to show lookup icons
   selection$.subscribe(({ selection, selectedText }) => {
-    if (selectedText) {
+    if (selectedText && !window.skipIconDisplay) {
       // Extract selection details and target element
       const range = selection.getRangeAt(0);
       let targetElement = range.commonAncestorContainer;
@@ -1139,7 +1163,7 @@ function setupEventListeners() {
         }
       });
       showLookupIcons(selection);
-    } else {
+    } else if (!selectedText && !window.skipIconDisplay) {
       settings.update({ currentSelection: null });
       hideLookupIcons();
     }
