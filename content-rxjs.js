@@ -1335,6 +1335,7 @@ function setupEventListeners() {
       currentSelection: {
         selectedText: selectedText,
         wholeWord: getWholeWord(selection),
+        wholeParagraph: getWholeParagraph(selection),
         targetElement: closestElement,
         context: context,
         range: {
@@ -1423,13 +1424,8 @@ function setupEventListeners() {
               const textSelectionMethod = group.textSelectionMethod || 'selectedText';
               console.log(`RxJS: Right swipe - selecting text using method: ${textSelectionMethod}`);
 
-              if (textSelectionMethod === 'wholeParagraph') {
-                selectionSuccess = selectParagraphUnderCursor(x, y);
-                if (selectionSuccess) {
-                  selectedText = window.getSelection().toString().trim();
-                }
-              } 
-              
+              selectedText = selectTextUnderCursor(x, y, textSelectionMethod);
+              selectionSuccess = selectedText !== null;
             }
 
             if (selectionSuccess && selectedText) {
