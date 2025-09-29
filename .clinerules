@@ -1,3 +1,4 @@
 - do not generate .xpi files, i will do that manually
 - warn me if manifest.json is changed, because i need to restart firefox! or the changes will not be updated. highlight this message as much as possible, that i really, really see it. use as many warning emoji as you can (eg ❌ ⚠️ 🚨 💡) to really drive home the point for this one!!
 - for 'content-rxjs.js': use the reactive `settings` object from './settings-store.js' for all settings instead of maintaining global state variables - this ensures reactive, automatic updates when settings change
+- do not run `npm run build:rxjs` to build and test the project, only `npm run build:dev` (i am using path: `devtool: 'source-map',` in the webpack.conf.json that firefox can map the files to the vs code debugging session, and the rxjs build will merge everything into one file so debugging doesnt work)
