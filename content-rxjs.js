@@ -1534,19 +1534,7 @@ function calculateContext(range, selectedText) {
   if (!range || !selectedText || !selectedText.trim()) return '';
 
   try {
-    let node = range.startContainer;
-    if (node.nodeType !== Node.TEXT_NODE) {
-      // If not a text node, find the first text node descendant
-      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
-      node = walker.nextNode();
-      if (!node) return selectedText;
-    }
-
-    const fullText = node.textContent;
-    const startOffset = range.startOffset;
-    const endOffset = range.endOffset;
-
-    // Get AI groups to determine maximum context needed
+    // Get AI groups to determine maximum context needed and if complete context is requested
     const aiGroups = settings.current.queryGroups.filter(group =>
       group.queryType === 'ai' &&
       group.enabled &&
@@ -1555,50 +1543,173 @@ function calculateContext(range, selectedText) {
 
     if (aiGroups.length === 0) return selectedText; // No AI groups need context
 
-    // Use the maximum context settings from enabled AI groups
-    const maxWordsBefore = Math.max(...aiGroups.map(g => g.settings.wordsBefore || 40));
-    const maxWordsAfter = Math.max(...aiGroups.map(g => g.settings.wordsAfter || 40));
+    // Check if any enabled AI group needs complete context
+    const usesCompleteContext = aiGroups.some(group => group.settings?.completeContext);
 
-    // Split text into words using Intl.Segmenter for Thai language support
-    const segmenter = new Intl.Segmenter('th', { granularity: 'word' });
-    const segments = Array.from(segmenter.segment(fullText));
-    const words = segments.map(s => s.segment).filter(word => word.trim().length > 0);
-
-    // Find which words are included in the selection
-    let selectedWords = [];
-    let wordStartIndex = -1;
-    let wordEndIndex = -1;
-
-    let charCount = 0;
-    for (let i = 0; i < words.length; i++) {
-      const wordStart = charCount;
-      const wordLength = words[i].length;
-      const wordEnd = wordStart + wordLength;
-
-      if (wordStart < endOffset && startOffset < wordEnd) {
-        if (wordStartIndex === -1) wordStartIndex = i;
-        selectedWords.push(words[i]);
-        wordEndIndex = i;
-      }
-
-      charCount += wordLength;
+    if (usesCompleteContext) {
+      return calculateCompleteContext(range, selectedText, aiGroups);
+    } else {
+      return calculateLimitedContext(range, selectedText, aiGroups);
     }
-
-    if (selectedWords.length === 0) return selectedText;
-
-    // Calculate context indices
-    const startIndex = Math.max(0, wordStartIndex - maxWordsBefore);
-    const endIndex = Math.min(words.length - 1, wordEndIndex + maxWordsAfter);
-
-    // Extract context words
-    const contextWords = words.slice(startIndex, endIndex + 1);
-
-    return contextWords.join('');
-
   } catch (error) {
     console.error('Error calculating context:', error);
     return selectedText; // Fallback to selected text
   }
+}
+
+// Calculate context from surrounding elements (complete context mode)
+function calculateCompleteContext(range, selectedText, aiGroups) {
+  // Get maximum words needed
+  const maxWordsBefore = Math.max(...aiGroups.map(g => g.settings.wordsBefore || 40));
+  const maxWordsAfter = Math.max(...aiGroups.map(g => g.settings.wordsAfter || 40));
+
+  // Get all text from surrounding elements
+  const collectTextAroundSelection = (range) => {
+    let currentElement = range.startContainer;
+    if (currentElement.nodeType === Node.TEXT_NODE) {
+      currentElement = currentElement.parentNode;
+    }
+
+    // Start with current element and traverse up and sideways
+    const elements = [];
+    const maxDepth = 3; // Limit traversal depth
+
+    // Add current element
+    elements.push(currentElement);
+
+    // Add sibling elements before and after
+    let sibling = currentElement.previousElementSibling;
+    let countBefore = 0;
+    while (sibling && countBefore < 5) { // Limit siblings
+      elements.unshift(sibling);
+      sibling = sibling.previousElementSibling;
+      countBefore++;
+    }
+
+    sibling = currentElement.nextElementSibling;
+    let countAfter = 0;
+    while (sibling && countAfter < 5) { // Limit siblings
+      elements.push(sibling);
+      sibling = sibling.nextElementSibling;
+      countAfter++;
+    }
+
+    // Add parent elements (limited depth)
+    for (let parent = currentElement.parentElement, depth = 0;
+         parent && parent !== document.body && depth < maxDepth;
+         parent = parent.parentElement, depth++) {
+      // Add parent before current element content
+      const parentIndex = elements.indexOf(elements.find(el => el === currentElement || el.contains(currentElement)));
+      if (parentIndex !== -1) {
+        elements.splice(parentIndex, 0, parent);
+      } else {
+        elements.unshift(parent);
+      }
+    }
+
+    // Collect all text content from these elements
+    return elements
+      .filter(el => el && el.textContent)
+      .map(el => el.textContent.trim())
+      .filter(text => text.length > 0)
+      .join(' ');
+  };
+
+  const fullContextText = collectTextAroundSelection(range);
+
+  // Now extract words around the selected text within this context
+  const segmenter = new Intl.Segmenter('th', { granularity: 'word' });
+  const segments = Array.from(segmenter.segment(fullContextText));
+  const words = segments.map(s => s.segment).filter(word => word.trim().length > 0);
+
+  // Find the selection in the context text (approximate)
+  const selectedIndex = fullContextText.indexOf(selectedText);
+  if (selectedIndex === -1) return selectedText;
+
+  // Count words to the selection point
+  let wordCount = 0;
+  let selectionStartWord = -1;
+  let charOffset = 0;
+
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
+    const wordStart = charOffset;
+    const wordEnd = wordStart + segment.segment.length;
+
+    if (wordStart <= selectedIndex && selectedIndex < wordEnd) {
+      selectionStartWord = i;
+      break;
+    }
+
+    if (segment.segment.trim()) {
+      wordCount++;
+    }
+    charOffset += segment.segment.length;
+  }
+
+  if (selectionStartWord === -1) return selectedText;
+
+  // Extract context words
+  const startIndex = Math.max(0, selectionStartWord - maxWordsBefore);
+  const endIndex = Math.min(words.length - 1, selectionStartWord + selectedText.split(/\s+/).length + maxWordsAfter);
+
+  const contextWords = words.slice(startIndex, endIndex + 1);
+  return contextWords.join(' ').trim();
+}
+
+// Calculate context from limited text node (standard mode)
+function calculateLimitedContext(range, selectedText, aiGroups) {
+  let node = range.startContainer;
+  if (node.nodeType !== Node.TEXT_NODE) {
+    // If not a text node, find the first text node descendant
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    node = walker.nextNode();
+    if (!node) return selectedText;
+  }
+
+  const fullText = node.textContent;
+  const startOffset = range.startOffset;
+  const endOffset = range.endOffset;
+
+  // Use the maximum context settings from enabled AI groups
+  const maxWordsBefore = Math.max(...aiGroups.map(g => g.settings.wordsBefore || 40));
+  const maxWordsAfter = Math.max(...aiGroups.map(g => g.settings.wordsAfter || 40));
+
+  // Split text into words using Intl.Segmenter for Thai language support
+  const segmenter = new Intl.Segmenter('th', { granularity: 'word' });
+  const segments = Array.from(segmenter.segment(fullText));
+  const words = segments.map(s => s.segment).filter(word => word.trim().length > 0);
+
+  // Find which words are included in the selection
+  let selectedWords = [];
+  let wordStartIndex = -1;
+  let wordEndIndex = -1;
+
+  let charCount = 0;
+  for (let i = 0; i < words.length; i++) {
+    const wordStart = charCount;
+    const wordLength = words[i].length;
+    const wordEnd = wordStart + wordLength;
+
+    if (wordStart < endOffset && startOffset < wordEnd) {
+      if (wordStartIndex === -1) wordStartIndex = i;
+      selectedWords.push(words[i]);
+      wordEndIndex = i;
+    }
+
+    charCount += wordLength;
+  }
+
+  if (selectedWords.length === 0) return selectedText;
+
+  // Calculate context indices
+  const startIndex = Math.max(0, wordStartIndex - maxWordsBefore);
+  const endIndex = Math.min(words.length - 1, wordEndIndex + maxWordsAfter);
+
+  // Extract context words
+  const contextWords = words.slice(startIndex, endIndex + 1);
+
+  return contextWords.join('');
 }
 
 // ===== DARK MODE MANAGEMENT =====

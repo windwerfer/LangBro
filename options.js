@@ -722,6 +722,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('aiSendContext').checked = group.settings?.sendContext || false;
         document.getElementById('aiWordsBefore').value = group.settings?.wordsBefore || 40;
         document.getElementById('aiWordsAfter').value = group.settings?.wordsAfter || 40;
+        document.getElementById('aiCompleteContext').checked = group.settings?.completeContext || false;
         document.getElementById('aiContextSettings').style.display = group.settings?.sendContext ? 'block' : 'none';
       } else if (group.queryType === 'offline') {
         // Load selected dictionaries for offline groups
@@ -899,7 +900,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const sendContext = document.getElementById('aiSendContext').checked;
       const wordsBefore = parseInt(document.getElementById('aiWordsBefore').value) || 40;
       const wordsAfter = parseInt(document.getElementById('aiWordsAfter').value) || 40;
-      settings = { serviceId: selectedAiServiceId, maxTokens, prompt, sendContext, wordsBefore, wordsAfter };
+      const completeContext = document.getElementById('aiCompleteContext').checked;
+      settings = { serviceId: selectedAiServiceId, maxTokens, prompt, sendContext, wordsBefore, wordsAfter, completeContext };
     }
 
     // Build popup settings if display method is popup
