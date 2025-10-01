@@ -292,9 +292,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
 
         const db = await getStructuredDB();
-        console.log('BACKGROUND: Calling db.getSuggestionsInDictionaries with word:', word, 'maxResults:', maxResults, 'dictionaries:', selectedDictionaries);
+        // console.log('BACKGROUND: Calling db.getSuggestionsInDictionaries with word:', word, 'maxResults:', maxResults, 'dictionaries:', selectedDictionaries);
         const suggestions = await db.getSuggestionsInDictionaries(word, maxResults, selectedDictionaries);
-        console.log('BACKGROUND: Database returned suggestions:', suggestions);
         console.log('BACKGROUND: Sending response with suggestions:', suggestions);
         sendResponse({ suggestions: suggestions });
       } catch (error) {

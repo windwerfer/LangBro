@@ -49,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const queryTypeSelect = document.getElementById('queryType');
   const showSearchFieldSelect = document.getElementById('showSearchField');
   const displaySuggestionsInput = document.getElementById('displaySuggestions');
+  const showDidYouMeanSuggestionsCheckbox = document.getElementById('showDidYouMeanSuggestions');
   const saveGroupBtn = document.getElementById('saveGroupBtn');
   const cancelGroupBtn = document.getElementById('cancelGroupBtn');
 
@@ -507,19 +508,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Function to update displaySuggestions visibility
+  // Function to update displaySuggestions and did-you-mean visibility
   function updateDisplaySuggestionsVisibility() {
     const queryType = queryTypeSelect.value;
     const showSearchField = showSearchFieldSelect.value;
     const displaySuggestionsRow = displaySuggestionsInput.closest('.form-group');
+    const didYouMeanRow = showDidYouMeanSuggestionsCheckbox.closest('.form-group');
 
     // Show suggestions input only if search field is enabled AND it's an offline dictionary
     const shouldShow = showSearchField !== 'none' && queryType === 'offline';
 
     if (shouldShow) {
       displaySuggestionsRow.style.display = 'block';
+      didYouMeanRow.style.display = 'block';
     } else {
       displaySuggestionsRow.style.display = 'none';
+      didYouMeanRow.style.display = 'none';
     }
   }
 
@@ -698,6 +702,7 @@ document.addEventListener('DOMContentLoaded', () => {
       textSelectionMethodSelect.value = group.textSelectionMethod || 'selectedText';
       showSearchFieldSelect.value = group.showSearchField || 'none';
       displaySuggestionsInput.value = group.displaySuggestions !== undefined ? group.displaySuggestions : 20;
+      showDidYouMeanSuggestionsCheckbox.checked = group.showDidYouMeanSuggestions !== false; // Default to true
       showQueryTypeSettings(group.queryType);
       showDisplayMethodSettings(group.displayMethod || 'popup');
 
@@ -939,6 +944,7 @@ document.addEventListener('DOMContentLoaded', () => {
       textSelectionMethod: textSelectionMethodSelect.value,
       showSearchField: showSearchFieldSelect.value,
       displaySuggestions: displaySuggestionsInput.value.trim() === '' ? 20 : (parseInt(displaySuggestionsInput.value) || 0),
+      showDidYouMeanSuggestions: showDidYouMeanSuggestionsCheckbox.checked,
       popupSettings,
       inlineSettings,
       bottomSettings,
