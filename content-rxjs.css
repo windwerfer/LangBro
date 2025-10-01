@@ -208,6 +208,15 @@
   border-color: #555;
 }
 
+.langbro-dark .langbro-inline img {
+    display: inline; /* Ensures it flows inline with text (default, but explicit for clarity) */
+    vertical-align: baseline; /* Aligns the bottom of the image to the text baseline, like a letter's descender */
+    height: 1em; /* Scales height to match the parent font size (e.g., 16px if font-size is 16px) */
+    width: auto; /* Maintains aspect ratio; adjust if needed */
+    margin: 0 0.1em; /* Adds subtle horizontal spacing, like kerning between letters */
+    line-height: 1; /* Prevents extra vertical space around the image */
+}
+
 .langbro-dark .langbro-bottom {
   background-color: #2d2d2d;
   color: #ffffff;
