@@ -673,12 +673,18 @@ document.addEventListener('DOMContentLoaded', () => {
       editBtn.textContent = 'Edit';
       editBtn.onclick = () => editQueryGroup(index);
 
+      const duplicateBtn = document.createElement('button');
+      duplicateBtn.textContent = 'Duplicate';
+      duplicateBtn.style.marginLeft = '5px';
+      duplicateBtn.onclick = () => duplicateQueryGroup(index);
+
       const deleteBtn = document.createElement('button');
       deleteBtn.textContent = 'Delete';
       deleteBtn.style.marginLeft = '5px';
       deleteBtn.onclick = () => deleteQueryGroup(index);
 
       buttonsDiv.appendChild(editBtn);
+      buttonsDiv.appendChild(duplicateBtn);
       buttonsDiv.appendChild(deleteBtn);
 
       headerDiv.appendChild(infoDiv);
@@ -1011,6 +1017,34 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     } catch (error) {
       console.error('Error deleting query group:', error);
+    }
+  }
+
+  async function duplicateQueryGroup(index) {
+    try {
+      const result = await chrome.storage.local.get(['queryGroups']);
+      const groups = result.queryGroups || [];
+      const originalGroup = groups[index];
+
+      const duplicatedGroup = {
+        ...originalGroup,
+        id: Date.now().toString(),
+        name: `${originalGroup.name} (Copy)`
+      };
+
+      groups.push(duplicatedGroup);
+      await chrome.storage.local.set({ queryGroups: groups });
+      renderQueryGroups(groups);
+
+      // Notify content script to update icons
+      chrome.tabs.query({}, (tabs) => {
+        tabs.forEach(tab => {
+          chrome.tabs.sendMessage(tab.id, { action: 'updateQueryGroups', groups });
+        });
+      });
+    } catch (error) {
+      console.error('Error duplicating query group:', error);
+      alert('Error duplicating query group.');
     }
   }
 
