@@ -183,27 +183,27 @@
 }
 
 /* Did-you-mean suggestions container */
-.langbro-didyoumean-container {
+.did-you-mean-container {
   margin-bottom: 5px;
   padding: 3px 0;
   font-size: 12px;
   color: #666;
 }
 
-.langbro-didyoumean-container span {
+.did-you-mean-word {
   display: inline-block;
-  margin-right: 6px;
+  margin-right: 8px;
   margin-bottom: 2px;
-  padding: 1px 4px;
+  padding: 2px 4px;
   border: 1px solid #ddd;
   border-radius: 3px;
-  background-color: #f8f8f8;
+  background-color: #f0f0f0;
   cursor: pointer;
   transition: background-color 0.2s;
 }
 
-.langbro-didyoumean-container span:hover {
-  background-color: #e8e8e8;
+.did-you-mean-word:hover {
+  background-color: #e0e0e0;
 }
 
 /* Dictionary content styles */
@@ -284,17 +284,17 @@
 }
 
 /* Did-you-mean dark mode */
-.langbro-dark .langbro-didyoumean-container {
+.langbro-dark .did-you-mean-container {
   color: #aaa;
 }
 
-.langbro-dark .langbro-didyoumean-container span {
+.langbro-dark .did-you-mean-word {
   border-color: #666;
   background-color: #3a3a3a;
   color: #ddd;
 }
 
-.langbro-dark .langbro-didyoumean-container span:hover {
+.langbro-dark .did-you-mean-word:hover {
   background-color: #4a4a4a;
 }
 

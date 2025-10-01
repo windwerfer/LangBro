@@ -962,12 +962,6 @@ function showDidYouMeanSuggestions(suggestions, locationInfo) {
     const suggestionSpan = document.createElement('span');
     suggestionSpan.className = 'did-you-mean-word';
     suggestionSpan.textContent = suggestion;
-    suggestionSpan.style.cursor = 'pointer';
-    suggestionSpan.style.marginRight = '8px';
-    suggestionSpan.style.padding = '2px 4px';
-    suggestionSpan.style.borderRadius = '3px';
-    suggestionSpan.style.backgroundColor = '#f0f0f0';
-    suggestionSpan.style.border = '1px solid #ddd';
 
     // Make it clickable
     suggestionSpan.addEventListener('click', async () => {
