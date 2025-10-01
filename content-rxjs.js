@@ -1169,10 +1169,16 @@ function showLookupIcons(selection) {
   // Hide existing icons
   hideLookupIcons();
 
-  // Filter enabled groups
-  const enabledGroups = settings.current.queryGroups.filter(group => group.enabled);
-  console.log('Enabled query groups:', enabledGroups.length);
-  if (enabledGroups.length === 0) return;
+// Check if extension is enabled
+if (!settings.current.extensionEnabled) {
+  console.log('Extension is disabled, skipping icon display');
+  return;
+}
+
+// Filter enabled groups
+const enabledGroups = settings.current.queryGroups.filter(group => group.enabled);
+console.log('Enabled query groups:', enabledGroups.length);
+if (enabledGroups.length === 0) return;
 
   // Position calculation
   const range = selection.getRangeAt(0);
@@ -1660,6 +1666,22 @@ function setupEventListeners() {
         const selection = window.getSelection();
         if (selection.toString().trim()) {
           showLookupIcons(selection);
+        }
+      }
+    } else if (message.action === 'extensionEnabledChanged') {
+      settings.update({ extensionEnabled: message.enabled });
+      console.log('Extension enabled state changed:', message.enabled);
+
+      // Hide icons if extension is disabled
+      if (!message.enabled) {
+        hideLookupIcons();
+      } else {
+        // Show icons if extension is re-enabled and text is selected
+        if (settings.current.currentSelection && settings.current.currentSelection.selectedText) {
+          const selection = window.getSelection();
+          if (selection.toString().trim()) {
+            showLookupIcons(selection);
+          }
         }
       }
     }

@@ -10,6 +10,7 @@ export class SettingsStore {
     // Initialize with default values
     this.settings$ = new BehaviorSubject({
       // Configuration settings
+      extensionEnabled: true,
       iconPlacement: 'underneath',
       iconOffset: 50,
       iconSpacing: 40,
@@ -66,6 +67,7 @@ export class SettingsStore {
       // Load all settings in parallel
       const [settingsResult, groupsResult] = await Promise.all([
         chrome.storage.local.get([
+          'extensionEnabled',
           'iconPlacement',
           'iconOffset',
           'iconSpacing',
@@ -80,6 +82,7 @@ export class SettingsStore {
 
       // Update settings with loaded values
       this.update({
+        extensionEnabled: settingsResult.extensionEnabled !== undefined ? settingsResult.extensionEnabled : true,
         iconPlacement: settingsResult.iconPlacement || 'underneath',
         iconOffset: settingsResult.iconOffset || 50,
         iconSpacing: settingsResult.iconSpacing || 60,
@@ -126,6 +129,7 @@ export class SettingsStore {
         const updates = {};
 
         // Map storage keys to settings keys
+        if (changes.extensionEnabled !== undefined) updates.extensionEnabled = changes.extensionEnabled.newValue;
         if (changes.iconPlacement) updates.iconPlacement = changes.iconPlacement.newValue;
         if (changes.iconOffset) updates.iconOffset = changes.iconOffset.newValue;
         if (changes.iconSpacing) updates.iconSpacing = changes.iconSpacing.newValue;
