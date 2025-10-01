@@ -155,7 +155,8 @@ clickSequence$.subscribe(({ count, target }) => {
 const singleClickWordMarking$ = combineLatest([
   settings.select('singleClickGroupId'),
   mouseUp$.pipe(
-    filter(event => !settings.current.currentSelection?.selectedText) // Only when no text is selected
+    filter(event => !settings.current.currentSelection?.selectedText), // Only when no text is selected
+    filter(event => !event.target.closest('.did-you-mean-word, .suggestion-item, .langbro-lookup-icon, [data-box-id]')) // Exclude extension UI elements
   )
 ]).pipe(
   filter(([singleClickGroupId, clickEvent]) => singleClickGroupId && singleClickGroupId !== ''),
