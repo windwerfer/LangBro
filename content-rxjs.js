@@ -970,7 +970,7 @@ function showDidYouMeanSuggestions(suggestions, locationInfo) {
     suggestionSpan.style.border = '1px solid #ddd';
 
     // Make it clickable
-    suggestionSpan.addEventListener('click', () => {
+    suggestionSpan.addEventListener('click', async () => {
       console.log('CONTENT: Did-you-mean word clicked:', suggestion);
 
       // Update the search field if it exists
@@ -979,15 +979,75 @@ function showDidYouMeanSuggestions(suggestions, locationInfo) {
         searchInput.value = suggestion;
       }
 
-      // Update the result content by performing a new lookup
+      // Update content directly (preserve did-you-mean container)
+      const contentDiv = resultDiv.querySelector('.langbro-result-content');
+      if (!contentDiv) return;
+
+      // Get group info
       const groupId = resultDiv.dataset.groupId;
       const group = settings.current.queryGroups.find(g => g.id === groupId);
-      if (group) {
-        // Clear existing did-you-mean suggestions
-        didYouMeanContainer.remove();
 
-        // Perform new lookup
-        lookupWord(suggestion, group, locationInfo);
+      // Show spinner in content
+      contentDiv.innerHTML = '';
+      const spinner = createSpinner(`Loading ${group.name}...`);
+      contentDiv.appendChild(spinner);
+
+      if (!group) {
+        console.error('CONTENT: Could not find group for did-you-mean click, groupId:', groupId, 'available groups:', settings.current.queryGroups.map(g => g.id));
+        // Clear the did-you-mean container since we can't handle clicks
+        const existingContainer = headerDiv.querySelector('.did-you-mean-container');
+        if (existingContainer) {
+          existingContainer.remove();
+        }
+        return;
+      }
+
+      try {
+        // Perform lookup
+        const message = {
+          action: 'lookup',
+          word: suggestion,
+          groupId: group.id,
+          queryType: group.queryType,
+          settings: group.settings,
+          context: settings.current.currentSelection?.context || ''
+        };
+
+        chrome.runtime.sendMessage(message, (response) => {
+          if (chrome.runtime.lastError) {
+            const errorMsg = chrome.runtime.lastError.message;
+            if (errorMsg.includes('Extension context invalidated')) {
+              contentDiv.innerHTML = 'Dictionary updated! Please refresh this page to continue using word lookup.';
+            } else {
+              contentDiv.innerHTML = `Extension error: ${errorMsg}`;
+            }
+            return;
+          }
+
+          // Create group label
+          const createGroupLabel = (group) => {
+            if (group.icon && group.icon.endsWith('.png')) {
+              const iconHtml = `<img src="${chrome.runtime.getURL(group.icon)}" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;" alt="${group.icon}">`;
+              return settings.current.hideGroupNames ? iconHtml : `${iconHtml}${group.name}`;
+            } else {
+              return settings.current.hideGroupNames ? group.icon : `${group.icon} ${group.name}`;
+            }
+          };
+
+          if (response && response.error) {
+            const groupLabel = createGroupLabel(group);
+            contentDiv.innerHTML = sanitizeDictHTML(`Lookup error (${groupLabel}): ${response.error}`);
+          } else if (response && response.definition) {
+            const groupLabel = createGroupLabel(group);
+            contentDiv.innerHTML = sanitizeDictHTML(`${groupLabel}\n\n${response.definition}`);
+          } else {
+            const groupLabel = createGroupLabel(group);
+            contentDiv.innerHTML = sanitizeDictHTML(`No definition found for "${suggestion}" in ${groupLabel}.`);
+          }
+        });
+      } catch (error) {
+        console.error('CONTENT: Error in did-you-mean lookup:', error);
+        contentDiv.innerHTML = `Unable to query ${group.name}. Please refresh the page.`;
       }
     });
 
