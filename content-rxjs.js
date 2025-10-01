@@ -331,6 +331,35 @@ function getPopupDimensions(group) {
   return { width, height };
 }
 
+// Adjust popup height to fit available vertical space
+function adjustPopupHeightForAvailableSpace(resultDiv, rect, popupHeight, selectionCenterY, screenCenterY) {
+  const currentHeight = popupHeight;
+  let adjustedHeight = currentHeight;
+
+  // Calculate available vertical space
+  if (selectionCenterY > screenCenterY) {
+    // Selection is in lower half - positioning above
+    const spaceAbove = rect.top + window.scrollY;
+    if (currentHeight > spaceAbove - 10) { // 10px margin
+      adjustedHeight = Math.max(spaceAbove - 10, 150); // Minimum 150px height
+    }
+  } else {
+    // Selection is in upper half - positioning below
+    const spaceBelow = (window.innerHeight + window.scrollY) - (rect.bottom + window.scrollY);
+    if (currentHeight > spaceBelow - 10) { // 10px margin
+      adjustedHeight = Math.max(spaceBelow - 10, 150); // Minimum 150px height
+    }
+  }
+
+  // Apply adjusted height if different from original
+  if (adjustedHeight !== currentHeight) {
+    resultDiv.style.height = adjustedHeight + 'px';
+    console.log(`CONTENT: Adjusted popup height from ${currentHeight}px to ${adjustedHeight}px to fit available space`);
+  }
+
+  return adjustedHeight;
+}
+
 // ===== RESULT WINDOW CREATION =====
 
 // Create a shared result div for all display types
@@ -360,8 +389,8 @@ function createResultDiv(type, group, boxId, initialWord = '') {
 
             // Get actual popup dimensions based on group settings
             const popupDimensions = getPopupDimensions(group);
-            const popupWidth = popupDimensions.width;
-            const popupHeight = popupDimensions.height;
+            let popupWidth = popupDimensions.width;
+            let popupHeight = popupDimensions.height;
 
             // Check if selection is in lower half of screen - if so, position above
             const selectionCenterY = rect.top + (rect.height / 2);
@@ -374,6 +403,9 @@ function createResultDiv(type, group, boxId, initialWord = '') {
               // Selection is in upper half - position below
               top = rect.bottom + window.scrollY + 5;
             }
+
+            // Adjust popup height to fit available space if needed
+            popupHeight = adjustPopupHeightForAvailableSpace(resultDiv, rect, popupHeight, selectionCenterY, screenCenterY);
 
             // Adjust horizontal position if it would go off screen
             if (left + popupWidth > window.innerWidth + window.scrollX) {
@@ -706,9 +738,17 @@ function showPopupResult(definition, group, boxId, initialWord = '') {
   // Get popup settings
   const popupSettings = group.popupSettings || { width: '40%', height: '30%', hideOnClickOutside: false };
 
-  // Update width and height from popup settings
+  // Update width and height from popup settings, but don't override if height was already adjusted
   resultDiv.style.width = popupSettings.width;
-  resultDiv.style.height = popupSettings.height;
+
+  // Only set height if it hasn't been adjusted for available space
+  const currentHeight = resultDiv.style.height;
+  const settingsHeight = popupSettings.height;
+  // If height is empty, not set, or matches settings, then apply from settings
+  // If height is different from settings, it means it was adjusted for space, so preserve it
+  if (!currentHeight || currentHeight === '' || currentHeight === settingsHeight) {
+    resultDiv.style.height = settingsHeight;
+  }
 
   // Get content div
   const contentDiv = resultDiv.querySelector('.langbro-result-content');
