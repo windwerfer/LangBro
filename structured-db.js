@@ -649,9 +649,13 @@ class StructuredDictionaryDatabase {
             // All dictionaries processed
             const result = Array.from(suggestions).sort();
 
-            // Include original word in results, but if only original found, return empty
+            // If only original word found, return empty (did-you-mean should show alternatives)
             if (result.length === 1 && result[0] === word) {
               console.log('DB: Only original word found, returning empty did-you-mean suggestions');
+              resolve([]);
+            } else if (result.length === 0) {
+              // No suggestions found at all, return empty
+              console.log('DB: No did-you-mean suggestions found');
               resolve([]);
             } else {
               // Always include original word if it exists in dictionary
