@@ -900,8 +900,8 @@ function performSearch(query, group, resultDiv, boxId) {
 
 // Fetch and show did-you-mean suggestions for offline queries
 async function fetchAndShowDidYouMeanSuggestions(word, group, locationInfo) {
-  // Only check for did-you-mean suggestions for offline queries with nextChars available
-  if (group.queryType !== 'offline' || !settings.current.currentSelection?.nextChars) {
+  // Only check for did-you-mean suggestions for offline queries with nextChars available and setting enabled
+  if (group.queryType !== 'offline' || !settings.current.currentSelection?.nextChars || !group.showDidYouMeanSuggestions) {
     return;
   }
 
