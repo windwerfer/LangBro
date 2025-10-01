@@ -576,6 +576,19 @@ async function performWebLookup(word, settings) {
     if (data.translation) return data.translation;
     if (typeof data === 'string') return data;
 
+    // Try Google Translate array patterns (data[0][n][0] where n = 0, 1, 2, ...)
+    if (data && Array.isArray(data[0])) {
+      const translations = [];
+      for (let i = 0; i < Math.min(data[0].length, 5); i++) { // Try first 5 results
+        if (data[0][i] && Array.isArray(data[0][i]) && data[0][i][0]) {
+          translations.push(data[0][i][0]);
+        }
+      }
+      if (translations.length > 0) {
+        return translations.join(' ');
+      }
+    }
+
     // Fallback: return the full response as formatted JSON
     return JSON.stringify(data, null, 2);
   } else {
