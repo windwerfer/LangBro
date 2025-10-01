@@ -180,7 +180,7 @@
       <div class="form-group">
         <label for="webServiceJsonPath">JSON Path (optional):</label>
         <input type="text" id="webServiceJsonPath" placeholder="data.translation or 0[0][0]">
-        <small>Extract specific data from JSON response (e.g., '0[0][0]' or 'result.translation' or 'data[0].text')</small>
+        <small>If autodetection fails, enter the data format of the JSON response (e.g., '0[0][0]' or 'result.translation' or 'data[0].text')</small>
       </div>
 
       <div style="margin-top: 20px;">
@@ -394,19 +394,7 @@
 
       <!-- Web API Settings -->
       <div id="webSettings" class="query-type-settings" style="display: none;">
-        <div class="form-group">
-          <label for="webUrl">API URL:</label>
-          <input type="url" id="webUrl" placeholder="https://api.example.com/lookup?word={text}">
-          <small>Use {text} for selected text, {lang} for full language name, {lang_short} for 2-letter code</small>
-          <br><small>Examples:</small>
-          <br><small>• Dictionary API: https://api.dictionaryapi.dev/api/v2/entries/{lang_short}/{text}</small>
-          <br><small>• Translation API: https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={lang_short}&dt=t&q={text}</small>
-        </div>
-        <div class="form-group">
-          <label for="webJsonPath">JSON Path (optional):</label>
-          <input type="text" id="webJsonPath" placeholder="data.translation or 0[0][0]">
-          <small>Extract specific data from JSON response (e.g., '0[0][0]' or 'result.translation' or 'data[0].text')</small>
-        </div>
+        <p>Select a web service from the dropdown above. Configure web services in the "Web Dictionarys / Translators" tab.</p>
       </div>
 
       <!-- AI Settings -->
