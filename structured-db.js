@@ -558,7 +558,18 @@ class StructuredDictionaryDatabase {
     });
   }
 
-  // Get "did you mean" suggestions - exact matches for word + nextChars (with/without space)
+  // Helper function to generate all combinations of word + nextChars prefixes
+  generateCombinations(word, chars) {
+    const combinations = [];
+    // Generate prefixes from length 1 to full length (max 15)
+    const maxLength = Math.min(chars.length, 15);
+    for (let i = 1; i <= maxLength; i++) {
+      combinations.push(word + chars.substring(0, i));
+    }
+    return combinations;
+  }
+
+  // Get "did you mean" suggestions - comprehensive search for word + nextChars combinations
   async getDidYouMeanSuggestions(word, nextChars, maxResults = 10, selectedDictionaryNames = []) {
     if (!this.db) await this.open();
 
@@ -574,6 +585,10 @@ class StructuredDictionaryDatabase {
       return [];
     }
 
+    // Clean nextChars: remove double spaces and trim
+    nextChars = nextChars.replace(/\s+/g, ' ').trim();
+    console.log('DB: Cleaned nextChars:', nextChars);
+
     const transaction = this.db.transaction(['terms'], 'readonly');
     const store = transaction.objectStore('terms');
     const index = store.index('expression'); // Use compound index [dictionary, expression]
@@ -581,11 +596,17 @@ class StructuredDictionaryDatabase {
     return new Promise((resolve, reject) => {
       const suggestions = new Set(); // Use Set to avoid duplicates
 
-      // Create search patterns: word + nextChars and word + " " + nextChars
-      const exactPattern = word + nextChars;
-      const spacedPattern = word + " " + nextChars;
+      // Generate all combinations for original nextChars
+      const combinations = this.generateCombinations(word, nextChars);
 
-      console.log('DB: Searching for patterns:', exactPattern, 'and', spacedPattern);
+      // If nextChars contains spaces, also generate combinations for spaceless version
+      const nextCharsNoSpaces = nextChars.replace(/\s/g, '');
+      if (nextCharsNoSpaces !== nextChars) {
+        console.log('DB: nextChars contains spaces, also checking spaceless version:', nextCharsNoSpaces);
+        combinations.push(...this.generateCombinations(word, nextCharsNoSpaces));
+      }
+
+      console.log('DB: Generated', combinations.length, 'combinations to check:', combinations);
 
       // We need to query each selected dictionary separately
       let dictionariesProcessed = 0;
@@ -593,7 +614,6 @@ class StructuredDictionaryDatabase {
 
       const processDictionary = (dictName) => {
         console.log('DB: Processing dictionary:', dictName, 'for did-you-mean suggestions');
-        let patternsFound = 0;
 
         const checkPattern = (pattern) => {
           return new Promise((resolvePattern) => {
@@ -607,8 +627,6 @@ class StructuredDictionaryDatabase {
                 console.log('DB: Found exact match:', expression, 'in dict:', dictName);
                 suggestions.add(expression);
                 console.log('DB: Added did-you-mean suggestion:', expression, 'total suggestions:', suggestions.size);
-              } else {
-                console.log('DB: No exact match found for pattern:', pattern, 'in dict:', dictName);
               }
               resolvePattern();
             };
@@ -620,11 +638,10 @@ class StructuredDictionaryDatabase {
           });
         };
 
-        // Check both patterns for this dictionary
-        Promise.all([
-          checkPattern(exactPattern),
-          checkPattern(spacedPattern)
-        ]).then(() => {
+        // Check ALL combinations concurrently for this dictionary
+        const patternChecks = combinations.map(combination => checkPattern(combination));
+
+        Promise.all(patternChecks).then(() => {
           dictionariesProcessed++;
           console.log('DB: Finished processing dictionary:', dictName, 'processed:', dictionariesProcessed, '/', totalDictionaries);
 

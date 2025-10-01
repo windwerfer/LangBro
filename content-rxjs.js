@@ -442,42 +442,8 @@ function createCloseButton(targetDiv) {
 
 // Add suggestions event handlers to a search input
 function addSuggestionsHandlers(searchInput, resultDiv, group, boxId) {
-  let suggestionsTimeout;
   let blurTimeout;
 
-  searchInput.addEventListener('input', () => {
-    clearTimeout(suggestionsTimeout);
-    const query = searchInput.value.trim();
-
-    if (query.length > 0) {
-      suggestionsTimeout = setTimeout(async () => {
-        try {
-          // console.log('CONTENT: Requesting suggestions for word:', query, 'dictionaries:', group.settings?.selectedDictionaries);
-          const response = await chrome.runtime.sendMessage({
-            action: 'getSuggestions',
-            word: query,
-            maxResults: group.displaySuggestions || 20,
-            selectedDictionaries: group.settings?.selectedDictionaries || []
-          });
-          // console.log('CONTENT: Received suggestions response:', response);
-
-          if (response.suggestions && response.suggestions.length > 0) {
-            // console.log('CONTENT: Showing suggestions:', response.suggestions);
-            showSuggestions(response.suggestions, searchInput, resultDiv, group, boxId);
-          } else {
-            // console.log('CONTENT: No suggestions to show, hiding dropdown');
-            hideSuggestions(resultDiv);
-          }
-        } catch (error) {
-          console.error('CONTENT: Error getting suggestions:', error);
-          hideSuggestions(resultDiv);
-        }
-      }, 300); // 0.3 second delay for suggestions
-    } else {
-      // console.log('CONTENT: Query is empty, hiding suggestions');
-      hideSuggestions(resultDiv);
-    }
-  });
 
   // Show suggestions when input gains focus or is clicked (if it has content)
   const showSuggestionsIfContent = async () => {
@@ -931,6 +897,85 @@ function performSearch(query, group, resultDiv, boxId) {
   lookupWord(query, group, { boxId, displayMethod: group.displayMethod || 'popup' });
 }
 
+// Show did-you-mean suggestions in the result header
+function showDidYouMeanSuggestions(suggestions, locationInfo) {
+  if (!suggestions || suggestions.length === 0) return;
+
+  // Find the result div
+  const resultDiv = settings.current.resultDivs.find(div => div.dataset.boxId == locationInfo.boxId) ||
+                   settings.current.inlineDivs.find(div => div.dataset.boxId == locationInfo.boxId) ||
+                   settings.current.bottomDivs.find(div => div.dataset.boxId == locationInfo.boxId);
+
+  if (!resultDiv) {
+    console.error('CONTENT: Could not find result div for did-you-mean suggestions');
+    return;
+  }
+
+  // Get the header div
+  const headerDiv = resultDiv.querySelector('.langbro-result-header');
+  if (!headerDiv) {
+    console.error('CONTENT: Could not find header div for did-you-mean suggestions');
+    return;
+  }
+
+  // Remove existing did-you-mean container
+  const existingContainer = headerDiv.querySelector('.did-you-mean-container');
+  if (existingContainer) {
+    existingContainer.remove();
+  }
+
+  // Create did-you-mean container
+  const didYouMeanContainer = document.createElement('div');
+  didYouMeanContainer.className = 'did-you-mean-container';
+
+  // Add each suggestion as a clickable span
+  suggestions.forEach(suggestion => {
+    const suggestionSpan = document.createElement('span');
+    suggestionSpan.className = 'did-you-mean-word';
+    suggestionSpan.textContent = suggestion;
+    suggestionSpan.style.cursor = 'pointer';
+    suggestionSpan.style.marginRight = '8px';
+    suggestionSpan.style.padding = '2px 4px';
+    suggestionSpan.style.borderRadius = '3px';
+    suggestionSpan.style.backgroundColor = '#f0f0f0';
+    suggestionSpan.style.border = '1px solid #ddd';
+
+    // Make it clickable
+    suggestionSpan.addEventListener('click', () => {
+      console.log('CONTENT: Did-you-mean word clicked:', suggestion);
+
+      // Update the search field if it exists
+      const searchInput = headerDiv.querySelector('.langbro-search-input');
+      if (searchInput) {
+        searchInput.value = suggestion;
+      }
+
+      // Update the result content by performing a new lookup
+      const groupId = resultDiv.dataset.groupId;
+      const group = settings.current.queryGroups.find(g => g.id === groupId);
+      if (group) {
+        // Clear existing did-you-mean suggestions
+        didYouMeanContainer.remove();
+
+        // Perform new lookup
+        lookupWord(suggestion, group, locationInfo);
+      }
+    });
+
+    didYouMeanContainer.appendChild(suggestionSpan);
+  });
+
+  // Insert after the close button
+  const closeBtn = headerDiv.querySelector('.langbro-close-btn');
+  if (closeBtn) {
+    closeBtn.insertAdjacentElement('afterend', didYouMeanContainer);
+  } else {
+    headerDiv.appendChild(didYouMeanContainer);
+  }
+
+  console.log('CONTENT: Did-you-mean suggestions displayed:', suggestions.length, 'words');
+}
+
 // ===== LOOKUP ICONS FUNCTIONALITY =====
 
 // Show multiple lookup icons near the selection
@@ -1333,7 +1378,7 @@ function lookupWord(word, group, locationInfo) {
       context: settings.current.currentSelection?.context || ''
     };
 
-    chrome.runtime.sendMessage(message, (response) => {
+    chrome.runtime.sendMessage(message, async (response) => {
       // console.log(message);
       console.log('Content script received response:', response);
       if (chrome.runtime.lastError) {
@@ -1361,9 +1406,57 @@ function lookupWord(word, group, locationInfo) {
       } else if (response && response.definition) {
         const groupLabel = createGroupLabel(group);
         showResult(`${groupLabel}\n\n${response.definition}`, group, locationInfo);
+
+        // For offline queries, also check for did-you-mean suggestions
+        if (group.queryType === 'offline' && settings.current.currentSelection?.nextChars) {
+          console.log('CONTENT: Checking for did-you-mean suggestions for offline query');
+          try {
+            const didYouMeanResponse = await chrome.runtime.sendMessage({
+              action: 'didYouMean',
+              word: word,
+              nextChars: settings.current.currentSelection.nextChars,
+              maxResults: 5, // Limit to 5 suggestions
+              selectedDictionaries: group.settings?.selectedDictionaries || []
+            });
+            console.log('CONTENT: Received did-you-mean response:', didYouMeanResponse);
+
+            if (didYouMeanResponse && didYouMeanResponse.suggestions && didYouMeanResponse.suggestions.length > 0) {
+              console.log('CONTENT: Showing did-you-mean suggestions:', didYouMeanResponse.suggestions);
+              showDidYouMeanSuggestions(didYouMeanResponse.suggestions, locationInfo);
+            } else {
+              console.log('CONTENT: No did-you-mean suggestions to show');
+            }
+          } catch (error) {
+            console.error('CONTENT: Error getting did-you-mean suggestions:', error);
+          }
+        }
       } else {
         const groupLabel = createGroupLabel(group);
         showResult(`No definition found for "${word}" in ${groupLabel}.`, group, locationInfo);
+
+        // For offline queries with no definition found, still check for did-you-mean suggestions
+        if (group.queryType === 'offline' && settings.current.currentSelection?.nextChars) {
+          console.log('CONTENT: Checking for did-you-mean suggestions for offline query with no definition');
+          try {
+            const didYouMeanResponse = await chrome.runtime.sendMessage({
+              action: 'didYouMean',
+              word: word,
+              nextChars: settings.current.currentSelection.nextChars,
+              maxResults: 5, // Limit to 5 suggestions
+              selectedDictionaries: group.settings?.selectedDictionaries || []
+            });
+            console.log('CONTENT: Received did-you-mean response:', didYouMeanResponse);
+
+            if (didYouMeanResponse && didYouMeanResponse.suggestions && didYouMeanResponse.suggestions.length > 0) {
+              console.log('CONTENT: Showing did-you-mean suggestions:', didYouMeanResponse.suggestions);
+              showDidYouMeanSuggestions(didYouMeanResponse.suggestions, locationInfo);
+            } else {
+              console.log('CONTENT: No did-you-mean suggestions to show');
+            }
+          } catch (error) {
+            console.error('CONTENT: Error getting did-you-mean suggestions:', error);
+          }
+        }
       }
     });
   } catch (error) {
