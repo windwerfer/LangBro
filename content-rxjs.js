@@ -296,6 +296,41 @@ function updateCurrentSelection(selection, selectedText) {
 // Global state - now accessed via reactive settings store from './settings-store.js'
 // Use settings.current to read values, settings.update() to write, settings.select() for observables
 
+// Calculate popup dimensions based on group settings
+function getPopupDimensions(group) {
+  const popupSettings = group.popupSettings || { width: '40%', height: '30%' };
+
+  let width = popupSettings.width;
+  let height = popupSettings.height;
+
+  // Convert percentage to pixels if needed
+  if (typeof width === 'string' && width.endsWith('%')) {
+    const percent = parseFloat(width) / 100;
+    width = Math.round(window.innerWidth * percent);
+  } else if (typeof width === 'string' && width.endsWith('px')) {
+    width = parseInt(width);
+  } else if (typeof width === 'number') {
+    // Already a number
+  } else {
+    // Default fallback
+    width = Math.round(window.innerWidth * 0.4);
+  }
+
+  if (typeof height === 'string' && height.endsWith('%')) {
+    const percent = parseFloat(height) / 100;
+    height = Math.round(window.innerHeight * percent);
+  } else if (typeof height === 'string' && height.endsWith('px')) {
+    height = parseInt(height);
+  } else if (typeof height === 'number') {
+    // Already a number
+  } else {
+    // Default fallback
+    height = Math.round(window.innerHeight * 0.3);
+  }
+
+  return { width, height };
+}
+
 // ===== RESULT WINDOW CREATION =====
 
 // Create a shared result div for all display types
@@ -321,14 +356,35 @@ function createResultDiv(type, group, boxId, initialWord = '') {
 
             const rect = range.getBoundingClientRect();
             let left = rect.left + window.scrollX;
-            let top = rect.bottom + window.scrollY + 5;
+            let top;
 
-            // Adjust if it would go off screen
-            if (left + 300 > window.innerWidth + window.scrollX) {
-              left = window.innerWidth + window.scrollX - 310;
+            // Get actual popup dimensions based on group settings
+            const popupDimensions = getPopupDimensions(group);
+            const popupWidth = popupDimensions.width;
+            const popupHeight = popupDimensions.height;
+
+            // Check if selection is in lower half of screen - if so, position above
+            const selectionCenterY = rect.top + (rect.height / 2);
+            const screenCenterY = window.innerHeight / 2;
+
+            if (selectionCenterY > screenCenterY) {
+              // Selection is in lower half - position above
+              top = rect.top + window.scrollY - popupHeight - 5;
+            } else {
+              // Selection is in upper half - position below
+              top = rect.bottom + window.scrollY + 5;
             }
-            if (top + 100 > window.innerHeight + window.scrollY) {
-              top = rect.top + window.scrollY - 110;
+
+            // Adjust horizontal position if it would go off screen
+            if (left + popupWidth > window.innerWidth + window.scrollX) {
+              left = window.innerWidth + window.scrollX - popupWidth - 5;
+            }
+
+            // Final check: if positioned popup would still go off screen, adjust
+            if (top + popupHeight > window.innerHeight + window.scrollY) {
+              top = window.innerHeight + window.scrollY - popupHeight - 5;
+            } else if (top < window.scrollY) {
+              top = window.scrollY + 5;
             }
 
             resultDiv.style.left = left + 'px';
