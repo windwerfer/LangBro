@@ -67,7 +67,7 @@
 }
 
 .langbro-search-button {
-  padding: 2px 6px;
+  padding: 1px 1px;
   border: 1px solid #ccc;
   border-radius: 3px;
   background: white;
@@ -184,8 +184,6 @@
 
 /* Did-you-mean suggestions container */
 .did-you-mean-container {
-  margin-bottom: 5px;
-  padding: 3px 0;
   font-size: 12px;
   color: #666;
   display: block;
@@ -269,12 +267,12 @@
 }
 
 .langbro-dark .langbro-search-button {
-  padding: 2px 6px;
   border: 1px solid #555;
   border-radius: 3px;
   background: #1e1e1e;
   cursor: pointer;
   font-size: 12px;
+  margin: 0px;
 }
 
 .langbro-dark .suggestion-item {
@@ -288,6 +286,7 @@
 /* Did-you-mean dark mode */
 .langbro-dark .did-you-mean-container {
   color: #aaa;
+  padding: 5px 0px;
 }
 
 .langbro-dark .did-you-mean-word {

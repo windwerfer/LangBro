@@ -1049,12 +1049,18 @@ function showDidYouMeanSuggestions(suggestions, locationInfo) {
     didYouMeanContainer.appendChild(suggestionSpan);
   });
 
-  // Insert after the close button
-  const closeBtn = headerDiv.querySelector('.langbro-close-btn');
-  if (closeBtn) {
-    closeBtn.insertAdjacentElement('afterend', didYouMeanContainer);
+  // Insert after the search container
+  const searchContainer = headerDiv.querySelector('.langbro-search-container');
+  if (searchContainer) {
+    searchContainer.insertAdjacentElement('afterend', didYouMeanContainer);
   } else {
-    headerDiv.appendChild(didYouMeanContainer);
+    // Fallback: insert after close button if no search container
+    const closeBtn = headerDiv.querySelector('.langbro-close-btn');
+    if (closeBtn) {
+      closeBtn.insertAdjacentElement('afterend', didYouMeanContainer);
+    } else {
+      headerDiv.appendChild(didYouMeanContainer);
+    }
   }
 
   console.log('CONTENT: Did-you-mean suggestions displayed:', suggestions.length, 'words');
