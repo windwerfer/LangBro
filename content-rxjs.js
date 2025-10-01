@@ -897,6 +897,35 @@ function performSearch(query, group, resultDiv, boxId) {
   lookupWord(query, group, { boxId, displayMethod: group.displayMethod || 'popup' });
 }
 
+// Fetch and show did-you-mean suggestions for offline queries
+async function fetchAndShowDidYouMeanSuggestions(word, group, locationInfo) {
+  // Only check for did-you-mean suggestions for offline queries with nextChars available
+  if (group.queryType !== 'offline' || !settings.current.currentSelection?.nextChars) {
+    return;
+  }
+
+  console.log('CONTENT: Checking for did-you-mean suggestions for offline query');
+  try {
+    const didYouMeanResponse = await chrome.runtime.sendMessage({
+      action: 'didYouMean',
+      word: word,
+      nextChars: settings.current.currentSelection.nextChars,
+      maxResults: 5, // Limit to 5 suggestions
+      selectedDictionaries: group.settings?.selectedDictionaries || []
+    });
+    console.log('CONTENT: Received did-you-mean response:', didYouMeanResponse);
+
+    if (didYouMeanResponse && didYouMeanResponse.suggestions && didYouMeanResponse.suggestions.length > 0) {
+      console.log('CONTENT: Showing did-you-mean suggestions:', didYouMeanResponse.suggestions);
+      showDidYouMeanSuggestions(didYouMeanResponse.suggestions, locationInfo);
+    } else {
+      console.log('CONTENT: No did-you-mean suggestions to show');
+    }
+  } catch (error) {
+    console.error('CONTENT: Error getting did-you-mean suggestions:', error);
+  }
+}
+
 // Show did-you-mean suggestions in the result header
 function showDidYouMeanSuggestions(suggestions, locationInfo) {
   if (!suggestions || suggestions.length === 0) return;
@@ -1408,55 +1437,13 @@ function lookupWord(word, group, locationInfo) {
         showResult(`${groupLabel}\n\n${response.definition}`, group, locationInfo);
 
         // For offline queries, also check for did-you-mean suggestions
-        if (group.queryType === 'offline' && settings.current.currentSelection?.nextChars) {
-          console.log('CONTENT: Checking for did-you-mean suggestions for offline query');
-          try {
-            const didYouMeanResponse = await chrome.runtime.sendMessage({
-              action: 'didYouMean',
-              word: word,
-              nextChars: settings.current.currentSelection.nextChars,
-              maxResults: 5, // Limit to 5 suggestions
-              selectedDictionaries: group.settings?.selectedDictionaries || []
-            });
-            console.log('CONTENT: Received did-you-mean response:', didYouMeanResponse);
-
-            if (didYouMeanResponse && didYouMeanResponse.suggestions && didYouMeanResponse.suggestions.length > 0) {
-              console.log('CONTENT: Showing did-you-mean suggestions:', didYouMeanResponse.suggestions);
-              showDidYouMeanSuggestions(didYouMeanResponse.suggestions, locationInfo);
-            } else {
-              console.log('CONTENT: No did-you-mean suggestions to show');
-            }
-          } catch (error) {
-            console.error('CONTENT: Error getting did-you-mean suggestions:', error);
-          }
-        }
+        await fetchAndShowDidYouMeanSuggestions(word, group, locationInfo);
       } else {
         const groupLabel = createGroupLabel(group);
         showResult(`No definition found for "${word}" in ${groupLabel}.`, group, locationInfo);
 
         // For offline queries with no definition found, still check for did-you-mean suggestions
-        if (group.queryType === 'offline' && settings.current.currentSelection?.nextChars) {
-          console.log('CONTENT: Checking for did-you-mean suggestions for offline query with no definition');
-          try {
-            const didYouMeanResponse = await chrome.runtime.sendMessage({
-              action: 'didYouMean',
-              word: word,
-              nextChars: settings.current.currentSelection.nextChars,
-              maxResults: 5, // Limit to 5 suggestions
-              selectedDictionaries: group.settings?.selectedDictionaries || []
-            });
-            console.log('CONTENT: Received did-you-mean response:', didYouMeanResponse);
-
-            if (didYouMeanResponse && didYouMeanResponse.suggestions && didYouMeanResponse.suggestions.length > 0) {
-              console.log('CONTENT: Showing did-you-mean suggestions:', didYouMeanResponse.suggestions);
-              showDidYouMeanSuggestions(didYouMeanResponse.suggestions, locationInfo);
-            } else {
-              console.log('CONTENT: No did-you-mean suggestions to show');
-            }
-          } catch (error) {
-            console.error('CONTENT: Error getting did-you-mean suggestions:', error);
-          }
-        }
+        await fetchAndShowDidYouMeanSuggestions(word, group, locationInfo);
       }
     });
   } catch (error) {
