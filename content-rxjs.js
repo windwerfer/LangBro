@@ -261,11 +261,23 @@ function updateCurrentSelection(selection, selectedText) {
     context = calculateContext(range, selectedText);
   }
 
+  // Extract nextChars from the end of current element (same as wholeParagraph), max 15 chars
+  let nextChars = '';
+  if (selectedText && selectedText.trim() && closestElement) {
+    const paragraphText = getWholeParagraph(selection);
+    const selectedIndex = paragraphText.indexOf(selectedText);
+    if (selectedIndex !== -1) {
+      const startPos = selectedIndex + selectedText.length;
+      nextChars = paragraphText.substring(startPos, startPos + 15);
+    }
+  }
+
   settings.update({
     currentSelection: {
       selectedText: selectedText,
       wholeWord: getWholeWord(selection),
       wholeParagraph: getWholeParagraph(selection),
+      nextChars: nextChars,
       targetElement: closestElement,
       context: context,
       range: {

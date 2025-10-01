@@ -558,6 +558,133 @@ class StructuredDictionaryDatabase {
     });
   }
 
+  // Get "did you mean" suggestions - exact matches for word + nextChars (with/without space)
+  async getDidYouMeanSuggestions(word, nextChars, maxResults = 10, selectedDictionaryNames = []) {
+    if (!this.db) await this.open();
+
+    console.log('DB: getDidYouMeanSuggestions called with word:', word, 'nextChars:', nextChars, 'maxResults:', maxResults, 'dictionaries:', selectedDictionaryNames);
+
+    if (selectedDictionaryNames.length === 0) {
+      console.log('DB: No dictionaries selected, returning empty suggestions');
+      return [];
+    }
+
+    if (!nextChars || nextChars.trim().length === 0) {
+      console.log('DB: No nextChars provided, returning empty suggestions');
+      return [];
+    }
+
+    const transaction = this.db.transaction(['terms'], 'readonly');
+    const store = transaction.objectStore('terms');
+    const index = store.index('expression'); // Use compound index [dictionary, expression]
+
+    return new Promise((resolve, reject) => {
+      const suggestions = new Set(); // Use Set to avoid duplicates
+
+      // Create search patterns: word + nextChars and word + " " + nextChars
+      const exactPattern = word + nextChars;
+      const spacedPattern = word + " " + nextChars;
+
+      console.log('DB: Searching for patterns:', exactPattern, 'and', spacedPattern);
+
+      // We need to query each selected dictionary separately
+      let dictionariesProcessed = 0;
+      const totalDictionaries = selectedDictionaryNames.length;
+
+      const processDictionary = (dictName) => {
+        console.log('DB: Processing dictionary:', dictName, 'for did-you-mean suggestions');
+        let patternsFound = 0;
+
+        const checkPattern = (pattern) => {
+          return new Promise((resolvePattern) => {
+            const range = IDBKeyRange.only([dictName, pattern]);
+            const request = index.openCursor(range);
+
+            request.onsuccess = (event) => {
+              const cursor = event.target.result;
+              if (cursor) {
+                const expression = cursor.value.expression;
+                console.log('DB: Found exact match:', expression, 'in dict:', dictName);
+                suggestions.add(expression);
+                console.log('DB: Added did-you-mean suggestion:', expression, 'total suggestions:', suggestions.size);
+              } else {
+                console.log('DB: No exact match found for pattern:', pattern, 'in dict:', dictName);
+              }
+              resolvePattern();
+            };
+
+            request.onerror = (event) => {
+              console.error('DB: Error checking pattern:', pattern, 'in dict:', dictName, event.target.error);
+              resolvePattern(); // Continue with other patterns
+            };
+          });
+        };
+
+        // Check both patterns for this dictionary
+        Promise.all([
+          checkPattern(exactPattern),
+          checkPattern(spacedPattern)
+        ]).then(() => {
+          dictionariesProcessed++;
+          console.log('DB: Finished processing dictionary:', dictName, 'processed:', dictionariesProcessed, '/', totalDictionaries);
+
+          if (dictionariesProcessed >= totalDictionaries) {
+            // All dictionaries processed
+            const result = Array.from(suggestions).sort();
+
+            // Include original word in results, but if only original found, return empty
+            if (result.length === 1 && result[0] === word) {
+              console.log('DB: Only original word found, returning empty did-you-mean suggestions');
+              resolve([]);
+            } else {
+              // Always include original word if it exists in dictionary
+              const originalExists = result.includes(word);
+              if (!originalExists) {
+                // Check if original word exists in any selected dictionary
+                let originalFound = false;
+                const checkOriginal = (dictName) => {
+                  return new Promise((resolveCheck) => {
+                    const range = IDBKeyRange.only([dictName, word]);
+                    const request = index.openCursor(range);
+
+                    request.onsuccess = (event) => {
+                      if (event.target.result) {
+                        originalFound = true;
+                      }
+                      resolveCheck();
+                    };
+
+                    request.onerror = () => resolveCheck();
+                  });
+                };
+
+                // Check original word in all dictionaries
+                const originalChecks = selectedDictionaryNames.map(dictName => checkOriginal(dictName));
+                Promise.all(originalChecks).then(() => {
+                  if (originalFound) {
+                    result.unshift(word); // Add original word at the beginning
+                  }
+                  console.log('DB: Returning did-you-mean suggestions:', result);
+                  resolve(result);
+                });
+              } else {
+                console.log('DB: Returning did-you-mean suggestions:', result);
+                resolve(result);
+              }
+            }
+          } else {
+            // Process next dictionary
+            const nextDict = selectedDictionaryNames[dictionariesProcessed];
+            processDictionary(nextDict);
+          }
+        });
+      };
+
+      // Start processing the first dictionary
+      processDictionary(selectedDictionaryNames[0]);
+    });
+  }
+
   // Get actual term counts for verification
   async getActualTermCounts() {
     if (!this.db) await this.open();

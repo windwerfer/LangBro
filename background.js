@@ -314,6 +314,40 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
     })();
     return true; // Keep message channel open for async response
+  } else if (request.action === 'didYouMean') {
+    (async () => {
+      try {
+        const word = request.word || '';
+        const nextChars = request.nextChars || '';
+        const maxResults = request.maxResults || 10;
+        const selectedDictionaries = request.selectedDictionaries || [];
+
+        console.log('BACKGROUND: Received didYouMean request for word:', word, 'nextChars:', nextChars, 'maxResults:', maxResults, 'dictionaries:', selectedDictionaries);
+
+        if (!word.trim()) {
+          console.log('BACKGROUND: Word is empty, returning empty did-you-mean suggestions');
+          sendResponse({ suggestions: [] });
+          return;
+        }
+
+        if (!nextChars.trim()) {
+          console.log('BACKGROUND: nextChars is empty, returning empty did-you-mean suggestions');
+          sendResponse({ suggestions: [] });
+          return;
+        }
+
+        const db = await getStructuredDB();
+        console.log('BACKGROUND: Calling db.getDidYouMeanSuggestions with word:', word, 'nextChars:', nextChars, 'maxResults:', maxResults, 'dictionaries:', selectedDictionaries);
+        const suggestions = await db.getDidYouMeanSuggestions(word, nextChars, maxResults, selectedDictionaries);
+        console.log('BACKGROUND: Database returned did-you-mean suggestions:', suggestions);
+        console.log('BACKGROUND: Sending response with did-you-mean suggestions:', suggestions);
+        sendResponse({ suggestions: suggestions });
+      } catch (error) {
+        console.error('BACKGROUND: Error getting did-you-mean suggestions:', error);
+        sendResponse({ suggestions: [] });
+      }
+    })();
+    return true; // Keep message channel open for async response
   } else if (request.action === 'reloadParser') {
     // No longer needed with structured DB, but keep for compatibility
     sendResponse({ success: true });
