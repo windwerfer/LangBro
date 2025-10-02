@@ -158,8 +158,8 @@ clickSequence$.subscribe(({ count, target }) => {
 const singleClickWordMarking$ = combineLatest([
   settings.select('singleClickGroupId'),
   mouseUp$.pipe(
-    filter(event => !settings.current.currentSelection?.selectedText), // Only when no text is selected
-    filter(event => !event.target.closest('.did-you-mean-word, .suggestion-item, .langbro-lookup-icon, [data-box-id]')) // Exclude extension UI elements
+    filter(event => !settings.current.currentSelection?.selectedText || event.target.closest('[data-box-id]')), // Only when no text is selected, or when clicking inside result windows
+    filter(event => !event.target.closest('.did-you-mean-word, .suggestion-item, .langbro-lookup-icon')) // Exclude only interactive extension elements
   )
 ]).pipe(
   filter(([singleClickGroupId, clickEvent]) => singleClickGroupId && singleClickGroupId !== '' && settings.current.extensionEnabled),
