@@ -390,10 +390,16 @@ function createResultDiv(type, group, boxId, initialWord = '') {
             let left = rect.left + window.scrollX;
             let top;
 
-            // Get actual popup dimensions based on group settings
+            // Get popup dimensions based on group settings
             const popupDimensions = getPopupDimensions(group);
             let popupWidth = popupDimensions.width;
             let popupHeight = popupDimensions.height;
+
+            // On mobile (≤600px), CSS overrides width to 90vw, so use that for positioning calculations
+            const isMobile = window.innerWidth <= 600;
+            if (isMobile) {
+              popupWidth = Math.round(window.innerWidth * 0.9); // 90vw = 90% of viewport width
+            }
 
             // Check if selection is in lower half of screen - if so, position above
             const selectionCenterY = rect.top + (rect.height / 2);
