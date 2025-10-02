@@ -724,6 +724,37 @@ function showSuggestions(suggestions, searchInput, resultDiv, group, boxId) {
   // Remove existing suggestions
   hideSuggestions(resultDiv);
 
+  // Check if popup is too close to top and needs to slide down
+  const popupRect = resultDiv.getBoundingClientRect();
+  const suggestionsHeight = 200; // Max height of suggestions dropdown
+  const margin = 10; // Minimum margin from viewport top
+
+  if (popupRect.top - suggestionsHeight < margin) {
+    // Store original position if not already stored
+    if (!resultDiv.dataset.originalDocumentTop) {
+      resultDiv.dataset.originalDocumentTop = resultDiv.dataset.documentTop;
+      resultDiv.dataset.originalViewportTop = resultDiv.style.top;
+    }
+
+    // Calculate how much to slide down
+    const neededSpace = suggestionsHeight + margin;
+    const currentTop = popupRect.top;
+    const newTop = Math.max(neededSpace, margin + 50); // Minimum 50px from top
+    const slideDown = newTop - currentTop;
+
+    if (slideDown > 0) {
+      // Slide popup down
+      const currentViewportTop = parseFloat(resultDiv.style.top) || 0;
+      resultDiv.style.top = (currentViewportTop + slideDown) + 'px';
+
+      // Update stored document coordinates for scroll repositioning
+      const currentDocTop = parseFloat(resultDiv.dataset.documentTop) || 0;
+      resultDiv.dataset.documentTop = (currentDocTop + slideDown) + '';
+
+      console.log(`CONTENT: Slid popup down by ${slideDown}px to make room for suggestions`);
+    }
+  }
+
   // Create suggestions container
   const suggestionsDiv = document.createElement('div');
   suggestionsDiv.className = 'search-suggestions';
