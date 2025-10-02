@@ -1621,12 +1621,24 @@ function lookupWord(word, group, locationInfo) {
 
 // ===== EVENT LISTENER CONNECTIONS =====
 
+// Global array to store active subscriptions for cleanup
+let activeSubscriptions = [];
+
+// Function to teardown all event listeners
+function teardownEventListeners() {
+  console.log('RxJS: Tearing down event listeners');
+  activeSubscriptions.forEach(sub => sub.unsubscribe());
+  activeSubscriptions = [];
+  // Clean up UI
+  hideLookupIcons();
+}
+
 // Connect RxJS streams to display functions
 function setupEventListeners() {
   // console.log('RxJS: Setting up event listeners');
 
   // Connect selection stream to show lookup icons
-  selection$.subscribe(({ selection, selectedText }) => {
+  const selectionSub = selection$.subscribe(({ selection, selectedText }) => {
     console.log('RxJS: selection stream fired - selectedText:', selectedText, 'skipIconDisplay:', window.skipIconDisplay);
     if (selectedText && !window.skipIconDisplay) {
       updateCurrentSelection(selection, selectedText);
@@ -1636,18 +1648,20 @@ function setupEventListeners() {
       hideLookupIcons();
     }
   });
+  activeSubscriptions.push(selectionSub);
 
   // Connect icon click stream to handle icon clicks
-  iconClick$.subscribe(({ icon, originalEvent }) => {
+  const iconClickSub = iconClick$.subscribe(({ icon, originalEvent }) => {
     const groupId = icon.dataset.groupId;
     const group = settings.current.queryGroups.find(g => g.id === groupId);
     if (group && settings.current.currentSelection) {
       handleIconClick(originalEvent, group);
     }
   });
+  activeSubscriptions.push(iconClickSub);
 
   // Connect document click stream to hide result windows
-  documentClick$.subscribe(() => {
+  const documentClickSub = documentClick$.subscribe(() => {
     // Hide popup result divs if clicked outside and hideOnClickOutside is enabled
     settings.current.resultDivs.forEach(div => {
       if (div && div.dataset.hideOnClickOutside === 'true') {
@@ -1656,9 +1670,10 @@ function setupEventListeners() {
     });
     // Note: Inline and bottom panel result divs do not auto-hide on click outside
   });
+  activeSubscriptions.push(documentClickSub);
 
   // Connect runtime message stream to handle background script messages
-  runtimeMessage$.subscribe(({ message, sender, sendResponse }) => {
+  const runtimeMessageSub = runtimeMessage$.subscribe(({ message, sender, sendResponse }) => {
     if (message.action === 'updateQueryGroups') {
       settings.update({ queryGroups: message.groups || [] });
       // Update icons if word is currently selected
@@ -1672,23 +1687,21 @@ function setupEventListeners() {
       settings.update({ extensionEnabled: message.enabled });
       console.log('Extension enabled state changed:', message.enabled);
 
-      // Hide icons if extension is disabled
-      if (!message.enabled) {
-        hideLookupIcons();
+      if (message.enabled) {
+        // Re-enable all event listeners
+        setupEventListeners();
       } else {
-        // Show icons if extension is re-enabled and text is selected
-        if (settings.current.currentSelection && settings.current.currentSelection.selectedText) {
-          const selection = window.getSelection();
-          if (selection.toString().trim()) {
-            showLookupIcons(selection);
-          }
-        }
+        // Disable all event listeners
+        teardownEventListeners();
+        // Clean up UI
+        hideLookupIcons();
       }
     }
   });
+  activeSubscriptions.push(runtimeMessageSub);
 
   // Connect single-click word marking stream
-  singleClickWordMarking$.subscribe(({ groupId, x, y, target }) => {
+  const singleClickSub = singleClickWordMarking$.subscribe(({ groupId, x, y, target }) => {
     let group = settings.current.queryGroups.find(g => g.id === groupId);
     if (!group && groupId === 'selectWord') {
       // Special case: create a placeholder group for selectWord functionality
@@ -1698,6 +1711,7 @@ function setupEventListeners() {
       handleSingleClickWordMarking(x, y, group);
     }
   });
+  activeSubscriptions.push(singleClickSub);
 
   // Connect swipe gesture stream
   settings.select('rightSwipeGroupId').subscribe(rightSwipeGroupId => {
