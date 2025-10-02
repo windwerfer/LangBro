@@ -33,6 +33,7 @@ const selection$ = merge(
   fromEvent(document, 'keyup'),
   fromEvent(document, 'mousedown')  // For faster response to selection changes
 ).pipe(
+  filter(() => settings.current.extensionEnabled),  // Only emit when extension is enabled
   map(() => {
     const selection = window.getSelection();
     const selectedText = selection.toString().trim();
@@ -77,6 +78,7 @@ const touchEnd$ = fromEvent(document, 'touchend', { passive: false }).pipe(
 
 // Swipe gesture stream - combines touch start/end to detect swipes
 const swipe$ = touchStart$.pipe(
+  filter(() => settings.current.extensionEnabled),  // Only emit when extension is enabled
   switchMap(start => touchEnd$.pipe(
     takeUntil(fromEvent(document, 'touchcancel')),
     map(end => ({
@@ -132,6 +134,7 @@ const clickSequence$ = settings.select('tripleClickGroupId').pipe(
     console.log('RxJS: Click buffer time set to', clickBufferTime, 'ms (triple click enabled:', tripleClickEnabled, ')');
 
     return mouseDown$.pipe(
+      filter(() => settings.current.extensionEnabled),  // Only emit when extension is enabled
       bufferTime(clickBufferTime),
       filter(clicks => clicks.length > 0),
       map(clicks => ({
