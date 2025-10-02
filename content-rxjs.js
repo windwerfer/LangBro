@@ -541,11 +541,12 @@ function createCloseButton(targetDiv) {
 // Add suggestions event handlers to a search input
 function addSuggestionsHandlers(searchInput, resultDiv, group, boxId) {
   let blurTimeout;
-
+  let suggestionTimeout;
 
   // Show suggestions when input gains focus or is clicked (if it has content)
   const showSuggestionsIfContent = async () => {
     clearTimeout(blurTimeout); // Cancel any pending blur timeout
+    clearTimeout(suggestionTimeout); // Cancel any pending suggestion update
     const query = searchInput.value.trim();
     if (query.length > 0) {
       try {
@@ -569,11 +570,32 @@ function addSuggestionsHandlers(searchInput, resultDiv, group, boxId) {
         console.error('CONTENT: Error getting suggestions on focus/click:', error);
         hideSuggestions(resultDiv);
       }
+    } else {
+      // Hide suggestions when input is empty
+      hideSuggestions(resultDiv);
     }
   };
 
   searchInput.addEventListener('focus', showSuggestionsIfContent);
   searchInput.addEventListener('click', showSuggestionsIfContent);
+
+  // Update suggestions when user types or pastes (debounced)
+  searchInput.addEventListener('input', () => {
+    clearTimeout(suggestionTimeout);
+    clearTimeout(blurTimeout); // Cancel any pending blur timeout
+
+    const query = searchInput.value.trim();
+
+    if (query.length === 0) {
+      // Hide suggestions immediately when input is cleared
+      hideSuggestions(resultDiv);
+    } else {
+      // Debounce suggestion updates to avoid excessive API calls
+      suggestionTimeout = setTimeout(() => {
+        showSuggestionsIfContent();
+      }, 200); // 200ms debounce (shorter than live results since suggestions are lighter)
+    }
+  });
 
   // Hide suggestions when input loses focus
   searchInput.addEventListener('blur', () => {
