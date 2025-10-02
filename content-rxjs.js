@@ -162,7 +162,7 @@ const singleClickWordMarking$ = combineLatest([
     filter(event => !event.target.closest('.did-you-mean-word, .suggestion-item, .langbro-lookup-icon, [data-box-id]')) // Exclude extension UI elements
   )
 ]).pipe(
-  filter(([singleClickGroupId, clickEvent]) => singleClickGroupId && singleClickGroupId !== ''),
+  filter(([singleClickGroupId, clickEvent]) => singleClickGroupId && singleClickGroupId !== '' && settings.current.extensionEnabled),
   map(([singleClickGroupId, clickEvent]) => ({
     groupId: singleClickGroupId,
     x: clickEvent.x,
