@@ -387,8 +387,6 @@ function createResultDiv(type, group, boxId, initialWord = '') {
             range.setEnd(storedSelection.range.endContainer, storedSelection.range.endOffset);
 
             const rect = range.getBoundingClientRect();
-            let left = rect.left + window.scrollX;
-            let top;
 
             // Get popup dimensions based on group settings
             const popupDimensions = getPopupDimensions(group);
@@ -405,31 +403,43 @@ function createResultDiv(type, group, boxId, initialWord = '') {
             const selectionCenterY = rect.top + (rect.height / 2);
             const screenCenterY = window.innerHeight / 2;
 
+            let documentTop;
             if (selectionCenterY > screenCenterY) {
               // Selection is in lower half - position above
-              top = rect.top + window.scrollY - popupHeight - 5;
+              documentTop = rect.top + window.scrollY - popupHeight - 5;
             } else {
               // Selection is in upper half - position below
-              top = rect.bottom + window.scrollY + 5;
+              documentTop = rect.bottom + window.scrollY + 5;
             }
 
             // Adjust popup height to fit available space if needed
             popupHeight = adjustPopupHeightForAvailableSpace(resultDiv, rect, popupHeight, selectionCenterY, screenCenterY);
 
+            // Calculate document left position
+            let documentLeft = rect.left + window.scrollX;
+
             // Adjust horizontal position if it would go off screen
-            if (left + popupWidth > window.innerWidth + window.scrollX) {
-              left = window.innerWidth + window.scrollX - popupWidth - 5;
+            if (documentLeft + popupWidth > window.innerWidth + window.scrollX) {
+              documentLeft = window.innerWidth + window.scrollX - popupWidth - 5;
             }
 
             // Final check: if positioned popup would still go off screen, adjust
-            if (top + popupHeight > window.innerHeight + window.scrollY) {
-              top = window.innerHeight + window.scrollY - popupHeight - 5;
-            } else if (top < window.scrollY) {
-              top = window.scrollY + 5;
+            if (documentTop + popupHeight > window.innerHeight + window.scrollY) {
+              documentTop = window.innerHeight + window.scrollY - popupHeight - 5;
+            } else if (documentTop < window.scrollY) {
+              documentTop = window.scrollY + 5;
             }
 
-            resultDiv.style.left = left + 'px';
-            resultDiv.style.top = top + 'px';
+            // Store document coordinates for scroll repositioning
+            resultDiv.dataset.documentLeft = documentLeft;
+            resultDiv.dataset.documentTop = documentTop;
+
+            // Convert to viewport coordinates for fixed positioning
+            const viewportLeft = documentLeft - window.scrollX;
+            const viewportTop = documentTop - window.scrollY;
+
+            resultDiv.style.left = viewportLeft + 'px';
+            resultDiv.style.top = viewportTop + 'px';
           } catch (error) {
             console.error('Error positioning popup with stored range:', error);
             // Fallback to center of screen
@@ -2216,6 +2226,26 @@ function setupDarkModeListener() {
 }
 
 
+// ===== SCROLL REPOSITIONING =====
+
+// Function to reposition popup result divs during scrolling
+function repositionPopupsOnScroll() {
+  settings.current.resultDivs.forEach(resultDiv => {
+    if (resultDiv && resultDiv.style.display !== 'none' &&
+        resultDiv.dataset.documentLeft && resultDiv.dataset.documentTop) {
+      const documentLeft = parseFloat(resultDiv.dataset.documentLeft);
+      const documentTop = parseFloat(resultDiv.dataset.documentTop);
+
+      // Convert to viewport coordinates for fixed positioning
+      const viewportLeft = documentLeft - window.scrollX;
+      const viewportTop = documentTop - window.scrollY;
+
+      resultDiv.style.left = viewportLeft + 'px';
+      resultDiv.style.top = viewportTop + 'px';
+    }
+  });
+}
+
 // ===== INITIALIZATION =====
 
 // Initialize extension - settings store loads automatically
@@ -2223,6 +2253,10 @@ async function init() {
   // console.log('----------init-----------');
   setupEventListeners();
   setupDarkModeListener();
+
+  // Add scroll event listener for popup repositioning
+  window.addEventListener('scroll', repositionPopupsOnScroll, { passive: true });
+
   console.log('RxJS Content script initialization complete');
 }
 
