@@ -160,14 +160,14 @@
 /* Search suggestions dropdown */
 .search-suggestions {
   position: absolute;
-  top: 100%;
+  bottom: 100%;
   left: 0;
   right: 0;
   max-height: 200px;
   overflow-y: auto;
   border: 1px solid #ccc;
-  border-top: none;
-  border-radius: 0 0 3px 3px;
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
   z-index: 1000000;
   background: white;
 }
