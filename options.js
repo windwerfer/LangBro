@@ -26,6 +26,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const extensionEnabledCheckbox = document.getElementById('extensionEnabledCheckbox');
   const darkModeCheckbox = document.getElementById('darkModeCheckbox');
   const hideGroupNamesCheckbox = document.getElementById('hideGroupNamesCheckbox');
+  const cachingEnabledCheckbox = document.getElementById('cachingEnabledCheckbox');
+  const cacheTimeoutContainer = document.getElementById('cacheTimeoutContainer');
+  const cacheTimeoutInput = document.getElementById('cacheTimeoutInput');
   const targetLanguageSelect = document.getElementById('targetLanguage');
   const iconPlacementSelect = document.getElementById('iconPlacement');
   const iconOffsetInput = document.getElementById('iconOffset');
@@ -112,11 +115,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load settings
   async function loadSettings() {
     try {
-      const result = await chrome.storage.local.get(['extensionEnabled', 'darkMode', 'hideGroupNames', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'singleClickGroup', 'tripleClickGroup']);
+      const result = await chrome.storage.local.get(['extensionEnabled', 'darkMode', 'hideGroupNames', 'cachingEnabled', 'cacheTimeoutDays', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'singleClickGroup', 'tripleClickGroup']);
       console.log('Loaded settings:', result);
       extensionEnabledCheckbox.checked = result.extensionEnabled !== undefined ? result.extensionEnabled : true;
       darkModeCheckbox.checked = result.darkMode || false;
       hideGroupNamesCheckbox.checked = result.hideGroupNames || false;
+      cachingEnabledCheckbox.checked = result.cachingEnabled || false;
+      cacheTimeoutInput.value = result.cacheTimeoutDays || 0;
+      cacheTimeoutContainer.style.display = result.cachingEnabled ? 'block' : 'none';
       targetLanguageSelect.value = result.targetLanguage || 'en';
       iconPlacementSelect.value = result.iconPlacement || 'word';
       iconOffsetInput.value = result.iconOffset || 50;
@@ -183,6 +189,20 @@ document.addEventListener('DOMContentLoaded', () => {
   tripleClickGroupSelect.addEventListener('change', () => {
     console.log('Saving triple click group setting:', tripleClickGroupSelect.value);
     chrome.storage.local.set({ tripleClickGroup: tripleClickGroupSelect.value });
+  });
+
+  // Caching settings event handlers
+  cachingEnabledCheckbox.addEventListener('change', () => {
+    const enabled = cachingEnabledCheckbox.checked;
+    console.log('Saving caching enabled setting:', enabled);
+    chrome.storage.local.set({ cachingEnabled: enabled });
+    cacheTimeoutContainer.style.display = enabled ? 'block' : 'none';
+  });
+
+  cacheTimeoutInput.addEventListener('input', () => {
+    const timeout = parseInt(cacheTimeoutInput.value) || 0;
+    console.log('Saving cache timeout setting:', timeout);
+    chrome.storage.local.set({ cacheTimeoutDays: timeout });
   });
 
 
@@ -676,8 +696,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const buttonsDiv = document.createElement('div');
 
+      const clearCacheBtn = document.createElement('button');
+      clearCacheBtn.textContent = 'Clear cache';
+      clearCacheBtn.onclick = () => clearGroupCache(group.id);
+
       const editBtn = document.createElement('button');
       editBtn.textContent = 'Edit';
+      editBtn.style.marginLeft = '30px';
       editBtn.onclick = () => editQueryGroup(index);
 
       const duplicateBtn = document.createElement('button');
@@ -690,6 +715,7 @@ document.addEventListener('DOMContentLoaded', () => {
       deleteBtn.style.marginLeft = '5px';
       deleteBtn.onclick = () => deleteQueryGroup(index);
 
+      buttonsDiv.appendChild(clearCacheBtn);
       buttonsDiv.appendChild(editBtn);
       buttonsDiv.appendChild(duplicateBtn);
       buttonsDiv.appendChild(deleteBtn);
@@ -1070,6 +1096,28 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     } catch (error) {
       console.error('Error toggling group enabled state:', error);
+    }
+  }
+
+  // Clear cache for a specific group
+  async function clearGroupCache(groupId) {
+    if (!confirm('Are you sure you want to clear the cache for this query group? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const result = await chrome.storage.local.get(['queryGroupCaches']);
+      const caches = result.queryGroupCaches || {};
+      if (caches[groupId]) {
+        delete caches[groupId];
+        await chrome.storage.local.set({ queryGroupCaches: caches });
+        alert('Cache cleared for this query group.');
+      } else {
+        alert('No cache found for this query group.');
+      }
+    } catch (error) {
+      console.error('Error clearing group cache:', error);
+      alert('Error clearing cache.');
     }
   }
 

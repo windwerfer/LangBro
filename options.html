@@ -59,6 +59,18 @@
       Hide query group names in results (show only icons)
     </label>
 
+    <h3>Caching</h3>
+    <label>
+      <input type="checkbox" id="cachingEnabledCheckbox" />
+      Enable query caching
+    </label>
+    <br>
+    <div id="cacheTimeoutContainer" style="display: none; margin-top: 10px;">
+      <label for="cacheTimeoutInput">Cache timeout (days): </label>
+      <input type="number" id="cacheTimeoutInput" placeholder="0" value="0" min="0" style="width: 60px;">
+      <small style="margin-left: 10px; color: #666;">0 = keep indefinitely</small>
+    </div>
+
     <h4>Translation Settings</h4>
     <div class="form-group">
       <label for="targetLanguage">Target Language: </label>

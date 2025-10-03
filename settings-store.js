@@ -19,6 +19,8 @@ export class SettingsStore {
       tripleClickGroupId: '',
       hideGroupNames: false,
       isDarkMode: false,
+      cachingEnabled: false,
+      cacheTimeoutDays: 0,
 
       // Data arrays
       queryGroups: [],
@@ -75,7 +77,9 @@ export class SettingsStore {
           'singleClickGroup',
           'tripleClickGroup',
           'hideGroupNames',
-          'darkMode'
+          'darkMode',
+          'cachingEnabled',
+          'cacheTimeoutDays'
         ]),
         chrome.storage.local.get(['queryGroups'])
       ]);
@@ -91,6 +95,8 @@ export class SettingsStore {
         tripleClickGroupId: settingsResult.tripleClickGroup || '',
         hideGroupNames: settingsResult.hideGroupNames || false,
         isDarkMode: settingsResult.darkMode || false,
+        cachingEnabled: settingsResult.cachingEnabled || false,
+        cacheTimeoutDays: settingsResult.cacheTimeoutDays || 0,
         queryGroups: groupsResult.queryGroups || []
       });
       console.log('SettingsStore: ', this.current);
@@ -138,6 +144,8 @@ export class SettingsStore {
         if (changes.tripleClickGroup) updates.tripleClickGroupId = changes.tripleClickGroup.newValue || '';
         if (changes.hideGroupNames) updates.hideGroupNames = changes.hideGroupNames.newValue || false;
         if (changes.darkMode) updates.isDarkMode = changes.darkMode.newValue || false;
+        if (changes.cachingEnabled !== undefined) updates.cachingEnabled = changes.cachingEnabled.newValue || false;
+        if (changes.cacheTimeoutDays !== undefined) updates.cacheTimeoutDays = changes.cacheTimeoutDays.newValue || 0;
 
         if (Object.keys(updates).length > 0) {
           console.log('SettingsStore: Reactive update from storage:', updates);

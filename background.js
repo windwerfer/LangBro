@@ -248,10 +248,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           }
         } else if (request.queryType === 'web' || request.queryType === 'google_translate') {
           // Web API lookup (including Google Translate preset)
-          definition = await performWebLookup(word, request.settings);
+          definition = await performWebLookup(word, request.settings, request.groupId);
         } else if (request.queryType === 'ai') {
           // AI service lookup
-          definition = await performAILookup(word, request.context || '', request.settings);
+          definition = await performAILookup(word, request.context || '', request.settings, request.groupId);
         } else {
           throw new Error(`Unknown query type: ${request.queryType}`);
         }
@@ -391,6 +391,98 @@ const languageMap = {
   'vi': 'vietnamese'
 };
 
+// Cache utility functions
+async function getCacheKey(word, lang, queryType, context = '') {
+  const langShort = lang;
+
+  if (queryType === 'web' || queryType === 'google_translate') {
+    // Web API: lang_short + "_" + hash(word)
+    const hash = await hashString(word);
+    return `${langShort}_${hash}`;
+  } else if (queryType === 'ai') {
+    // AI query: lang_short + "_" + hash(word + context)
+    const hash = await hashString(word + context);
+    return `${langShort}_${hash}`;
+  }
+
+  return null;
+}
+
+async function hashString(str) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
+}
+
+async function getCachedResult(groupId, cacheKey) {
+  try {
+    const result = await chrome.storage.local.get(['queryGroupCaches', 'cacheTimeoutDays']);
+    const caches = result.queryGroupCaches || {};
+    const timeoutDays = result.cacheTimeoutDays || 0;
+
+    if (!caches[groupId] || !caches[groupId][cacheKey]) {
+      return null;
+    }
+
+    const cached = caches[groupId][cacheKey];
+    const now = Date.now();
+
+    // Check if cache has expired
+    if (timeoutDays > 0) {
+      const cacheAge = now - cached.timestamp;
+      const maxAge = timeoutDays * 24 * 60 * 60 * 1000; // Convert days to milliseconds
+
+      if (cacheAge > maxAge) {
+        // Cache expired, remove it
+        delete caches[groupId][cacheKey];
+        await chrome.storage.local.set({ queryGroupCaches: caches });
+        return null;
+      }
+    }
+
+    return cached.result;
+  } catch (error) {
+    console.error('Error getting cached result:', error);
+    return null;
+  }
+}
+
+async function setCachedResult(groupId, cacheKey, result) {
+  try {
+    const storageResult = await chrome.storage.local.get(['queryGroupCaches']);
+    const caches = storageResult.queryGroupCaches || {};
+
+    if (!caches[groupId]) {
+      caches[groupId] = {};
+    }
+
+    caches[groupId][cacheKey] = {
+      result: result,
+      timestamp: Date.now()
+    };
+
+    await chrome.storage.local.set({ queryGroupCaches: caches });
+  } catch (error) {
+    console.error('Error setting cached result:', error);
+  }
+}
+
+async function clearGroupCache(groupId) {
+  try {
+    const result = await chrome.storage.local.get(['queryGroupCaches']);
+    const caches = result.queryGroupCaches || {};
+
+    if (caches[groupId]) {
+      delete caches[groupId];
+      await chrome.storage.local.set({ queryGroupCaches: caches });
+    }
+  } catch (error) {
+    console.error('Error clearing group cache:', error);
+  }
+}
+
 // JSON path extraction function - supports dot notation, bracket notation, and array indices
 function extractJsonPath(data, path) {
   if (!path || !path.trim()) return data;
@@ -490,7 +582,33 @@ function parsePathPart(part) {
 }
 
 // Perform web API lookup
-async function performWebLookup(word, settings) {
+async function performWebLookup(word, settings, groupId = null) {
+  // Check cache first if caching is enabled
+  if (groupId) {
+    const cachingEnabled = await new Promise(resolve => {
+      chrome.storage.local.get(['cachingEnabled'], (result) => {
+        resolve(result.cachingEnabled || false);
+      });
+    });
+
+    if (cachingEnabled) {
+      const targetLanguage = await new Promise(resolve => {
+        chrome.storage.local.get(['targetLanguage'], (result) => {
+          resolve(result.targetLanguage || 'en');
+        });
+      });
+
+      const cacheKey = await getCacheKey(word, targetLanguage, 'web');
+      if (cacheKey) {
+        const cachedResult = await getCachedResult(groupId, cacheKey);
+        if (cachedResult) {
+          console.log('Web lookup - cache hit for:', word);
+          return cachedResult;
+        }
+      }
+    }
+  }
+
   let serviceSettings = settings;
 
   // If settings is just a serviceId reference, look up the full service config
@@ -554,6 +672,7 @@ async function performWebLookup(word, settings) {
   const contentType = response.headers.get('content-type');
 
   // Handle different response types
+  let result;
   if (contentType && contentType.includes('application/json')) {
     // JSON response
     const data = await response.json();
@@ -563,109 +682,140 @@ async function performWebLookup(word, settings) {
       const extracted = extractJsonPath(data, serviceSettings.jsonPath);
       if (extracted !== null) {
         // Return the extracted value, converting to string if needed
-        return typeof extracted === 'string' ? extracted : JSON.stringify(extracted, null, 2);
+        result = typeof extracted === 'string' ? extracted : JSON.stringify(extracted, null, 2);
+      } else {
+        // If extraction failed, fall back to common patterns
+        result = extractCommonJsonResult(data);
       }
-      // If extraction failed, fall back to common patterns
+    } else {
+      result = extractCommonJsonResult(data);
     }
-
-    // Try common response formats
-    if (data.definition) return data.definition;
-    if (data.meaning) return data.meaning;
-    if (data.result) return data.result;
-    if (data.translation) return data.translation;
-    if (typeof data === 'string') return data;
-
-    // Try Google Translate array patterns (data[0][n][0] where n = 0, 1, 2, ...)
-    if (data && Array.isArray(data[0])) {
-      const translations = [];
-      for (let i = 0; i < Math.min(data[0].length, 5); i++) { // Try first 5 results
-        if (data[0][i] && Array.isArray(data[0][i]) && data[0][i][0]) {
-          translations.push(data[0][i][0]);
-        }
-      }
-      if (translations.length > 0) {
-        return translations.join(' ');
-      }
-    }
-
-    // Fallback: return the full response as formatted JSON
-    return JSON.stringify(data, null, 2);
   } else {
     // HTML, text, or other response types
     const text = await response.text();
     console.log('Web API HTML response length:', text.length);
     console.log('Web API HTML preview:', text.substring(0, 500));
 
-    // For HTML responses, try to extract meaningful content
-    if (contentType && contentType.includes('text/html')) {
-      // Google Translate specific patterns
-      const googleTranslatePatterns = [
-        /<span[^>]*jsname="[^"]*W297wb[^"]*"[^>]*>([^<]+)<\/span>/i,
-        /<div[^>]*class="[^"]*result[^"]*"[^>]*>([^<]+)<\/div>/i,
-        /<span[^>]*class="[^"]*tlid-translation[^"]*"[^>]*>([^<]+)<\/span>/i,
-        /"tlid-translation"[^>]*>([^<]+)<\/span>/i
-      ];
+    result = extractFromHtmlResponse(text, contentType);
+  }
 
-      // Try Google Translate patterns first
-      for (const pattern of googleTranslatePatterns) {
-        const match = text.match(pattern);
-        if (match && match[1] && match[1].trim().length > 0) {
-          return match[1].trim();
-        }
+  // Cache the result if caching is enabled
+  if (groupId && result) {
+    const cachingEnabled = await new Promise(resolve => {
+      chrome.storage.local.get(['cachingEnabled'], (result) => {
+        resolve(result.cachingEnabled || false);
+      });
+    });
+
+    if (cachingEnabled) {
+      const cacheKey = await getCacheKey(word, targetLanguage, 'web');
+      if (cacheKey) {
+        await setCachedResult(groupId, cacheKey, result);
+        console.log('Web lookup - cached result for:', word);
       }
+    }
+  }
 
-      // General translation patterns
-      const generalPatterns = [
-        /<span[^>]*id="result[^"]*"[^>]*>([^<]+)<\/span>/i,
-        /<div[^>]*class="[^"]*result[^"]*"[^>]*>([^<]+)<\/div>/i,
-        /<div[^>]*id="[^"]*translation[^"]*"[^>]*>([^<]+)<\/div>/i,
-        /<span[^>]*class="[^"]*translation[^"]*"[^>]*>([^<]+)<\/span>/i,
-        /<div[^>]*class="[^"]*translated[^"]*"[^>]*>([^<]+)<\/div>/i
-      ];
+  return result;
+}
 
-      for (const pattern of generalPatterns) {
-        const match = text.match(pattern);
-        if (match && match[1] && match[1].trim().length > 0) {
-          return match[1].trim();
-        }
+// Helper function to extract common JSON result patterns
+function extractCommonJsonResult(data) {
+  // Try common response formats
+  if (data.definition) return data.definition;
+  if (data.meaning) return data.meaning;
+  if (data.result) return data.result;
+  if (data.translation) return data.translation;
+  if (typeof data === 'string') return data;
+
+  // Try Google Translate array patterns (data[0][n][0] where n = 0, 1, 2, ...)
+  if (data && Array.isArray(data[0])) {
+    const translations = [];
+    for (let i = 0; i < Math.min(data[0].length, 5); i++) { // Try first 5 results
+      if (data[0][i] && Array.isArray(data[0][i]) && data[0][i][0]) {
+        translations.push(data[0][i][0]);
       }
+    }
+    if (translations.length > 0) {
+      return translations.join(' ');
+    }
+  }
 
-      // Look for JSON data embedded in the HTML (common with modern web apps)
-      const jsonMatch = text.match(/{"[^"]*":\s*"([^"]*(?:\\.[^"]*)*)"[^}]*}/);
-      if (jsonMatch) {
-        try {
-          const jsonData = JSON.parse(jsonMatch[0]);
-          if (jsonData.translation) return jsonData.translation;
-          if (jsonData.result) return jsonData.result;
-        } catch (e) {
-          // Ignore JSON parsing errors
-        }
+  // Fallback: return the full response as formatted JSON
+  return JSON.stringify(data, null, 2);
+}
+
+// Helper function to extract from HTML responses
+function extractFromHtmlResponse(text, contentType) {
+  // For HTML responses, try to extract meaningful content
+  if (contentType && contentType.includes('text/html')) {
+    // Google Translate specific patterns
+    const googleTranslatePatterns = [
+      /<span[^>]*jsname="[^"]*W297wb[^"]*"[^>]*>([^<]+)<\/span>/i,
+      /<div[^>]*class="[^"]*result[^"]*"[^>]*>([^<]+)<\/div>/i,
+      /<span[^>]*class="[^"]*tlid-translation[^"]*"[^>]*>([^<]+)<\/span>/i,
+      /"tlid-translation"[^>]*>([^<]+)<\/span>/i
+    ];
+
+    // Try Google Translate patterns first
+    for (const pattern of googleTranslatePatterns) {
+      const match = text.match(pattern);
+      if (match && match[1] && match[1].trim().length > 0) {
+        return match[1].trim();
       }
-
-      // If no specific pattern found, return a cleaned version of the HTML
-      // Remove scripts, styles, and basic HTML tags
-      let cleaned = text.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
-      cleaned = cleaned.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-      cleaned = cleaned.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-
-      // Look for the most relevant text content
-      const words = cleaned.split(' ');
-      const relevantWords = words.filter(word =>
-        word.length > 2 &&
-        !word.match(/^(and|the|for|are|but|not|you|all|can|had|her|was|one|our|out|day|get|has|him|his|how|its|may|new|now|old|see|two|way|who|boy|did|has|let|put|say|she|too|use)$/i)
-      );
-
-      if (relevantWords.length > 0 && cleaned.length < 500) {
-        return cleaned;
-      }
-
-      // If cleaning didn't work well, return a message
-      return 'Translation page loaded. Please check the opened tab for results.';
     }
 
-    // For plain text responses
-    return text.trim();
+    // General translation patterns
+    const generalPatterns = [
+      /<span[^>]*id="result[^"]*"[^>]*>([^<]+)<\/span>/i,
+      /<div[^>]*class="[^"]*result[^"]*"[^>]*>([^<]+)<\/div>/i,
+      /<div[^>]*id="[^"]*translation[^"]*"[^>]*>([^<]+)<\/div>/i,
+      /<span[^>]*class="[^"]*translation[^"]*"[^>]*>([^<]+)<\/span>/i,
+      /<div[^>]*class="[^"]*translated[^"]*"[^>]*>([^<]+)<\/div>/i
+    ];
+
+    for (const pattern of generalPatterns) {
+      const match = text.match(pattern);
+      if (match && match[1] && match[1].trim().length > 0) {
+        return match[1].trim();
+      }
+    }
+
+    // Look for JSON data embedded in the HTML (common with modern web apps)
+    const jsonMatch = text.match(/{"[^"]*":\s*"([^"]*(?:\\.[^"]*)*)"[^}]*}/);
+    if (jsonMatch) {
+      try {
+        const jsonData = JSON.parse(jsonMatch[0]);
+        if (jsonData.translation) return jsonData.translation;
+        if (jsonData.result) return jsonData.result;
+      } catch (e) {
+        // Ignore JSON parsing errors
+      }
+    }
+
+    // If no specific pattern found, return a cleaned version of the HTML
+    // Remove scripts, styles, and basic HTML tags
+    let cleaned = text.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+    cleaned = cleaned.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+    cleaned = cleaned.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+    // Look for the most relevant text content
+    const words = cleaned.split(' ');
+    const relevantWords = words.filter(word =>
+      word.length > 2 &&
+      !word.match(/^(and|the|for|are|but|not|you|all|can|had|her|was|one|our|out|day|get|has|him|his|how|its|may|new|now|old|see|two|way|who|boy|did|has|let|put|say|she|too|use)$/i)
+    );
+
+    if (relevantWords.length > 0 && cleaned.length < 500) {
+      return cleaned;
+    }
+
+    // If cleaning didn't work well, return a message
+    return 'Translation page loaded. Please check the opened tab for results.';
   }
+
+  // For plain text responses
+  return text.trim();
 }
 
 // Parse common markup notations in AI responses (lightweight Markdown-like parser)
@@ -757,7 +907,35 @@ function parseAIMarkup(text) {
 }
 
 // Perform AI service lookup
-async function performAILookup(word, context, settings) {
+async function performAILookup(word, context, settings, groupId = null) {
+  // Check cache first if caching is enabled
+  if (groupId) {
+    const cachingEnabled = await new Promise(resolve => {
+      chrome.storage.local.get(['cachingEnabled'], (result) => {
+        resolve(result.cachingEnabled || false);
+      });
+    });
+
+    if (cachingEnabled) {
+      const targetLanguage = await new Promise(resolve => {
+        chrome.storage.local.get(['targetLanguage'], (result) => {
+          resolve(result.targetLanguage || 'en');
+        });
+      });
+
+      // For AI queries, include context in cache key
+      const contextToUse = settings.sendContext && context ? context : '';
+      const cacheKey = await getCacheKey(word, targetLanguage, 'ai', contextToUse);
+      if (cacheKey) {
+        const cachedResult = await getCachedResult(groupId, cacheKey);
+        if (cachedResult) {
+          console.log('AI lookup - cache hit for:', word);
+          return cachedResult;
+        }
+      }
+    }
+  }
+
   let serviceSettings = settings;
 
   // If settings is just a serviceId reference, look up the full service config
@@ -878,9 +1056,28 @@ async function performAILookup(word, context, settings) {
       rawResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response from Google AI';
       break;
     default:
-      return JSON.stringify(data, null, 2);
+      rawResponse = JSON.stringify(data, null, 2);
   }
 
   // Parse markup in AI response
-  return parseAIMarkup(rawResponse);
+  const result = parseAIMarkup(rawResponse);
+
+  // Cache the result if caching is enabled
+  if (groupId && result) {
+    const cachingEnabled = await new Promise(resolve => {
+      chrome.storage.local.get(['cachingEnabled'], (result) => {
+        resolve(result.cachingEnabled || false);
+      });
+    });
+
+    if (cachingEnabled) {
+      const cacheKey = await getCacheKey(word, targetLanguage, 'ai', contextToUse);
+      if (cacheKey) {
+        await setCachedResult(groupId, cacheKey, result);
+        console.log('AI lookup - cached result for:', word);
+      }
+    }
+  }
+
+  return result;
 }
