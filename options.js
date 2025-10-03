@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const fullBackupStatus = document.getElementById('fullBackupStatus');
 
   // Main settings elements
+  const extensionEnabledCheckbox = document.getElementById('extensionEnabledCheckbox');
   const darkModeCheckbox = document.getElementById('darkModeCheckbox');
   const hideGroupNamesCheckbox = document.getElementById('hideGroupNamesCheckbox');
   const targetLanguageSelect = document.getElementById('targetLanguage');
@@ -111,8 +112,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load settings
   async function loadSettings() {
     try {
-      const result = await chrome.storage.local.get(['darkMode', 'hideGroupNames', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'singleClickGroup', 'tripleClickGroup']);
+      const result = await chrome.storage.local.get(['extensionEnabled', 'darkMode', 'hideGroupNames', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'singleClickGroup', 'tripleClickGroup']);
       console.log('Loaded settings:', result);
+      extensionEnabledCheckbox.checked = result.extensionEnabled !== undefined ? result.extensionEnabled : true;
       darkModeCheckbox.checked = result.darkMode || false;
       hideGroupNamesCheckbox.checked = result.hideGroupNames || false;
       targetLanguageSelect.value = result.targetLanguage || 'en';
@@ -131,6 +133,11 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSettings();
 
   // Save settings when changed
+  extensionEnabledCheckbox.addEventListener('change', () => {
+    console.log('Saving extension enabled setting:', extensionEnabledCheckbox.checked);
+    chrome.storage.local.set({ extensionEnabled: extensionEnabledCheckbox.checked });
+  });
+
   darkModeCheckbox.addEventListener('change', () => {
     console.log('Saving dark mode setting:', darkModeCheckbox.checked);
     chrome.storage.local.set({ darkMode: darkModeCheckbox.checked });
