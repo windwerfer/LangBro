@@ -44,9 +44,9 @@ const files = fs.readdirSync('.').filter(file => {
 
 // Create zip using tar with exclude patterns
 const excludeArgs = gitignorePatterns.map(pattern => `--exclude="${pattern}"`).join(' ');
-const tarCommand = `tar -acf "ff-ext/${name}.zip" ${excludeArgs} *`;
+const tarCommand = `tar -acf "ff-ext/ff_${name}.zip" ${excludeArgs} *`;
 
-console.log(`Creating: ff-ext/${name}.zip`);
+console.log(`Creating: ff-ext/ff_${name}.zip`);
 console.log(`Excluding patterns: ${gitignorePatterns.join(', ')}`);
 cp.execSync(tarCommand, { stdio: 'inherit' });
 console.log('✅ Firefox extension package created successfully!');

@@ -38,9 +38,9 @@ try {
 
   // Create zip using tar with exclude patterns
   const excludeArgs = gitignorePatterns.map(pattern => `--exclude="${pattern}"`).join(' ');
-  const tarCommand = `tar -acf "chrome-ext/${name}.zip" ${excludeArgs} *`;
+  const tarCommand = `tar -acf "chrome-ext/chrome_${name}.zip" ${excludeArgs} *`;
 
-  console.log(`Creating: chrome-ext/${name}.zip`);
+  console.log(`Creating: chrome-ext/chrome_${name}.zip`);
   console.log(`Excluding patterns: ${gitignorePatterns.join(', ')}`);
   cp.execSync(tarCommand, { stdio: 'inherit' });
   console.log('✅ Chrome extension package created successfully!');
