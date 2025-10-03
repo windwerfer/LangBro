@@ -525,14 +525,13 @@ async function performWebLookup(word, settings) {
   const lang = languageMap[targetLanguage] || targetLanguage;
   const text = encodeURIComponent(word);
 
-  console.log('Web lookup - original word:', word, 'encoded text:', text);
+  console.log('Web lookup - original word:', word, 'encoded text:', text, 'lang:', lang, 'langShort:', langShort);
 
   let url = serviceSettings.url;
   url = url.replace(/\{text\}/g, text);
   url = url.replace(/\{lang\}/g, lang);
   url = url.replace(/\{lang_short\}/g, langShort);
-  // Keep {word} for backward compatibility
-  url = url.replace(/\{word\}/g, text);
+
 
   console.log('Web lookup - final URL:', url);
 
@@ -786,12 +785,27 @@ async function performAILookup(word, context, settings) {
     throw new Error('AI settings not configured');
   }
 
+  // Get target language setting for placeholder substitution
+  const targetLanguage = await new Promise(resolve => {
+    chrome.storage.local.get(['targetLanguage'], (result) => {
+      resolve(result.targetLanguage || 'en');
+    });
+  });
+
+  const langShort = targetLanguage;
+  const lang = languageMap[targetLanguage] || targetLanguage;
+
   let prompt = serviceSettings.prompt || 'You are a Tutor, give a grammar breakdown for: {text}';
   prompt = prompt.replace('{text}', word);
+  prompt = prompt.replace('{lang}', lang);
+  prompt = prompt.replace('{lang_short}', langShort);
   // Only include context if the group setting allows it
   const contextToUse = serviceSettings.sendContext && context ? context : '';
   prompt = prompt.replace('{context}', contextToUse);
   // Note: For AI prompts, we don't URL encode {text} as it's not being sent in a URL
+
+  console.log('AI lookup - original word:', word, 'lang:', lang, 'langShort:', langShort, 'final prompt:', prompt);
+
   const maxTokens = serviceSettings.maxTokens || 2048;
 
   let apiUrl, requestBody, headers;
