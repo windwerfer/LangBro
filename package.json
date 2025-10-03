@@ -3,6 +3,7 @@
   "version": "0.2.0",
   "description": "langbro Dictionary extension with RxJS support",
   "scripts": {
+    "build:chrome-ext": "npm run build:rxjs && node build-chrome-ext.js",
     "build:ff-ext": "npm run build:rxjs && node build-ff-ext.js",
     "build:rxjs": "webpack --mode=production --config webpack.config.js",
     "build:dev": "webpack --mode=development --config webpack.config.js",

@@ -9,3 +9,4 @@ package-lock.json
 dist/
 *.lnk
 ff-ext/
+chrome-ext/
