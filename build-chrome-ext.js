@@ -53,7 +53,8 @@ try {
   }
 
   // Extract zip contents to unpacked directory for development
-  cp.execSync('mkdir -p chrome-ext/unpacked && tar -xf "chrome-ext/chrome_${name}.zip" -C chrome-ext/unpacked', { stdio: 'inherit' });
+  fs.mkdirSync('chrome-ext/unpacked', { recursive: true });
+  cp.execSync(`tar -xf "chrome-ext/chrome_${name}.zip" -C chrome-ext/unpacked`, { stdio: 'inherit' });
   console.log('✅ Chrome extension package and unpacked version created successfully!');
 
 } finally {
