@@ -17,33 +17,11 @@ const gitignorePatterns = gitignoreContent
   .map(line => line.trim())
   .filter(line => line && !line.startsWith('#'));
 
-// Convert glob patterns to regex
-function globToRegex(glob) {
-  let regex = glob
-    .replace(/\./g, '\\.')     // Escape dots
-    .replace(/\*/g, '.*')      // Convert * to .*
-    .replace(/\?/g, '.')       // Convert ? to .
-    .replace(/\//g, '\\/');    // Escape slashes
-
-  // If pattern ends with /, make it match directories and their contents
-  if (glob.endsWith('/')) {
-    regex = '^' + regex.slice(0, -2) + '.*$'; // Remove trailing \/ and match everything inside
-  } else {
-    regex = '^' + regex + '$'; // Exact match for files
-  }
-
-  return new RegExp(regex);
-}
-
-const excludePatterns = gitignorePatterns.map(globToRegex);
-
-// Get all files in current directory
-const files = fs.readdirSync('.').filter(file => {
-  return !excludePatterns.some(pattern => pattern.test(file));
-});
+// Filter out dist patterns to ensure /dist is not excluded
+const filteredPatterns = gitignorePatterns.filter(p => !p.includes('dist'));
 
 // Create zip using tar with exclude patterns
-const excludeArgs = gitignorePatterns.map(pattern => `--exclude="${pattern}"`).join(' ');
+const excludeArgs = filteredPatterns.map(pattern => `--exclude="${pattern}"`).join(' ');
 const tarCommand = `tar -acf "ff-ext/ff_${name}.zip" ${excludeArgs} *`;
 
 console.log(`Creating: ff-ext/ff_${name}.zip`);

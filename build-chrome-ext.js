@@ -36,14 +36,25 @@ try {
     .map(line => line.trim())
     .filter(line => line && !line.startsWith('#'));
 
+  // Filter out dist patterns to ensure /dist is not excluded
+  const filteredPatterns = gitignorePatterns.filter(p => !p.includes('dist'));
+
   // Create zip using tar with exclude patterns
-  const excludeArgs = gitignorePatterns.map(pattern => `--exclude="${pattern}"`).join(' ');
+  const excludeArgs = filteredPatterns.map(pattern => `--exclude="${pattern}"`).join(' ');
   const tarCommand = `tar -acf "chrome-ext/chrome_${name}.zip" ${excludeArgs} *`;
 
   console.log(`Creating: chrome-ext/chrome_${name}.zip`);
-  console.log(`Excluding patterns: ${gitignorePatterns.join(', ')}`);
+  console.log(`Excluding patterns: ${filteredPatterns.join(', ')}`);
   cp.execSync(tarCommand, { stdio: 'inherit' });
-  console.log('✅ Chrome extension package created successfully!');
+
+  // Remove existing unpacked directory if it exists
+  if (fs.existsSync('chrome-ext/unpacked')) {
+    fs.rmSync('chrome-ext/unpacked', { recursive: true, force: true });
+  }
+
+  // Extract zip contents to unpacked directory for development
+  cp.execSync('mkdir -p chrome-ext/unpacked && tar -xf "chrome-ext/chrome_${name}.zip" -C chrome-ext/unpacked', { stdio: 'inherit' });
+  console.log('✅ Chrome extension package and unpacked version created successfully!');
 
 } finally {
   // Always restore original manifest
