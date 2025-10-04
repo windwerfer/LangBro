@@ -2259,22 +2259,31 @@ function setupDarkModeListener() {
 
 // ===== SCROLL REPOSITIONING =====
 
-// Function to reposition popup result divs during scrolling
+// Flag to track if repositioning is already scheduled
+let repositionScheduled = false;
+
+// Function to reposition popup result divs during scrolling with RAF throttling
 function repositionPopupsOnScroll() {
-  settings.current.resultDivs.forEach(resultDiv => {
-    if (resultDiv && resultDiv.style.display !== 'none' &&
-        resultDiv.dataset.documentLeft && resultDiv.dataset.documentTop) {
-      const documentLeft = parseFloat(resultDiv.dataset.documentLeft);
-      const documentTop = parseFloat(resultDiv.dataset.documentTop);
+  if (!repositionScheduled) {
+    repositionScheduled = true;
+    requestAnimationFrame(() => {
+      settings.current.resultDivs.forEach(resultDiv => {
+        if (resultDiv && resultDiv.style.display !== 'none' &&
+            resultDiv.dataset.documentLeft && resultDiv.dataset.documentTop) {
+          const documentLeft = parseFloat(resultDiv.dataset.documentLeft);
+          const documentTop = parseFloat(resultDiv.dataset.documentTop);
 
-      // Convert to viewport coordinates for fixed positioning
-      const viewportLeft = documentLeft - window.scrollX;
-      const viewportTop = documentTop - window.scrollY;
+          // Convert to viewport coordinates for fixed positioning
+          const viewportLeft = documentLeft - window.scrollX;
+          const viewportTop = documentTop - window.scrollY;
 
-      resultDiv.style.left = viewportLeft + 'px';
-      resultDiv.style.top = viewportTop + 'px';
-    }
-  });
+          resultDiv.style.left = viewportLeft + 'px';
+          resultDiv.style.top = viewportTop + 'px';
+        }
+      });
+      repositionScheduled = false;
+    });
+  }
 }
 
 // ===== INITIALIZATION =====
