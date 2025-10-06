@@ -176,7 +176,7 @@ const singleClickWordMarking$ = combineLatest([
   settings.select('singleClickGroupId'),
   mouseUp$.pipe(
     filter(event => !settings.current.currentSelection?.selectedText || event.target.closest('[data-box-id]')), // Only when no text is selected, or when clicking inside result windows
-    filter(event => !event.target.closest('.did-you-mean-word, .suggestion-item, .langbro-lookup-icon, .langbro-result-header, .langbro-favorites-dropdown')) // Exclude only interactive extension elements
+    filter(event => !event.target.closest('.did-you-mean-word, .suggestion-item, .langbro-lookup-icon, .langbro-result-header, .langbro-favorites-dropdown, .langbro-history-back-btn, .langbro-history-forward-btn')) // Exclude only interactive extension elements
   )
 ]).pipe(
   filter(([singleClickGroupId, clickEvent]) => singleClickGroupId && singleClickGroupId !== '' && settings.current.extensionEnabled),
@@ -771,14 +771,14 @@ function createHistoryButtons(resultDiv, group, boxId) {
   const backBtn = document.createElement('button');
   backBtn.innerHTML = '◀';
   backBtn.className = 'langbro-history-back-btn';
-  backBtn.title = 'Previous in history';
+  backBtn.title = 'Go back in history (older lookup)';
   backBtn.disabled = true; // Initially disabled
 
   // Forward button
   const forwardBtn = document.createElement('button');
   forwardBtn.innerHTML = '▶';
   forwardBtn.className = 'langbro-history-forward-btn';
-  forwardBtn.title = 'Next in history';
+  forwardBtn.title = 'Go forward in history (newer lookup)';
   forwardBtn.disabled = true; // Initially disabled
 
   // Initialize history state
@@ -829,55 +829,64 @@ async function navigateHistory(resultDiv, groupId, direction) {
 
   let newIndex;
   if (direction === 'back') {
-    // If currently at current lookup (-1), go to most recent history (0)
-    // Otherwise go to previous history entry
-    newIndex = currentIndex === -1 ? 0 : currentIndex - 1;
+    // Go to older history (higher index)
+    newIndex = currentIndex === -1 ? 0 : currentIndex + 1;
   } else if (direction === 'forward') {
-    newIndex = currentIndex + 1;
+    // Go to newer history or current (lower index)
+    newIndex = currentIndex - 1;
   } else {
     return; // Invalid direction
   }
 
-  // Validate index bounds
-  if (newIndex < 0 || newIndex >= historyLength) {
+  // Validate index bounds (allow -1 for current)
+  if ((newIndex < 0 && newIndex !== -1) || newIndex >= historyLength) {
     return; // Out of bounds
   }
 
-  try {
-    const response = await chrome.runtime.sendMessage({
-      action: 'getHistoryEntry',
-      groupId: groupId,
-      index: newIndex
-    });
+  // Update history index
+  resultDiv.dataset.historyIndex = newIndex.toString();
 
-    if (response.success && response.entry) {
-      // Update history index
-      resultDiv.dataset.historyIndex = newIndex.toString();
+  const contentDiv = resultDiv.querySelector('.langbro-result-content');
+  if (contentDiv) {
+    if (newIndex === -1) {
+      // Restore current content
+      contentDiv.innerHTML = resultDiv.dataset.currentContent || '';
+    } else {
+      try {
+        const response = await chrome.runtime.sendMessage({
+          action: 'getHistoryEntry',
+          groupId: groupId,
+          index: newIndex
+        });
 
-      // Update content with history entry
-      const contentDiv = resultDiv.querySelector('.langbro-result-content');
-      if (contentDiv) {
-        // Create group label for the history entry
-        const group = settings.current.queryGroups.find(g => g.id === groupId);
-        const groupLabel = group ? createGroupLabel(group) : '';
+        if (response.success && response.entry) {
+          // Save current content if this is first navigation away from current
+          if (currentIndex === -1 && !resultDiv.dataset.currentContent) {
+            resultDiv.dataset.currentContent = contentDiv.innerHTML;
+          }
 
-        // Update content with history entry
-        contentDiv.innerHTML = sanitizeDictHTML(`${groupLabel}\n\n${response.entry.definition}`);
+          // Create group label for the history entry
+          const group = settings.current.queryGroups.find(g => g.id === groupId);
+          const groupLabel = group ? createGroupLabel(group) : '';
 
-        // Update star appearance for the history entry
-        const star = resultDiv.querySelector('.langbro-favorites-star');
-        if (star) {
-          const updateEvent = new CustomEvent('updateFavoritesStar');
-          star.dispatchEvent(updateEvent);
+          // Update content with history entry
+          contentDiv.innerHTML = sanitizeDictHTML(`${groupLabel}\n\n${response.entry.definition}`);
         }
+      } catch (error) {
+        console.error('Error navigating history:', error);
       }
-
-      // Update button states
-      updateHistoryButtons(resultDiv);
     }
-  } catch (error) {
-    console.error('Error navigating history:', error);
+
+    // Update star appearance
+    const star = resultDiv.querySelector('.langbro-favorites-star');
+    if (star) {
+      const updateEvent = new CustomEvent('updateFavoritesStar');
+      star.dispatchEvent(updateEvent);
+    }
   }
+
+  // Update button states
+  updateHistoryButtons(resultDiv);
 }
 
 // Update history button states based on current index
@@ -889,13 +898,13 @@ function updateHistoryButtons(resultDiv) {
   const forwardBtn = resultDiv.querySelector('.langbro-history-forward-btn');
 
   if (backBtn) {
-    // Back enabled if there's history to go to
-    backBtn.disabled = historyLength === 0 || (currentIndex !== -1 && currentIndex <= 0);
+    // Back enabled if there are older history entries to go to
+    backBtn.disabled = currentIndex >= historyLength - 1;
   }
 
   if (forwardBtn) {
-    // Forward only enabled when navigating through history (not from current)
-    forwardBtn.disabled = currentIndex === -1 || currentIndex >= historyLength - 1;
+    // Forward enabled unless at current (-1)
+    forwardBtn.disabled = currentIndex === -1;
   }
 }
 
