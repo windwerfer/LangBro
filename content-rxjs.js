@@ -1864,7 +1864,8 @@ function handleIconClick(event, group) {
 function handleSingleClickWordMarking(x, y, group) {
   console.log(`Single-click word marking for group: ${group.name} (${group.id}) at (${x}, ${y})`);
 
-  // Special case: if group ID is "selectWord", just select the word and show icons without lookup
+
+ // Special case: if group ID is "selectWord", just select the word and show icons without lookup
   if (group.id === 'selectWord') {
     console.log('RxJS: selectWord mode - selecting word and showing icons only');
 
@@ -1885,9 +1886,12 @@ function handleSingleClickWordMarking(x, y, group) {
   }
 
   // Normal single-click behavior: prevent lookup icons from appearing during single-click word marking
+
+
+  // Prevent lookup icons from appearing during single-click word marking
   window.skipIconDisplay = true;
-  // Clear the flag after the selection event has been processed
-  setTimeout(() => delete window.skipIconDisplay, 200);
+  // Clear the flag after the selection event has been processed, !! min 400ms (to prevent racing condition with lookup icons)
+  setTimeout(() => delete window.skipIconDisplay, 400);
 
   // Get the word under the cursor
   const word = getWordUnderCursor(x, y);
@@ -1907,6 +1911,7 @@ function handleSingleClickWordMarking(x, y, group) {
   // Show result window immediately with spinner and the clicked word
   const locationInfo = showResult(null, group, null, word);
   lookupWord(word, group, locationInfo);
+  
 }
 
 // Select the word under cursor to highlight it visually
