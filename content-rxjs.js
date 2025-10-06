@@ -576,6 +576,8 @@ function createFavoritesStar(resultDiv, group, boxId) {
   starBtn.className = 'langbro-favorites-star';
   starBtn.title = 'Add to favorites';
 
+  let longPressDetected = false;
+
   // Get current lookup data from the result div
   const getCurrentLookupData = () => {
     const contentDiv = resultDiv.querySelector('.langbro-result-content');
@@ -648,6 +650,11 @@ function createFavoritesStar(resultDiv, group, boxId) {
   starBtn.onclick = async (e) => {
     e.stopPropagation();
 
+    if (longPressDetected) {
+      longPressDetected = false;
+      return; // Skip toggling when long press was detected
+    }
+
     try {
       const lookupData = getCurrentLookupData();
       if (!lookupData || !lookupData.name) {
@@ -710,7 +717,9 @@ function createFavoritesStar(resultDiv, group, boxId) {
   // Long press handler for list selection
   let pressTimer;
   starBtn.onmousedown = (e) => {
+    longPressDetected = false;
     pressTimer = setTimeout(() => {
+      longPressDetected = true;
       showFavoritesListDropdown(starBtn, resultDiv, group, boxId, getCurrentLookupData);
     }, 500); // 500ms for long press
   };
@@ -721,6 +730,7 @@ function createFavoritesStar(resultDiv, group, boxId) {
 
   starBtn.onmouseleave = () => {
     clearTimeout(pressTimer);
+    longPressDetected = false;
   };
 
   // Initialize appearance
@@ -774,7 +784,12 @@ async function showFavoritesListDropdown(starBtn, resultDiv, group, boxId, getCu
             if (addResponse.success) {
               console.log(`Added to favorites list "${list.name}":`, lookupData.name);
               dropdown.remove();
-              // Update star appearance via storage change listener
+              // Update star appearance immediately
+              const star = resultDiv.querySelector('.langbro-favorites-star');
+              if (star) {
+                const updateEvent = new CustomEvent('updateFavoritesStar');
+                star.dispatchEvent(updateEvent);
+              }
             }
          } catch (error) {
            console.error('Error adding to list:', error);
@@ -847,7 +862,10 @@ async function createNewFavoritesList(listName, dropdown, starBtn, resultDiv, gr
           console.log(`Added to new list "${listName}":`, lookupData.name);
           // Update star appearance
           const star = resultDiv.querySelector('.langbro-favorites-star');
-          if (star) star.click(); // Trigger click to update appearance
+          if (star) {
+            const updateEvent = new CustomEvent('updateFavoritesStar');
+            star.dispatchEvent(updateEvent);
+          }
         }
       }
     } else {
