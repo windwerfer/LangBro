@@ -129,12 +129,19 @@ function showFavoriteDetails(item) {
         ${item.data}
       </div>
       <div class="modal-buttons">
-        <button class="modal-btn" onclick="this.closest('.modal').remove()">Close</button>
+        <button class="modal-btn">Close</button>
       </div>
     </div>
   `;
 
   document.body.appendChild(modal);
+
+  // Add close button event listener
+  const closeBtn = modal.querySelector('.modal-btn');
+  closeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    modal.remove();
+  });
 
   // Close modal when clicking outside
   modal.addEventListener('click', (e) => {
