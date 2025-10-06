@@ -142,34 +142,7 @@ const mouseUp$ = fromEvent(document, 'mouseup').pipe(
   }))
 );
 
-// Click sequence detection for single/triple clicks
-// Use reactive settings to determine buffer time and handle single-click word marking
-const clickSequence$ = settings.select('tripleClickGroupId').pipe(
-  switchMap(tripleClickGroupId => {
-    const tripleClickEnabled = tripleClickGroupId && tripleClickGroupId !== '';
-    const clickBufferTime = tripleClickEnabled ? 1000 : 500;
-    console.log('RxJS: Click buffer time set to', clickBufferTime, 'ms (triple click enabled:', tripleClickEnabled, ')');
 
-    return mouseDown$.pipe(
-      filter(() => settings.current.extensionEnabled),  // Only emit when extension is enabled
-      bufferTime(clickBufferTime),
-      filter(clicks => clicks.length > 0),
-      map(clicks => ({
-        count: clicks.length,
-        target: clicks[0].target,
-        time: clicks[0].time,
-        x: clicks[0].x,
-        y: clicks[0].y
-      }))
-    );
-  })
-);
-
-// Log click sequences
-clickSequence$.subscribe(({ count, target }) => {
-  const clickType = count === 1 ? 'single' : count === 2 ? 'double' : count === 3 ? 'triple' : `${count}`;
-  console.log('RxJS: User clicked on text:', clickType, 'click');
-});
 
 // Single-click word marking stream when singleClickGroupId is set (use mouseup to avoid browser clearing selection)
 const singleClickWordMarking$ = combineLatest([
@@ -237,7 +210,6 @@ const domReady$ = fromEvent(document, 'DOMContentLoaded').pipe(
 export {
   selection$,
   swipe$,
-  clickSequence$,
   iconClick$,
   documentClick$,
   runtimeMessage$,
