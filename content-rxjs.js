@@ -102,6 +102,23 @@ swipe$.subscribe(direction => {
   console.log('RxJS: User swiped', direction);
 });
 
+// Update favorites stars when favorites data changes
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.favoritesData) {
+    // Update all existing star buttons
+    const starButtons = document.querySelectorAll('.langbro-favorites-star');
+    starButtons.forEach(button => {
+      // Find the result div this star belongs to
+      const resultDiv = button.closest('.langbro-result');
+      if (resultDiv) {
+        // Trigger update for this star
+        const updateEvent = new CustomEvent('updateFavoritesStar');
+        button.dispatchEvent(updateEvent);
+      }
+    });
+  }
+});
+
 // Mouse Gesture Streams
 // Mouse down stream for gesture detection
 const mouseDown$ = fromEvent(document, 'mousedown').pipe(
@@ -159,7 +176,7 @@ const singleClickWordMarking$ = combineLatest([
   settings.select('singleClickGroupId'),
   mouseUp$.pipe(
     filter(event => !settings.current.currentSelection?.selectedText || event.target.closest('[data-box-id]')), // Only when no text is selected, or when clicking inside result windows
-    filter(event => !event.target.closest('.did-you-mean-word, .suggestion-item, .langbro-lookup-icon')) // Exclude only interactive extension elements
+    filter(event => !event.target.closest('.did-you-mean-word, .suggestion-item, .langbro-lookup-icon, .langbro-result-header, .langbro-favorites-dropdown')) // Exclude only interactive extension elements
   )
 ]).pipe(
   filter(([singleClickGroupId, clickEvent]) => singleClickGroupId && singleClickGroupId !== '' && settings.current.extensionEnabled),
@@ -600,34 +617,34 @@ function createFavoritesStar(resultDiv, group, boxId) {
       const lookupData = getCurrentLookupData();
       if (!lookupData || !lookupData.name) return;
 
-      // Get last used list
-      const response = await chrome.runtime.sendMessage({ action: 'getLastUsedList' });
-      if (!response.success) return;
+      // Get last used list for display and checking
+      const lastUsedResponse = await chrome.runtime.sendMessage({ action: 'getLastUsedList' });
+      const lastUsedList = lastUsedResponse.success ? lastUsedResponse.list : null;
 
-      const lastUsedList = response.list;
-      const listId = lastUsedList.id;
-
-      // Check if this item is already in favorites
+      // Check if this item is already in the ACTIVE (last used) favorites list
       const favoritesResponse = await chrome.runtime.sendMessage({ action: 'getFavoritesData' });
       if (!favoritesResponse.success) return;
 
-      const list = favoritesResponse.data.lists.find(l => l.id === listId);
-      const isFavorited = list && list.items.some(item =>
+      const activeList = favoritesResponse.data.lists.find(list => list.id === (lastUsedList ? lastUsedList.id : null));
+      const isFavorited = activeList && activeList.items.some(item =>
         item.name === lookupData.name && item.type === lookupData.type
       );
 
       starBtn.innerHTML = isFavorited ? '★' : '☆';
       starBtn.classList.toggle('favorited', isFavorited);
 
-      // Show list abbreviation next to star
-      const listAbbrev = lastUsedList.name.substring(0, 3).toLowerCase();
-      starBtn.title = `Add to favorites (${listAbbrev})`;
+      // Show list abbreviation on the left side of the star
+      const listAbbrev = lastUsedList ? lastUsedList.name.substring(0, 3).toLowerCase() : 'fav';
+      starBtn.title = isFavorited ? `Remove from favorites (${listAbbrev})` : `Add to favorites (${listAbbrev})`;
+
+      // Add list abbreviation as text before the star
+      starBtn.innerHTML = `${listAbbrev} ${isFavorited ? '★' : '☆'}`;
     } catch (error) {
       console.error('Error updating star appearance:', error);
     }
   };
 
-  // Click handler - add to favorites
+  // Click handler - toggle favorites in active list
   starBtn.onclick = async (e) => {
     e.stopPropagation();
 
@@ -638,30 +655,55 @@ function createFavoritesStar(resultDiv, group, boxId) {
         return;
       }
 
-      // Get last used list
-      const response = await chrome.runtime.sendMessage({ action: 'getLastUsedList' });
-      if (!response.success) {
+      // Get active (last used) list
+      const lastUsedResponse = await chrome.runtime.sendMessage({ action: 'getLastUsedList' });
+      if (!lastUsedResponse.success) {
         console.error('Failed to get last used list');
         return;
       }
 
-      const listId = response.list.id;
+      const activeListId = lastUsedResponse.list.id;
 
-      // Add to favorites
-      const addResponse = await chrome.runtime.sendMessage({
-        action: 'addToFavorites',
-        listId: listId,
-        item: lookupData
-      });
+      // Check if this item is already in the ACTIVE favorites list
+      const favoritesResponse = await chrome.runtime.sendMessage({ action: 'getFavoritesData' });
+      if (!favoritesResponse.success) return;
 
-      if (addResponse.success) {
-        updateStarAppearance(); // Update appearance after adding
-        console.log('Added to favorites:', lookupData.name);
+      const activeList = favoritesResponse.data.lists.find(list => list.id === activeListId);
+      const existingItem = activeList ? activeList.items.find(item =>
+        item.name === lookupData.name && item.type === lookupData.type
+      ) : null;
+
+      if (existingItem) {
+        // Remove from active list
+        const removeResponse = await chrome.runtime.sendMessage({
+          action: 'removeFromFavorites',
+          listId: activeListId,
+          itemId: existingItem.id
+        });
+
+        if (removeResponse.success) {
+          updateStarAppearance(); // Update appearance after removing
+          console.log('Removed from favorites:', lookupData.name);
+        } else {
+          console.error('Failed to remove from favorites:', removeResponse.error);
+        }
       } else {
-        console.error('Failed to add to favorites:', addResponse.error);
+        // Add to active list
+        const addResponse = await chrome.runtime.sendMessage({
+          action: 'addToFavorites',
+          listId: activeListId,
+          item: lookupData
+        });
+
+        if (addResponse.success) {
+          updateStarAppearance(); // Update appearance after adding
+          console.log('Added to favorites:', lookupData.name);
+        } else {
+          console.error('Failed to add to favorites:', addResponse.error);
+        }
       }
     } catch (error) {
-      console.error('Error adding to favorites:', error);
+      console.error('Error toggling favorites:', error);
     }
   };
 
@@ -683,6 +725,11 @@ function createFavoritesStar(resultDiv, group, boxId) {
 
   // Initialize appearance
   updateStarAppearance();
+
+  // Listen for favorites data changes to update appearance
+  starBtn.addEventListener('updateFavoritesStar', () => {
+    updateStarAppearance();
+  });
 
   return starBtn;
 }
@@ -741,11 +788,15 @@ async function showFavoritesListDropdown(starBtn, resultDiv, group, boxId, getCu
     const newListItem = document.createElement('div');
     newListItem.className = 'favorites-dropdown-item new-list-item';
     newListItem.textContent = '+ New List';
-    newListItem.onclick = () => {
-      const listName = prompt('Enter name for new favorites list:');
-      if (listName && listName.trim()) {
-        createNewFavoritesList(listName.trim(), dropdown, starBtn, resultDiv, group, boxId, getCurrentLookupData);
-      }
+    newListItem.onclick = (e) => {
+      e.stopPropagation();
+      // Use setTimeout to prevent immediate popup closure
+      setTimeout(() => {
+        const listName = prompt('Enter name for new favorites list:');
+        if (listName && listName.trim()) {
+          createNewFavoritesList(listName.trim(), dropdown, starBtn, resultDiv, group, boxId, getCurrentLookupData);
+        }
+      }, 10);
     };
     dropdown.appendChild(newListItem);
 

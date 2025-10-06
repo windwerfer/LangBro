@@ -177,10 +177,66 @@ function setupEventListeners() {
     renameCurrentList();
   });
 
+  // Create list button
+  document.getElementById('createBtn').addEventListener('click', () => {
+    createNewList();
+  });
+
+  // Rename list button
+  document.getElementById('renameBtn').addEventListener('click', () => {
+    renameCurrentList();
+  });
+
   // Delete list button
   document.getElementById('deleteBtn').addEventListener('click', () => {
     deleteCurrentList();
   });
+}
+
+async function renameCurrentList() {
+  const currentList = currentFavoritesData.lists.find(list => list.id === currentListId);
+  if (!currentList) return;
+
+  const newName = prompt('Enter new name for the list:', currentList.name);
+  if (!newName || newName.trim() === currentList.name) return;
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'renameFavoritesList',
+      listId: currentListId,
+      newName: newName.trim()
+    });
+
+    if (response.success) {
+      await loadFavoritesData(); // Reload data
+    } else {
+      showError('Failed to rename list: ' + response.error);
+    }
+  } catch (error) {
+    console.error('Error renaming list:', error);
+    showError('Failed to rename list');
+  }
+}
+
+async function createNewList() {
+  const listName = prompt('Enter name for new favorites list:');
+  if (!listName || !listName.trim()) return;
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'createFavoritesList',
+      name: listName.trim()
+    });
+
+    if (response.success) {
+      await loadFavoritesData(); // Reload data
+    } else {
+      showError('Failed to create list: ' + response.error);
+    }
+  } catch (error) {
+    console.error('Error creating list:', error);
+    showError('Failed to create list');
+  }
 }
 
 async function renameCurrentList() {

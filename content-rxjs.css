@@ -310,13 +310,17 @@
   border: 1px solid #666;
   border-radius: 3px;
   cursor: pointer;
-  width: 20px;
+  min-width: 40px; /* Wider to accommodate text + star */
   height: 20px;
-  font-size: 12px;
+  font-size: 10px; /* Smaller font for text */
   line-height: 1;
-  padding: 0px;
+  padding: 0px 4px; /* Add horizontal padding */
   z-index: 1000001;
   transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px; /* Space between text and star */
 }
 
 .langbro-favorites-star:hover {

@@ -24,3 +24,8 @@ Continuous updates section (add new valuable learnings here):
 - Button styling consistency: Match close button styling (black background, white text, 20x20px) for UI consistency
 - Dark mode implementation: Apply dark styles to all interactive elements including select dropdowns and form inputs
 - List management UX: Provide create/rename/delete actions with confirmation dialogs and error handling
+- Favorites toggle logic: Check active (last used) list for existing favorites, implement add/remove toggle on star click
+- Event handling: Use setTimeout for prompt dialogs to prevent popup closure due to focus loss
+- Active list favorite detection: Star shows yellow only if item exists in the currently active (most recent) list
+- Star display enhancement: Show first 3 letters of active list name alongside star icon for clear visual feedback
+- Reactive UI updates: Use chrome.storage.onChanged to listen for favorites data changes and update all star buttons across open result windows
