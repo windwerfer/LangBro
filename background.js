@@ -256,6 +256,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           throw new Error(`Unknown query type: ${request.queryType}`);
         }
 
+        // Add to history if lookup was successful
+        if (definition) {
+          await addToHistory(request.groupId, word, definition);
+        }
+
         sendResponse({ definition: definition || 'No definition found' });
       } catch (error) {
         console.error('ERROR', 'Lookup error:', error);
@@ -422,18 +427,40 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
        }
      })();
      return true;
-   } else if (request.action === 'getLastUsedList') {
-     (async () => {
-       try {
-         const list = await getLastUsedList();
-         sendResponse({ success: true, list: list });
-       } catch (error) {
-         console.error('Error getting last used list:', error);
-         sendResponse({ success: false, error: error.message });
-       }
-     })();
-     return true;
-   }
+    } else if (request.action === 'getLastUsedList') {
+      (async () => {
+        try {
+          const list = await getLastUsedList();
+          sendResponse({ success: true, list: list });
+        } catch (error) {
+          console.error('Error getting last used list:', error);
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+    } else if (request.action === 'getHistory') {
+      (async () => {
+        try {
+          const history = await getHistory(request.groupId);
+          sendResponse({ success: true, history: history });
+        } catch (error) {
+          console.error('Error getting history:', error);
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+    } else if (request.action === 'getHistoryEntry') {
+      (async () => {
+        try {
+          const entry = await getHistoryEntry(request.groupId, request.index);
+          sendResponse({ success: true, entry: entry });
+        } catch (error) {
+          console.error('Error getting history entry:', error);
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+    }
    return false;
 });
 
@@ -1319,4 +1346,60 @@ async function removeFromFavorites(listId, itemId) {
 
   list.items = list.items.filter(item => item.id !== itemId);
   await saveFavoritesData(data);
+}
+
+// ===== HISTORY MANAGEMENT =====
+
+// Get history data from storage
+async function getHistoryData() {
+  try {
+    const result = await chrome.storage.local.get(['queryGroupHistory']);
+    return result.queryGroupHistory || {};
+  } catch (error) {
+    console.error('Error getting history data:', error);
+    return {};
+  }
+}
+
+// Save history data to storage
+async function saveHistoryData(data) {
+  try {
+    await chrome.storage.local.set({ queryGroupHistory: data });
+  } catch (error) {
+    console.error('Error saving history data:', error);
+  }
+}
+
+// Get history for a specific group
+async function getHistory(groupId) {
+  const data = await getHistoryData();
+  return data[groupId] || [];
+}
+
+// Add entry to history for a specific group (max 200 entries)
+async function addToHistory(groupId, word, definition) {
+  const data = await getHistoryData();
+  if (!data[groupId]) {
+    data[groupId] = [];
+  }
+
+  // Add new entry at the beginning
+  data[groupId].unshift({
+    word: word,
+    definition: definition,
+    timestamp: Date.now()
+  });
+
+  // Limit to 200 entries, remove oldest
+  if (data[groupId].length > 200) {
+    data[groupId] = data[groupId].slice(0, 200);
+  }
+
+  await saveHistoryData(data);
+}
+
+// Get specific history entry by index
+async function getHistoryEntry(groupId, index) {
+  const history = await getHistory(groupId);
+  return history[index] || null;
 }

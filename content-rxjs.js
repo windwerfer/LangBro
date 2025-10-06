@@ -247,6 +247,16 @@ export {
 
 // ===== UTILITY FUNCTIONS =====
 
+// Create group label with icon and name
+function createGroupLabel(group) {
+  if (group.icon && group.icon.endsWith('.png')) {
+    const iconHtml = `<img src="${chrome.runtime.getURL(group.icon)}" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;" alt="${group.icon}">`;
+    return settings.current.hideGroupNames ? iconHtml : `${iconHtml}${group.name}`;
+  } else {
+    return settings.current.hideGroupNames ? group.icon : `${group.icon} ${group.name}`;
+  }
+}
+
 // Find the closest text-containing element by traversing up the DOM tree
 function findClosestTextElement(element) {
   const acceptableTags = ['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE', 'ARTICLE']; //, 'SECTION', 'LI', 'TD', 'TH', 'SPAN'];
@@ -528,6 +538,11 @@ function createResultDiv(type, group, boxId, initialWord = '') {
     const closeBtn = createCloseButton(resultDiv);
     headerDiv.appendChild(closeBtn);
 
+    // Add history navigation buttons to header
+    const historyButtons = createHistoryButtons(resultDiv, group, boxId);
+    headerDiv.appendChild(historyButtons.backBtn);
+    headerDiv.appendChild(historyButtons.forwardBtn);
+
     // Add favorites star button to header
     const starBtn = createFavoritesStar(resultDiv, group, boxId);
     headerDiv.appendChild(starBtn);
@@ -748,6 +763,136 @@ function createFavoritesStar(resultDiv, group, boxId) {
   });
 
   return starBtn;
+}
+
+// Create history navigation buttons for result div
+function createHistoryButtons(resultDiv, group, boxId) {
+  // Back button
+  const backBtn = document.createElement('button');
+  backBtn.innerHTML = '◀';
+  backBtn.className = 'langbro-history-back-btn';
+  backBtn.title = 'Previous in history';
+  backBtn.disabled = true; // Initially disabled
+
+  // Forward button
+  const forwardBtn = document.createElement('button');
+  forwardBtn.innerHTML = '▶';
+  forwardBtn.className = 'langbro-history-forward-btn';
+  forwardBtn.title = 'Next in history';
+  forwardBtn.disabled = true; // Initially disabled
+
+  // Initialize history state
+  resultDiv.dataset.historyIndex = '-1'; // -1 means current lookup, not in history
+  resultDiv.dataset.historyLength = '0';
+
+  // Load history and update button states
+  loadHistoryForGroup(resultDiv, group.id);
+
+  // Back button click handler
+  backBtn.onclick = async (e) => {
+    e.stopPropagation();
+    await navigateHistory(resultDiv, group.id, 'back');
+  };
+
+  // Forward button click handler
+  forwardBtn.onclick = async (e) => {
+    e.stopPropagation();
+    await navigateHistory(resultDiv, group.id, 'forward');
+  };
+
+  return { backBtn, forwardBtn };
+}
+
+// Load history for a group and update button states
+async function loadHistoryForGroup(resultDiv, groupId) {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'getHistory',
+      groupId: groupId
+    });
+
+    if (response.success && response.history) {
+      resultDiv.dataset.historyLength = response.history.length.toString();
+
+      // Update button states
+      updateHistoryButtons(resultDiv);
+    }
+  } catch (error) {
+    console.error('Error loading history:', error);
+  }
+}
+
+// Navigate through history
+async function navigateHistory(resultDiv, groupId, direction) {
+  const currentIndex = parseInt(resultDiv.dataset.historyIndex);
+  const historyLength = parseInt(resultDiv.dataset.historyLength);
+
+  let newIndex;
+  if (direction === 'back') {
+    newIndex = currentIndex - 1;
+  } else if (direction === 'forward') {
+    newIndex = currentIndex + 1;
+  } else {
+    return; // Invalid direction
+  }
+
+  // Validate index bounds
+  if (newIndex < 0 || newIndex >= historyLength) {
+    return; // Out of bounds
+  }
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'getHistoryEntry',
+      groupId: groupId,
+      index: newIndex
+    });
+
+    if (response.success && response.entry) {
+      // Update history index
+      resultDiv.dataset.historyIndex = newIndex.toString();
+
+      // Update content with history entry
+      const contentDiv = resultDiv.querySelector('.langbro-result-content');
+      if (contentDiv) {
+        // Create group label for the history entry
+        const group = settings.current.queryGroups.find(g => g.id === groupId);
+        const groupLabel = group ? createGroupLabel(group) : '';
+
+        // Update content with history entry
+        contentDiv.innerHTML = sanitizeDictHTML(`${groupLabel}\n\n${response.entry.definition}`);
+
+        // Update star appearance for the history entry
+        const star = resultDiv.querySelector('.langbro-favorites-star');
+        if (star) {
+          const updateEvent = new CustomEvent('updateFavoritesStar');
+          star.dispatchEvent(updateEvent);
+        }
+      }
+
+      // Update button states
+      updateHistoryButtons(resultDiv);
+    }
+  } catch (error) {
+    console.error('Error navigating history:', error);
+  }
+}
+
+// Update history button states based on current index
+function updateHistoryButtons(resultDiv) {
+  const currentIndex = parseInt(resultDiv.dataset.historyIndex);
+  const historyLength = parseInt(resultDiv.dataset.historyLength);
+
+  const backBtn = resultDiv.querySelector('.langbro-history-back-btn');
+  const forwardBtn = resultDiv.querySelector('.langbro-history-forward-btn');
+
+  if (backBtn) {
+    backBtn.disabled = currentIndex <= 0;
+  }
+
+  if (forwardBtn) {
+    forwardBtn.disabled = currentIndex >= historyLength - 1;
+  }
 }
 
 // Show dropdown for selecting favorites list
@@ -1142,6 +1287,12 @@ function hideSuggestions(resultDiv) {
 function showPopupResult(definition, group, boxId, initialWord = '') {
   let resultDiv = createResultDiv('popup', group, boxId, initialWord);
 
+  // Reset history index for new lookups
+  if (definition) {
+    resultDiv.dataset.historyIndex = '-1';
+    updateHistoryButtons(resultDiv);
+  }
+
   // Get popup settings
   const popupSettings = group.popupSettings || { width: '40%', height: '30%', hideOnClickOutside: false };
 
@@ -1191,6 +1342,12 @@ function showPopupResult(definition, group, boxId, initialWord = '') {
 function showInlineResult(definition, group, boxId, initialWord = '') {
   // First check if result div exists in tracking array
   let inlineDiv = settings.current.inlineDivs.find(div => div.dataset.boxId == boxId);
+
+  // Reset history index for new lookups
+  if (definition && inlineDiv) {
+    inlineDiv.dataset.historyIndex = '-1';
+    updateHistoryButtons(inlineDiv);
+  }
 
   if (!inlineDiv) {
     // Need to create a new inline result element
@@ -1299,6 +1456,12 @@ function showInlineResult(definition, group, boxId, initialWord = '') {
 function showBottomResult(definition, group, boxId, initialWord = '') {
   let bottomDiv = createResultDiv('bottom', group, boxId, initialWord);
 
+  // Reset history index for new lookups
+  if (definition) {
+    bottomDiv.dataset.historyIndex = '-1';
+    updateHistoryButtons(bottomDiv);
+  }
+
   // Get content div
   const contentDiv = bottomDiv.querySelector('.langbro-result-content');
   if (!contentDiv) return;
@@ -1328,7 +1491,6 @@ function showBottomResult(definition, group, boxId, initialWord = '') {
 
 // Show the result based on group's display method
 function showResult(definition, group, locationInfo, initialWord = '') {
-
   const displayMethod = locationInfo ? locationInfo.displayMethod : group.displayMethod || 'popup';
   const boxId = locationInfo ? locationInfo.boxId : settings.incrementBoxId();
 
@@ -1543,15 +1705,7 @@ function showDidYouMeanSuggestions(suggestions, locationInfo) {
             return;
           }
 
-          // Create group label
-          const createGroupLabel = (group) => {
-            if (group.icon && group.icon.endsWith('.png')) {
-              const iconHtml = `<img src="${chrome.runtime.getURL(group.icon)}" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;" alt="${group.icon}">`;
-              return settings.current.hideGroupNames ? iconHtml : `${iconHtml}${group.name}`;
-            } else {
-              return settings.current.hideGroupNames ? group.icon : `${group.icon} ${group.name}`;
-            }
-          };
+
 
           if (response && response.error) {
             const groupLabel = createGroupLabel(group);
