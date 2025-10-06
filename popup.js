@@ -1,8 +1,14 @@
 // Popup script for langbro Dictionary
 document.addEventListener('DOMContentLoaded', () => {
+  const favoritesBtn = document.getElementById('favoritesBtn');
   const optionsBtn = document.getElementById('optionsBtn');
   const statusDiv = document.getElementById('status');
   const extensionToggle = document.getElementById('extensionToggle');
+
+  favoritesBtn.addEventListener('click', () => {
+    // Open favorites page in new tab
+    chrome.tabs.create({ url: chrome.runtime.getURL('favorites.html') });
+  });
 
   optionsBtn.addEventListener('click', () => {
     chrome.runtime.openOptionsPage();

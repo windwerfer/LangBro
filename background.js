@@ -348,11 +348,93 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
     })();
     return true; // Keep message channel open for async response
-  } else if (request.action === 'reloadParser') {
-    // No longer needed with structured DB, but keep for compatibility
-    sendResponse({ success: true });
-  }
-  return false;
+   } else if (request.action === 'reloadParser') {
+     // No longer needed with structured DB, but keep for compatibility
+     sendResponse({ success: true });
+   } else if (request.action === 'getFavoritesData') {
+     (async () => {
+       try {
+         const data = await getFavoritesData();
+         sendResponse({ success: true, data: data });
+       } catch (error) {
+         console.error('Error getting favorites data:', error);
+         sendResponse({ success: false, error: error.message });
+       }
+     })();
+     return true;
+   } else if (request.action === 'addToFavorites') {
+     (async () => {
+       try {
+         const { listId, item } = request;
+         const addedItem = await addToFavorites(listId, item);
+         sendResponse({ success: true, item: addedItem });
+       } catch (error) {
+         console.error('Error adding to favorites:', error);
+         sendResponse({ success: false, error: error.message });
+       }
+     })();
+     return true;
+   } else if (request.action === 'createFavoritesList') {
+     (async () => {
+       try {
+         const { name } = request;
+         const newList = await createFavoritesList(name);
+         sendResponse({ success: true, list: newList });
+       } catch (error) {
+         console.error('Error creating favorites list:', error);
+         sendResponse({ success: false, error: error.message });
+       }
+     })();
+     return true;
+   } else if (request.action === 'renameFavoritesList') {
+     (async () => {
+       try {
+         const { listId, newName } = request;
+         const renamedList = await renameFavoritesList(listId, newName);
+         sendResponse({ success: true, list: renamedList });
+       } catch (error) {
+         console.error('Error renaming favorites list:', error);
+         sendResponse({ success: false, error: error.message });
+       }
+     })();
+     return true;
+   } else if (request.action === 'deleteFavoritesList') {
+     (async () => {
+       try {
+         const { listId } = request;
+         await deleteFavoritesList(listId);
+         sendResponse({ success: true });
+       } catch (error) {
+         console.error('Error deleting favorites list:', error);
+         sendResponse({ success: false, error: error.message });
+       }
+     })();
+     return true;
+   } else if (request.action === 'removeFromFavorites') {
+     (async () => {
+       try {
+         const { listId, itemId } = request;
+         await removeFromFavorites(listId, itemId);
+         sendResponse({ success: true });
+       } catch (error) {
+         console.error('Error removing from favorites:', error);
+         sendResponse({ success: false, error: error.message });
+       }
+     })();
+     return true;
+   } else if (request.action === 'getLastUsedList') {
+     (async () => {
+       try {
+         const list = await getLastUsedList();
+         sendResponse({ success: true, list: list });
+       } catch (error) {
+         console.error('Error getting last used list:', error);
+         sendResponse({ success: false, error: error.message });
+       }
+     })();
+     return true;
+   }
+   return false;
 });
 
 // Language mappings for {lang} and {lang_short} placeholders (sorted alphabetically by full language name)
@@ -1072,12 +1154,169 @@ async function performAILookup(word, context, settings, groupId = null) {
 
     if (cachingEnabled) {
       const cacheKey = await getCacheKey(word, targetLanguage, 'ai', contextToUse);
-      if (cacheKey) {
-        await setCachedResult(groupId, cacheKey, result);
-        console.log('AI lookup - cached result for:', word);
-      }
-    }
+       if (cacheKey) {
+         await setCachedResult(groupId, cacheKey, result);
+         console.log('AI lookup - cached result for:', word);
+       }
+     }
+   }
+
+   return result;
+}
+
+// ===== FAVORITES MANAGEMENT =====
+
+// Get favorites data from storage
+async function getFavoritesData() {
+  try {
+    const result = await chrome.storage.local.get(['favoritesData']);
+    return result.favoritesData || { lists: [], lastUsedListId: null };
+  } catch (error) {
+    console.error('Error getting favorites data:', error);
+    return { lists: [], lastUsedListId: null };
+  }
+}
+
+// Save favorites data to storage
+async function saveFavoritesData(data) {
+  try {
+    await chrome.storage.local.set({ favoritesData: data });
+  } catch (error) {
+    console.error('Error saving favorites data:', error);
+  }
+}
+
+// Get or create default favorites list
+async function getOrCreateDefaultList() {
+  const data = await getFavoritesData();
+  let defaultList = data.lists.find(list => list.id === 'favorites');
+
+  if (!defaultList) {
+    defaultList = {
+      id: 'favorites',
+      name: 'Favorites',
+      created: Date.now(),
+      items: []
+    };
+    data.lists.push(defaultList);
+    await saveFavoritesData(data);
   }
 
-  return result;
+  return defaultList;
+}
+
+// Get last used list or default
+async function getLastUsedList() {
+  const data = await getFavoritesData();
+  if (data.lastUsedListId) {
+    const list = data.lists.find(list => list.id === data.lastUsedListId);
+    if (list) return list;
+  }
+  return await getOrCreateDefaultList();
+}
+
+// Add item to favorites list
+async function addToFavorites(listId, item) {
+  const data = await getFavoritesData();
+  const list = data.lists.find(list => list.id === listId);
+
+  if (!list) {
+    throw new Error(`List ${listId} not found`);
+  }
+
+  // Check if item already exists (by name and type)
+  const existingItem = list.items.find(existing =>
+    existing.name === item.name && existing.type === item.type
+  );
+
+  if (existingItem) {
+    // Update existing item
+    existingItem.data = item.data;
+    existingItem.timestamp = Date.now();
+  } else {
+    // Add new item
+    item.id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    item.timestamp = Date.now();
+    list.items.push(item);
+  }
+
+  // Update last used list
+  data.lastUsedListId = listId;
+
+  await saveFavoritesData(data);
+  return item;
+}
+
+// Create new favorites list
+async function createFavoritesList(name) {
+  const data = await getFavoritesData();
+
+  // Check if list name already exists
+  if (data.lists.some(list => list.name.toLowerCase() === name.toLowerCase())) {
+    throw new Error(`List "${name}" already exists`);
+  }
+
+  const newList = {
+    id: name.toLowerCase().replace(/\s+/g, '_'),
+    name: name,
+    created: Date.now(),
+    items: []
+  };
+
+  data.lists.push(newList);
+  data.lastUsedListId = newList.id;
+
+  await saveFavoritesData(data);
+  return newList;
+}
+
+// Rename favorites list
+async function renameFavoritesList(listId, newName) {
+  const data = await getFavoritesData();
+  const list = data.lists.find(list => list.id === listId);
+
+  if (!list) {
+    throw new Error(`List ${listId} not found`);
+  }
+
+  // Check if new name already exists
+  if (data.lists.some(list => list.id !== listId && list.name.toLowerCase() === newName.toLowerCase())) {
+    throw new Error(`List "${newName}" already exists`);
+  }
+
+  list.name = newName;
+  await saveFavoritesData(data);
+  return list;
+}
+
+// Delete favorites list
+async function deleteFavoritesList(listId) {
+  const data = await getFavoritesData();
+
+  // Don't allow deleting the default favorites list
+  if (listId === 'favorites') {
+    throw new Error('Cannot delete the default Favorites list');
+  }
+
+  data.lists = data.lists.filter(list => list.id !== listId);
+
+  // If deleted list was last used, reset to default
+  if (data.lastUsedListId === listId) {
+    data.lastUsedListId = 'favorites';
+  }
+
+  await saveFavoritesData(data);
+}
+
+// Remove item from favorites list
+async function removeFromFavorites(listId, itemId) {
+  const data = await getFavoritesData();
+  const list = data.lists.find(list => list.id === listId);
+
+  if (!list) {
+    throw new Error(`List ${listId} not found`);
+  }
+
+  list.items = list.items.filter(item => item.id !== itemId);
+  await saveFavoritesData(data);
 }

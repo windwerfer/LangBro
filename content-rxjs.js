@@ -510,6 +510,10 @@ function createResultDiv(type, group, boxId, initialWord = '') {
     const closeBtn = createCloseButton(resultDiv);
     headerDiv.appendChild(closeBtn);
 
+    // Add favorites star button to header
+    const starBtn = createFavoritesStar(resultDiv, group, boxId);
+    headerDiv.appendChild(starBtn);
+
     // Add search field if enabled
     if (group.showSearchField && group.showSearchField !== 'none') {
       const searchContainer = createSearchField(group, resultDiv, boxId, initialWord);
@@ -546,6 +550,263 @@ function createCloseButton(targetDiv) {
     targetDiv.style.display = 'none';
   };
   return closeBtn;
+}
+
+// Create favorites star button for result div
+function createFavoritesStar(resultDiv, group, boxId) {
+  const starBtn = document.createElement('button');
+  starBtn.innerHTML = '☆'; // Empty star by default
+  starBtn.className = 'langbro-favorites-star';
+  starBtn.title = 'Add to favorites';
+
+  // Get current lookup data from the result div
+  const getCurrentLookupData = () => {
+    const contentDiv = resultDiv.querySelector('.langbro-result-content');
+    if (!contentDiv) return null;
+
+    // Try to determine the type and extract data
+    let type = 'unknown';
+    let name = '';
+    let data = contentDiv.innerHTML;
+
+    // Check if this is from a lookup by examining the group
+    if (group.queryType === 'offline') {
+      type = 'offline';
+      // For offline, the name is the searched word
+      const searchInput = resultDiv.querySelector('.langbro-search-input');
+      name = searchInput ? searchInput.value.trim() : '';
+      if (!name) {
+        // Try to get from initial word or current selection
+        name = settings.current.selectedWord || '';
+      }
+    } else if (group.queryType === 'ai') {
+      type = 'ai';
+      // For AI, the name is the query/prompt
+      const searchInput = resultDiv.querySelector('.langbro-search-input');
+      name = searchInput ? searchInput.value.trim() : '';
+    } else if (group.queryType === 'web' || group.queryType === 'google_translate') {
+      type = 'web';
+      // For web, the name is the query
+      const searchInput = resultDiv.querySelector('.langbro-search-input');
+      name = searchInput ? searchInput.value.trim() : '';
+    }
+
+    return { type, name, data };
+  };
+
+  // Update star appearance based on favorites status
+  const updateStarAppearance = async () => {
+    try {
+      const lookupData = getCurrentLookupData();
+      if (!lookupData || !lookupData.name) return;
+
+      // Get last used list
+      const response = await chrome.runtime.sendMessage({ action: 'getLastUsedList' });
+      if (!response.success) return;
+
+      const lastUsedList = response.list;
+      const listId = lastUsedList.id;
+
+      // Check if this item is already in favorites
+      const favoritesResponse = await chrome.runtime.sendMessage({ action: 'getFavoritesData' });
+      if (!favoritesResponse.success) return;
+
+      const list = favoritesResponse.data.lists.find(l => l.id === listId);
+      const isFavorited = list && list.items.some(item =>
+        item.name === lookupData.name && item.type === lookupData.type
+      );
+
+      starBtn.innerHTML = isFavorited ? '★' : '☆';
+      starBtn.classList.toggle('favorited', isFavorited);
+
+      // Show list abbreviation next to star
+      const listAbbrev = lastUsedList.name.substring(0, 3).toLowerCase();
+      starBtn.title = `Add to favorites (${listAbbrev})`;
+    } catch (error) {
+      console.error('Error updating star appearance:', error);
+    }
+  };
+
+  // Click handler - add to favorites
+  starBtn.onclick = async (e) => {
+    e.stopPropagation();
+
+    try {
+      const lookupData = getCurrentLookupData();
+      if (!lookupData || !lookupData.name) {
+        console.warn('No lookup data available for favorites');
+        return;
+      }
+
+      // Get last used list
+      const response = await chrome.runtime.sendMessage({ action: 'getLastUsedList' });
+      if (!response.success) {
+        console.error('Failed to get last used list');
+        return;
+      }
+
+      const listId = response.list.id;
+
+      // Add to favorites
+      const addResponse = await chrome.runtime.sendMessage({
+        action: 'addToFavorites',
+        listId: listId,
+        item: lookupData
+      });
+
+      if (addResponse.success) {
+        updateStarAppearance(); // Update appearance after adding
+        console.log('Added to favorites:', lookupData.name);
+      } else {
+        console.error('Failed to add to favorites:', addResponse.error);
+      }
+    } catch (error) {
+      console.error('Error adding to favorites:', error);
+    }
+  };
+
+  // Long press handler for list selection
+  let pressTimer;
+  starBtn.onmousedown = (e) => {
+    pressTimer = setTimeout(() => {
+      showFavoritesListDropdown(starBtn, resultDiv, group, boxId, getCurrentLookupData);
+    }, 500); // 500ms for long press
+  };
+
+  starBtn.onmouseup = () => {
+    clearTimeout(pressTimer);
+  };
+
+  starBtn.onmouseleave = () => {
+    clearTimeout(pressTimer);
+  };
+
+  // Initialize appearance
+  updateStarAppearance();
+
+  return starBtn;
+}
+
+// Show dropdown for selecting favorites list
+async function showFavoritesListDropdown(starBtn, resultDiv, group, boxId, getCurrentLookupData) {
+  // Remove existing dropdown
+  const existingDropdown = document.querySelector('.langbro-favorites-dropdown');
+  if (existingDropdown) {
+    existingDropdown.remove();
+  }
+
+  try {
+    // Get favorites data
+    const response = await chrome.runtime.sendMessage({ action: 'getFavoritesData' });
+    if (!response.success) return;
+
+    const favoritesData = response.data;
+    const lists = favoritesData.lists;
+
+    // Create dropdown
+    const dropdown = document.createElement('div');
+    dropdown.className = 'langbro-favorites-dropdown';
+
+    // Add list options
+    lists.forEach(list => {
+      const listItem = document.createElement('div');
+      listItem.className = 'favorites-dropdown-item';
+      listItem.textContent = list.name;
+      listItem.onclick = async () => {
+        try {
+          const lookupData = getCurrentLookupData();
+          if (!lookupData || !lookupData.name) return;
+
+          const addResponse = await chrome.runtime.sendMessage({
+            action: 'addToFavorites',
+            listId: list.id,
+            item: lookupData
+          });
+
+          if (addResponse.success) {
+            console.log(`Added to favorites list "${list.name}":`, lookupData.name);
+            dropdown.remove();
+            // Update star appearance
+            const star = resultDiv.querySelector('.langbro-favorites-star');
+            if (star) star.click(); // Trigger click to update appearance
+          }
+        } catch (error) {
+          console.error('Error adding to list:', error);
+        }
+      };
+      dropdown.appendChild(listItem);
+    });
+
+    // Add "New List" option
+    const newListItem = document.createElement('div');
+    newListItem.className = 'favorites-dropdown-item new-list-item';
+    newListItem.textContent = '+ New List';
+    newListItem.onclick = () => {
+      const listName = prompt('Enter name for new favorites list:');
+      if (listName && listName.trim()) {
+        createNewFavoritesList(listName.trim(), dropdown, starBtn, resultDiv, group, boxId, getCurrentLookupData);
+      }
+    };
+    dropdown.appendChild(newListItem);
+
+    // Position dropdown below the star
+    const rect = starBtn.getBoundingClientRect();
+    dropdown.style.position = 'fixed';
+    dropdown.style.left = rect.left + 'px';
+    dropdown.style.top = (rect.bottom + 5) + 'px';
+    // dropdown.style.zIndex = '10000';
+
+    document.body.appendChild(dropdown);
+
+    // Close dropdown when clicking outside
+    const closeDropdown = (e) => {
+      if (!dropdown.contains(e.target) && e.target !== starBtn) {
+        dropdown.remove();
+        document.removeEventListener('click', closeDropdown);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', closeDropdown), 10);
+
+  } catch (error) {
+    console.error('Error showing favorites dropdown:', error);
+  }
+}
+
+// Create new favorites list
+async function createNewFavoritesList(listName, dropdown, starBtn, resultDiv, group, boxId, getCurrentLookupData) {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'createFavoritesList',
+      name: listName
+    });
+
+    if (response.success) {
+      console.log('Created new favorites list:', listName);
+      dropdown.remove();
+
+      // Add the current item to the new list
+      const lookupData = getCurrentLookupData();
+      if (lookupData && lookupData.name) {
+        const addResponse = await chrome.runtime.sendMessage({
+          action: 'addToFavorites',
+          listId: response.list.id,
+          item: lookupData
+        });
+
+        if (addResponse.success) {
+          console.log(`Added to new list "${listName}":`, lookupData.name);
+          // Update star appearance
+          const star = resultDiv.querySelector('.langbro-favorites-star');
+          if (star) star.click(); // Trigger click to update appearance
+        }
+      }
+    } else {
+      alert('Error creating list: ' + response.error);
+    }
+  } catch (error) {
+    console.error('Error creating new list:', error);
+    alert('Error creating list: ' + error.message);
+  }
 }
 
 // Add suggestions event handlers to a search input

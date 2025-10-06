@@ -17,7 +17,7 @@
   "background": {
     "scripts": ["background.js", "structured-db.js"]
   },
-  "web_accessible_resources": [{"resources": ["pako.min.js", "icon_Google_Translate.png", "icon_gemini.png", "content-rxjs.css"], "matches": ["<all_urls>"]}],
+   "web_accessible_resources": [{"resources": ["pako.min.js", "icon_Google_Translate.png", "icon_gemini.png", "content-rxjs.css", "favorites.html", "favorites.js"], "matches": ["<all_urls>"]}],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
