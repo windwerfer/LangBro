@@ -829,7 +829,9 @@ async function navigateHistory(resultDiv, groupId, direction) {
 
   let newIndex;
   if (direction === 'back') {
-    newIndex = currentIndex - 1;
+    // If currently at current lookup (-1), go to most recent history (0)
+    // Otherwise go to previous history entry
+    newIndex = currentIndex === -1 ? 0 : currentIndex - 1;
   } else if (direction === 'forward') {
     newIndex = currentIndex + 1;
   } else {
@@ -887,11 +889,13 @@ function updateHistoryButtons(resultDiv) {
   const forwardBtn = resultDiv.querySelector('.langbro-history-forward-btn');
 
   if (backBtn) {
-    backBtn.disabled = currentIndex <= 0;
+    // Back enabled if there's history to go to
+    backBtn.disabled = historyLength === 0 || (currentIndex !== -1 && currentIndex <= 0);
   }
 
   if (forwardBtn) {
-    forwardBtn.disabled = currentIndex >= historyLength - 1;
+    // Forward only enabled when navigating through history (not from current)
+    forwardBtn.disabled = currentIndex === -1 || currentIndex >= historyLength - 1;
   }
 }
 
@@ -1287,12 +1291,6 @@ function hideSuggestions(resultDiv) {
 function showPopupResult(definition, group, boxId, initialWord = '') {
   let resultDiv = createResultDiv('popup', group, boxId, initialWord);
 
-  // Reset history index for new lookups
-  if (definition) {
-    resultDiv.dataset.historyIndex = '-1';
-    updateHistoryButtons(resultDiv);
-  }
-
   // Get popup settings
   const popupSettings = group.popupSettings || { width: '40%', height: '30%', hideOnClickOutside: false };
 
@@ -1312,6 +1310,11 @@ function showPopupResult(definition, group, boxId, initialWord = '') {
   const contentDiv = resultDiv.querySelector('.langbro-result-content');
   if (!contentDiv) return;
 
+  // If showing a new definition, add current result to history first
+  if (definition && resultDiv.dataset.currentWord) {
+    addCurrentResultToHistory(resultDiv, group.id);
+  }
+
   // Clear content and show spinner or result
   contentDiv.innerHTML = '';
 
@@ -1320,6 +1323,14 @@ function showPopupResult(definition, group, boxId, initialWord = '') {
      const spinner = createSpinner(`Loading ${group.name}...`);
      contentDiv.appendChild(spinner);
    } else {
+     // Store current word and definition for history
+     resultDiv.dataset.currentWord = initialWord;
+     resultDiv.dataset.currentDefinition = definition;
+
+     // Reset history index for new lookups
+     resultDiv.dataset.historyIndex = '0'; // Start at 0, back will go to history items
+     updateHistoryButtons(resultDiv);
+
      // Show result
      const sanitizedHTML = sanitizeDictHTML(definition);
      contentDiv.innerHTML = sanitizedHTML;

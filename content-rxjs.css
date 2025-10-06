@@ -48,6 +48,41 @@
   z-index: 1000001;
 }
 
+/* History navigation button styles */
+.langbro-history-back-btn,
+.langbro-history-forward-btn {
+  position: absolute;
+  top: 5px;
+  background: black;
+  color: white;
+  border: 1px solid #666;
+  border-radius: 3px;
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0px;
+  z-index: 1000001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.langbro-history-back-btn {
+  right: 100px; /* Left of star button */
+}
+
+.langbro-history-forward-btn {
+  right: 80px; /* Left of close button */
+}
+
+.langbro-history-back-btn:disabled,
+.langbro-history-forward-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Search field container */
 .langbro-search-container {
   display: flex;
@@ -388,6 +423,19 @@
 
 .langbro-dark .langbro-favorites-star.favorited:hover {
   color: #ffed4e;
+  background: #333;
+}
+
+/* Dark mode for history buttons */
+.langbro-dark .langbro-history-back-btn,
+.langbro-dark .langbro-history-forward-btn {
+  background: black;
+  color: white;
+  border-color: #666;
+}
+
+.langbro-dark .langbro-history-back-btn:hover:not(:disabled),
+.langbro-dark .langbro-history-forward-btn:hover:not(:disabled) {
   background: #333;
 }
 
