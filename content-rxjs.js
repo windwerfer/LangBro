@@ -759,28 +759,27 @@ async function showFavoritesListDropdown(starBtn, resultDiv, group, boxId, getCu
       const listItem = document.createElement('div');
       listItem.className = 'favorites-dropdown-item';
       listItem.textContent = list.name;
-      listItem.onclick = async () => {
-        try {
-          const lookupData = getCurrentLookupData();
-          if (!lookupData || !lookupData.name) return;
+       listItem.onclick = async (e) => {
+         e.stopPropagation();
+         try {
+           const lookupData = getCurrentLookupData();
+           if (!lookupData || !lookupData.name) return;
 
-          const addResponse = await chrome.runtime.sendMessage({
-            action: 'addToFavorites',
-            listId: list.id,
-            item: lookupData
-          });
+           const addResponse = await chrome.runtime.sendMessage({
+             action: 'addToFavorites',
+             listId: list.id,
+             item: lookupData
+           });
 
-          if (addResponse.success) {
-            console.log(`Added to favorites list "${list.name}":`, lookupData.name);
-            dropdown.remove();
-            // Update star appearance
-            const star = resultDiv.querySelector('.langbro-favorites-star');
-            if (star) star.click(); // Trigger click to update appearance
-          }
-        } catch (error) {
-          console.error('Error adding to list:', error);
-        }
-      };
+            if (addResponse.success) {
+              console.log(`Added to favorites list "${list.name}":`, lookupData.name);
+              dropdown.remove();
+              // Update star appearance via storage change listener
+            }
+         } catch (error) {
+           console.error('Error adding to list:', error);
+         }
+       };
       dropdown.appendChild(listItem);
     });
 
@@ -1141,18 +1140,25 @@ function showPopupResult(definition, group, boxId, initialWord = '') {
   // Clear content and show spinner or result
   contentDiv.innerHTML = '';
 
-  if (!definition) {
-    // Show spinner
-    const spinner = createSpinner(`Loading ${group.name}...`);
-    contentDiv.appendChild(spinner);
-  } else {
-    // Show result
-    const sanitizedHTML = sanitizeDictHTML(definition);
-    contentDiv.innerHTML = sanitizedHTML;
-  }
+   if (!definition) {
+     // Show spinner
+     const spinner = createSpinner(`Loading ${group.name}...`);
+     contentDiv.appendChild(spinner);
+   } else {
+     // Show result
+     const sanitizedHTML = sanitizeDictHTML(definition);
+     contentDiv.innerHTML = sanitizedHTML;
 
-  // Store hide on click outside setting for later use
-  resultDiv.dataset.hideOnClickOutside = popupSettings.hideOnClickOutside;
+     // Update star appearance now that content is loaded
+     const star = resultDiv.querySelector('.langbro-favorites-star');
+     if (star) {
+       const updateEvent = new CustomEvent('updateFavoritesStar');
+       star.dispatchEvent(updateEvent);
+     }
+   }
+
+   // Store hide on click outside setting for later use
+   resultDiv.dataset.hideOnClickOutside = popupSettings.hideOnClickOutside;
 
   resultDiv.style.display = 'flex';
 }
@@ -1238,24 +1244,31 @@ function showInlineResult(definition, group, boxId, initialWord = '') {
   // Clear content and show spinner or result
   contentDiv.innerHTML = '';
 
-  if (!definition) {
-    // Show spinner
-    const spinner = createSpinner(`Loading ${group.name}...`);
-    contentDiv.appendChild(spinner);
-  } else {
-    // Show result
-    // Apply flexible height settings to content div
-    if (flexibleHeight) {
-      contentDiv.style.maxHeight = 'none';
-    } else {
-      contentDiv.style.maxHeight = '180px'; // Account for header
-    }
+   if (!definition) {
+     // Show spinner
+     const spinner = createSpinner(`Loading ${group.name}...`);
+     contentDiv.appendChild(spinner);
+   } else {
+     // Show result
+     // Apply flexible height settings to content div
+     if (flexibleHeight) {
+       contentDiv.style.maxHeight = 'none';
+     } else {
+       contentDiv.style.maxHeight = '180px'; // Account for header
+     }
 
-    const sanitizedHTML = sanitizeDictHTML(definition);
-    contentDiv.innerHTML = sanitizedHTML;
-  }
+     const sanitizedHTML = sanitizeDictHTML(definition);
+     contentDiv.innerHTML = sanitizedHTML;
 
-  inlineDiv.style.display = 'flex';
+     // Update star appearance now that content is loaded
+     const star = inlineDiv.querySelector('.langbro-favorites-star');
+     if (star) {
+       const updateEvent = new CustomEvent('updateFavoritesStar');
+       star.dispatchEvent(updateEvent);
+     }
+   }
+
+   inlineDiv.style.display = 'flex';
 }
 
 // Show the result in a bottom panel
@@ -1269,17 +1282,24 @@ function showBottomResult(definition, group, boxId, initialWord = '') {
   // Clear content and show spinner or result
   contentDiv.innerHTML = '';
 
-  if (!definition) {
-    // Show spinner
-    const spinner = createSpinner(`Loading ${group.name}...`);
-    contentDiv.appendChild(spinner);
-  } else {
-    // Show result
-    const sanitizedHTML = sanitizeDictHTML(definition);
-    contentDiv.innerHTML = sanitizedHTML;
-  }
+   if (!definition) {
+     // Show spinner
+     const spinner = createSpinner(`Loading ${group.name}...`);
+     contentDiv.appendChild(spinner);
+   } else {
+     // Show result
+     const sanitizedHTML = sanitizeDictHTML(definition);
+     contentDiv.innerHTML = sanitizedHTML;
 
-  bottomDiv.style.display = 'flex';
+     // Update star appearance now that content is loaded
+     const star = bottomDiv.querySelector('.langbro-favorites-star');
+     if (star) {
+       const updateEvent = new CustomEvent('updateFavoritesStar');
+       star.dispatchEvent(updateEvent);
+     }
+   }
+
+   bottomDiv.style.display = 'flex';
 }
 
 // Show the result based on group's display method
