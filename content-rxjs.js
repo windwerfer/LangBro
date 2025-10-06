@@ -495,6 +495,7 @@ function createResultDiv(type, group, boxId, initialWord = '') {
     resultDiv = document.createElement('div');
     resultDiv.dataset.boxId = boxId;
     resultDiv.dataset.groupId = group.id;
+    resultDiv.dataset.initialWord = initialWord;
     resultDiv.className = `langbro-result langbro-${type}`;
 
     // Apply dark mode class if needed
@@ -608,6 +609,11 @@ function createFavoritesStar(resultDiv, group, boxId) {
       // For web, the name is the query
       const searchInput = resultDiv.querySelector('.langbro-search-input');
       name = searchInput ? searchInput.value.trim() : '';
+    }
+
+    // Fallback: if name is still empty, use the initial word stored in dataset
+    if (!name) {
+      name = resultDiv.dataset.initialWord || '';
     }
 
     return { type, name, data };
