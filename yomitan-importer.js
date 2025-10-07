@@ -137,7 +137,6 @@ class YomitanDictionaryImporter {
             const terms = this._parseJsonFile(content);
             const converted = this._convertTerms(terms, index.title, version);
             data.terms.push(...converted);
-            this._updateProgress(converted.length);
         }
 
         // Parse term meta banks
@@ -146,7 +145,6 @@ class YomitanDictionaryImporter {
             const termMeta = this._parseJsonFile(content);
             const converted = this._convertTermMeta(termMeta, index.title);
             data.termMeta.push(...converted);
-            this._updateProgress(converted.length);
         }
 
         // Parse kanji banks
@@ -155,7 +153,6 @@ class YomitanDictionaryImporter {
             const kanji = this._parseJsonFile(content);
             const converted = this._convertKanji(kanji, index.title, version);
             data.kanji.push(...converted);
-            this._updateProgress(converted.length);
         }
 
         // Parse kanji meta banks
@@ -164,7 +161,6 @@ class YomitanDictionaryImporter {
             const kanjiMeta = this._parseJsonFile(content);
             const converted = this._convertKanjiMeta(kanjiMeta, index.title);
             data.kanjiMeta.push(...converted);
-            this._updateProgress(converted.length);
         }
 
         // Parse tag banks
@@ -173,7 +169,6 @@ class YomitanDictionaryImporter {
             const tags = this._parseJsonFile(content);
             const converted = this._convertTags(tags, index.title);
             data.tags.push(...converted);
-            this._updateProgress(converted.length);
         }
 
         // Handle media files and structured content
@@ -483,6 +478,22 @@ class YomitanDictionaryImporter {
         if (index.sourceLanguage) summary.sourceLanguage = index.sourceLanguage;
         if (index.targetLanguage) summary.targetLanguage = index.targetLanguage;
 
+        // Set total count for progress tracking
+        const totalEntries = data.terms.length + data.kanji.length + data.media.length;
+        this.currentProgress.count = totalEntries;
+
+        // Progress callback for database storage
+        const dbProgressCallback = (message) => {
+            // Extract number from database progress message (e.g., "Saved 150 entries to database so far...")
+            const match = message.match(/Saved (\d+) entries/);
+            if (match) {
+                this.currentProgress.index = parseInt(match[1]);
+                if (this.progressCallback) {
+                    this.progressCallback(this.currentProgress);
+                }
+            }
+        };
+
         // Store data
         await database.storeDictionary({
             terms: data.terms,
@@ -496,7 +507,7 @@ class YomitanDictionaryImporter {
                 content: m.content
             })),
             metadata: summary
-        });
+        }, dbProgressCallback);
 
         // Store additional data if database supports it
         if (database.storeTags) {
