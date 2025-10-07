@@ -9,6 +9,14 @@
             "addonPath": "${workspaceFolder}",
             "pathMappings": [
                 {
+                    "url": "moz-extension://73680fe9-b520-4a29-9340-128cdb9681df",
+                    "path": "${workspaceFolder}"
+                },
+                {
+                    "url": "moz-extension://73680fe9-b520-4a29-9340-128cdb9681df/background.js",
+                    "path": "git:/c%3A/Users/wdcmm/aa_thomas/thai/langBro_extention/background.js?%7B%22path%22%3A%22c%3A%5C%5CUsers%5C%5Cwdcmm%5C%5Caa_thomas%5C%5Cthai%5C%5ClangBro_extention%5C%5Cbackground.js%22%2C%22ref%22%3A%22%22%7D"
+                },
+                {
                     "url": "webpack://langbro-extension/settings-store.js",
                     "path": "${workspaceFolder}/settings-store.js"
                 },
