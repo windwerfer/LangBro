@@ -29,3 +29,4 @@ Continuous updates section (add new valuable learnings here):
 - Active list favorite detection: Star shows yellow only if item exists in the currently active (most recent) list
 - Star display enhancement: Show first 3 letters of active list name alongside star icon for clear visual feedback
 - Reactive UI updates: Use chrome.storage.onChanged to listen for favorites data changes and update all star buttons across open result windows
+- UX optimization: Close result windows after successful favorites operations to reduce UI clutter and provide clear completion feedback
