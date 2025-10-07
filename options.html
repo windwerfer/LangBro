@@ -159,6 +159,13 @@
     <button id="uploadBtn">Upload & Validate</button>
     <div id="status"></div>
 
+    <h3>Upload Yomitan Dictionary Archive</h3>
+    <p>Select a .zip file containing a Yomitan dictionary:</p>
+    <input type="file" id="yomitanFileInput" accept=".zip" />
+    <br>
+    <button id="uploadYomitanBtn">Upload Yomitan Dictionary</button>
+    <div id="yomitanStatus"></div>
+
     <h3>Loaded Dictionaries</h3>
     <button id="checkDictsBtn">Check Dicts</button>
     <div id="dictList"></div>
@@ -491,6 +498,7 @@
   <script src="pako.min.js"></script>
   <script src="structured-db.js"></script>
   <script src="parser.js"></script>
+  <script src="yomitan-importer.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

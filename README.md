@@ -28,9 +28,23 @@ Keep the manifest as-is with:
 - Select any word on web pages to see a lookup icon
 - Click the icon to display dictionary definition in a popup
 - Upload and manage multiple StarDict dictionaries
+- **NEW:** Import Yomitan dictionary archives (.zip files)
 - Supports compressed dictionary files (.dict.gz, .dict.dz)
 - HTML-formatted definitions
 - Cross-browser compatible
+
+## Dictionary Compatibility
+
+### StarDict Format
+- Traditional .ifo/.idx/.dict file format
+- Supports compressed dictionaries (.gz, .dz)
+- Widely available dictionary format
+
+### Yomitan Format
+- Modern ZIP archive format with JSON data files
+- Supports structured content (rich formatting, images)
+- Advanced features like kanji data, tags, and metadata
+- **Clean Room Implementation**: This extension implements Yomitan dictionary support using a clean room approach, analyzing the published format specifications without copying any Yomitan source code. This ensures license compatibility while maintaining full format support.
 
 ## Development Installation
 

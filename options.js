@@ -40,6 +40,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const filesInput = document.getElementById('filesInput');
   const uploadBtn = document.getElementById('uploadBtn');
   const statusDiv = document.getElementById('status');
+  const yomitanFileInput = document.getElementById('yomitanFileInput');
+  const uploadYomitanBtn = document.getElementById('uploadYomitanBtn');
+  const yomitanStatusDiv = document.getElementById('yomitanStatus');
   const checkDictsBtn = document.getElementById('checkDictsBtn');
 
   // Query groups elements
@@ -343,6 +346,52 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Yomitan dictionary upload
+  uploadYomitanBtn.addEventListener('click', async () => {
+    const file = yomitanFileInput.files[0];
+    if (!file) {
+      showYomitanStatus('Please select a .zip file.', 'error');
+      return;
+    }
+
+    if (!file.name.endsWith('.zip')) {
+      showYomitanStatus('Please select a .zip file.', 'error');
+      return;
+    }
+
+    yomitanStatusDiv.className = 'info';
+    yomitanStatusDiv.textContent = 'Reading ZIP file...';
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+
+      yomitanStatusDiv.textContent = 'Importing Yomitan dictionary...';
+
+      const importer = new YomitanDictionaryImporter();
+      importer.setProgressCallback((progress) => {
+        showYomitanStatus(`Importing... ${progress.index}/${progress.count} entries`, 'info');
+      });
+
+      const db = await getStructuredDB();
+      const result = await importer.importDictionary(db, arrayBuffer);
+
+      if (result.success) {
+        showYomitanStatus(`Dictionary "${result.dictionary.title}" imported successfully! (${result.dictionary.termCount} terms, ${result.dictionary.kanjiCount} kanji, ${result.dictionary.tagCount} tags)`, 'success');
+        loadCurrentDict(); // Refresh display
+
+        // Notify background script to reload parser
+        chrome.runtime.sendMessage({ action: 'reloadParser' });
+      } else {
+        showYomitanStatus('Import failed: ' + result.error, 'error');
+      }
+    } catch (error) {
+      showYomitanStatus('Import failed: ' + error.message, 'error');
+    }
+
+    // Reset file input
+    yomitanFileInput.value = '';
+  });
+
   // Parse .ifo metadata
   function parseIfo(text) {
     const metadata = {
@@ -379,6 +428,11 @@ document.addEventListener('DOMContentLoaded', () => {
   function showStatus(message, type) {
     statusDiv.textContent = message;
     statusDiv.className = type;
+  }
+
+  function showYomitanStatus(message, type) {
+    yomitanStatusDiv.textContent = message;
+    yomitanStatusDiv.className = type;
   }
 
   // Structured database instance

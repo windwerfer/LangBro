@@ -326,6 +326,63 @@ class StructuredDictionaryDatabase {
     });
   }
 
+  // Store tags data
+  async storeTags(tags) {
+    if (!this.db) await this.open();
+
+    if (tags.length === 0) return;
+
+    const transaction = this.db.transaction(['tagMeta'], 'readwrite');
+    const store = transaction.objectStore('tagMeta');
+
+    for (const tag of tags) {
+      await this._put(store, tag);
+    }
+
+    return new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+  }
+
+  // Store term metadata
+  async storeTermMeta(termMeta) {
+    if (!this.db) await this.open();
+
+    if (termMeta.length === 0) return;
+
+    const transaction = this.db.transaction(['termMeta'], 'readwrite');
+    const store = transaction.objectStore('termMeta');
+
+    for (const meta of termMeta) {
+      await this._put(store, meta);
+    }
+
+    return new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+  }
+
+  // Store kanji metadata
+  async storeKanjiMeta(kanjiMeta) {
+    if (!this.db) await this.open();
+
+    if (kanjiMeta.length === 0) return;
+
+    const transaction = this.db.transaction(['kanjiMeta'], 'readwrite');
+    const store = transaction.objectStore('kanjiMeta');
+
+    for (const meta of kanjiMeta) {
+      await this._put(store, meta);
+    }
+
+    return new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+  }
+
   // Delete a specific dictionary and all its data
   async deleteDictionary(dictName, progressCallback = null) {
     if (!this.db) await this.open();
