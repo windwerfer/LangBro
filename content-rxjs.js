@@ -510,14 +510,8 @@ function createResultDiv(type, group, boxId, initialWord = '') {
     const closeBtn = createCloseButton(resultDiv);
     headerDiv.appendChild(closeBtn);
 
-    // Add history navigation buttons to header
-    const historyButtons = createHistoryButtons(resultDiv, group, boxId);
-    headerDiv.appendChild(historyButtons.backBtn);
-    headerDiv.appendChild(historyButtons.forwardBtn);
-
-    // Add favorites star button to header
-    const starBtn = createFavoritesStar(resultDiv, group, boxId);
-    headerDiv.appendChild(starBtn);
+    // Add header controls (history buttons and favorites star)
+    addHeaderControls(headerDiv, resultDiv, group, boxId);
 
     // Add search field if enabled
     if (group.showSearchField && group.showSearchField !== 'none') {
@@ -557,6 +551,18 @@ function createCloseButton(targetDiv) {
   return closeBtn;
 }
 
+// Add header controls (history buttons and favorites star) to header div
+function addHeaderControls(headerDiv, resultDiv, group, boxId) {
+  // Add history navigation buttons to header
+  const historyButtons = createHistoryButtons(resultDiv, group, boxId);
+  headerDiv.appendChild(historyButtons.backBtn);
+  headerDiv.appendChild(historyButtons.forwardBtn);
+
+  // Add favorites star button to header
+  const starBtn = createFavoritesStar(resultDiv, group, boxId);
+  headerDiv.appendChild(starBtn);
+}
+
 // Create favorites star button for result div
 function createFavoritesStar(resultDiv, group, boxId) {
   const starBtn = document.createElement('button');
@@ -569,12 +575,11 @@ function createFavoritesStar(resultDiv, group, boxId) {
   // Get current lookup data from the result div
   const getCurrentLookupData = () => {
     const contentDiv = resultDiv.querySelector('.langbro-result-content');
-    if (!contentDiv) return null;
+    let data = contentDiv ? contentDiv.innerHTML : '';
 
     // Try to determine the type and extract data
     let type = 'unknown';
     let name = '';
-    let data = contentDiv.innerHTML;
 
     // Check if this is from a lookup by examining the group
     if (group.queryType === 'offline') {
@@ -1364,9 +1369,10 @@ function showInlineResult(definition, group, boxId, initialWord = '') {
     // Apply our langbro-inline styling
     inlineDiv.classList.add('langbro-result', 'langbro-inline');
 
-    // Set data attributes
-    inlineDiv.dataset.boxId = boxId;
-    inlineDiv.dataset.groupId = group.id;
+  // Set data attributes
+  inlineDiv.dataset.boxId = boxId;
+  inlineDiv.dataset.groupId = group.id;
+  inlineDiv.dataset.initialWord = initialWord;
 
     // Create header div for close button and search field
     const headerDiv = document.createElement('div');
@@ -1379,6 +1385,9 @@ function showInlineResult(definition, group, boxId, initialWord = '') {
     // Add close button to header
     const closeBtn = createCloseButton(inlineDiv);
     headerDiv.appendChild(closeBtn);
+
+    // Add header controls (history buttons and favorites star)
+    addHeaderControls(headerDiv, inlineDiv, group, boxId);
 
     // Add search field if enabled
     if (group.showSearchField && group.showSearchField !== 'none') {
