@@ -35,7 +35,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const iconSpacingInput = document.getElementById('iconSpacing');
   const rightSwipeGroupSelect = document.getElementById('rightSwipeGroup');
   const singleClickGroupSelect = document.getElementById('singleClickGroup');
-  const tripleClickGroupSelect = document.getElementById('tripleClickGroup');
 
   // Import page elements
   const filesInput = document.getElementById('filesInput');
@@ -115,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load settings
   async function loadSettings() {
     try {
-      const result = await chrome.storage.local.get(['extensionEnabled', 'darkMode', 'hideGroupNames', 'cachingEnabled', 'cacheTimeoutDays', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'singleClickGroup', 'tripleClickGroup']);
+      const result = await chrome.storage.local.get(['extensionEnabled', 'darkMode', 'hideGroupNames', 'cachingEnabled', 'cacheTimeoutDays', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'singleClickGroup']);
       console.log('Loaded settings:', result);
       extensionEnabledCheckbox.checked = result.extensionEnabled !== undefined ? result.extensionEnabled : true;
       darkModeCheckbox.checked = result.darkMode || false;
@@ -129,7 +128,6 @@ document.addEventListener('DOMContentLoaded', () => {
       iconSpacingInput.value = result.iconSpacing || 10;
       rightSwipeGroupSelect.value = result.rightSwipeGroup || '';
       singleClickGroupSelect.value = result.singleClickGroup || '';
-      tripleClickGroupSelect.value = result.tripleClickGroup || '';
     } catch (error) {
       console.error('Error loading settings:', error);
     }
@@ -184,11 +182,6 @@ document.addEventListener('DOMContentLoaded', () => {
   rightSwipeGroupSelect.addEventListener('change', () => {
     console.log('Saving right swipe group setting:', rightSwipeGroupSelect.value);
     chrome.storage.local.set({ rightSwipeGroup: rightSwipeGroupSelect.value });
-  });
-
-  tripleClickGroupSelect.addEventListener('change', () => {
-    console.log('Saving triple click group setting:', tripleClickGroupSelect.value);
-    chrome.storage.local.set({ tripleClickGroup: tripleClickGroupSelect.value });
   });
 
   // Caching settings event handlers
@@ -638,7 +631,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     updateDropdown(singleClickGroupSelect);
     updateDropdown(rightSwipeGroupSelect);
-    updateDropdown(tripleClickGroupSelect);
 
     if (groups.length === 0) {
       groupsList.innerHTML = '<p>No query groups configured. Click "Add Query Group" to create one.</p>';
