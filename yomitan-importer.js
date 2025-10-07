@@ -73,21 +73,17 @@ class YomitanDictionaryImporter {
      * @returns {Promise<Map>} Map of filename -> file content
      */
     async _extractZipArchive(archiveContent) {
-        // Using zip.js library (already included in the extension)
-        const { ZipReader, Uint8ArrayReader } = window.zip;
-        const zipReader = new ZipReader(new Uint8ArrayReader(new Uint8Array(archiveContent)));
-        const entries = await zipReader.getEntries();
-
+        // Using JSZip library (MIT licensed, compatible with Apache 2.0)
+        const zip = await JSZip.loadAsync(archiveContent);
         const files = new Map();
 
-        for (const entry of entries) {
-            if (!entry.directory) {
-                const content = await entry.getData(new window.zip.Uint8ArrayWriter());
-                files.set(entry.filename, content);
+        for (const [filename, file] of Object.entries(zip.files)) {
+            if (!file.dir) {
+                const content = await file.async('uint8array');
+                files.set(filename, content);
             }
         }
 
-        await zipReader.close();
         return files;
     }
 
@@ -498,7 +494,8 @@ class YomitanDictionaryImporter {
                 width: m.width,
                 height: m.height,
                 content: m.content
-            }))
+            })),
+            metadata: summary
         });
 
         // Store additional data if database supports it
