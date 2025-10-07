@@ -28,10 +28,13 @@ Keep the manifest as-is with:
 - Select any word on web pages to see a lookup icon
 - Click the icon to display dictionary definition in a popup
 - Upload and manage multiple StarDict dictionaries
-- **NEW:** Import Yomitan dictionary archives (.zip files)
+- **NEW:** Import Yomitan dictionary archives (.zip files) with full rich formatting support
 - Supports compressed dictionary files (.dict.gz, .dict.dz)
-- HTML-formatted definitions
+- HTML-formatted definitions with rich structured content
 - Cross-browser compatible
+- Multiple query groups with different display methods
+- Web dictionary APIs and AI integration
+- Touch and mouse gesture support
 
 ## Dictionary Compatibility
 
@@ -45,6 +48,86 @@ Keep the manifest as-is with:
 - Supports structured content (rich formatting, images)
 - Advanced features like kanji data, tags, and metadata
 - **Clean Room Implementation**: This extension implements Yomitan dictionary support using a clean room approach, analyzing the published format specifications without copying any Yomitan source code. This ensures license compatibility while maintaining full format support.
+
+## Yomitan Dictionary Import
+
+LangBro now supports importing Yomitan dictionary archives with full preservation of rich formatting and structured content.
+
+### Supported Yomitan Features
+
+#### 📄 **Rich Structured Content**
+- **Etymology sections** with collapsible `<details>/<summary>` tags
+- **Definition lists** with proper `<ol>/<li>` formatting
+- **Links** to external resources (Wiktionary, etc.)
+- **Images** and media content
+- **HTML formatting** preservation
+
+#### 🔍 **Multiple Definitions**
+- Combines multiple term entries for the same word
+- Preserves all definition variations
+- Maintains proper grouping and sequencing
+
+#### 🏷️ **Advanced Metadata**
+- Dictionary tags and categories
+- Frequency data and scoring
+- Kanji information and readings
+- Source language/target language metadata
+
+### Import Process
+
+1. **Access Settings**: Go to extension options → "Offline Dictionary" tab
+2. **Upload Archive**: Click "Upload Yomitan Dictionary" and select a `.zip` file
+3. **Automatic Processing**:
+   - Extracts ZIP archive contents
+   - Parses JSON data files (`term_bank_*.json`, `kanji_bank_*.json`, etc.)
+   - Converts structured content to HTML
+   - Groups multiple definitions per term
+   - Stores in IndexedDB with full metadata
+4. **Progress Tracking**: Real-time progress display during import
+5. **Ready to Use**: Dictionary appears in query groups immediately
+
+### File Structure Support
+
+Yomitan dictionaries contain multiple JSON files:
+- `index.json` - Dictionary metadata and configuration
+- `term_bank_*.json` - Term definitions and readings
+- `kanji_bank_*.json` - Kanji data and information
+- `tag_bank_*.json` - Tag definitions and categories
+- `term_meta_bank_*.json` / `kanji_meta_bank_*.json` - Additional metadata
+
+### Structured Content Examples
+
+**Etymology Sections:**
+```html
+<details class="gloss-sc-details" data-sc-content="details-entry-Etymology">
+  <summary class="gloss-sc-summary">Etymology</summary>
+  <div>Del inglés medio wanten...</div>
+</details>
+```
+
+**Definition Lists:**
+```html
+<ol class="gloss-sc-ol" data-sc-content="glosses">
+  <li class="gloss-sc-li">Querer, desear.</li>
+  <li class="gloss-sc-li">Faltar.</li>
+</ol>
+```
+
+**Links:**
+```html
+<a href="https://es.wiktionary.org/wiki/want#English" target="_blank" rel="noreferrer noopener">
+  <span>Wiktionary</span>
+  <span>🔗</span>
+</a>
+```
+
+### Compatibility Notes
+
+- **License Compliant**: Uses MIT-licensed JSZip instead of Yomitan's zip.js
+- **Format Versions**: Supports Yomitan v1, v2, and v3 dictionary formats
+- **Cross-Platform**: Works identically on Chrome, Firefox, and other browsers
+- **Performance**: Efficient batch processing with progress feedback
+- **Data Integrity**: Preserves all original formatting and metadata
 
 ## Development Installation
 
@@ -119,13 +202,17 @@ The build scripts automatically exclude files listed in `.gitignore` and include
 - options.html
 - options.js
 - pako.min.js
+- jszip.min.js
 - icon128.png
 - parser.js
 - settings-store.js
 - structured-db.js
+- yomitan-importer.js
 
 ## Usage
 
 1. Click the extension icon to check status
-2. Use "Dictionary Settings" to upload StarDict files
-3. Select words on web pages to see definitions
+2. Use "Dictionary Settings" to upload StarDict files or import Yomitan dictionary archives
+3. Configure query groups in the settings to customize lookup behavior
+4. Select words on web pages to see definitions with rich formatting
+5. Use touch gestures or mouse clicks for quick lookups

@@ -131,13 +131,14 @@ class YomitanDictionaryImporter {
             media: []
         };
 
-        // Parse term banks
+        // Parse term banks and group by expression/reading
         const termFiles = this._findFiles(files, /^term_bank_\d+\.json$/);
+        const allRawTerms = [];
         for (const [filename, content] of termFiles) {
             const terms = this._parseJsonFile(content);
-            const converted = this._convertTerms(terms, index.title, version);
-            data.terms.push(...converted);
+            allRawTerms.push(...terms);
         }
+        data.terms = this._groupAndConvertTerms(allRawTerms, index.title, version);
 
         // Parse term meta banks
         const termMetaFiles = this._findFiles(files, /^term_meta_bank_\d+\.json$/);
@@ -204,7 +205,105 @@ class YomitanDictionaryImporter {
     }
 
     /**
-     * Convert Yomitan term format to LangBro format
+     * Group Yomitan terms by expression/reading and convert to LangBro format
+     * @param {Array} rawTerms - Raw Yomitan term entries
+     * @param {string} dictionary
+     * @param {number} version
+     * @returns {Array} Grouped and converted terms
+     */
+    _groupAndConvertTerms(rawTerms, dictionary, version) {
+        const termGroups = new Map();
+
+        // Group terms by expression + reading combination
+        for (const term of rawTerms) {
+            let [expression, reading, definitionTags, rules, score, glossary, sequence, termTags] = term;
+
+            // Handle different versions
+            if (version === 1) {
+                [expression, reading, definitionTags, rules, score, ...glossary] = term;
+                sequence = 1;
+                termTags = [];
+            }
+
+            // Ensure reading is not empty
+            reading = reading || expression;
+
+            // Create grouping key
+            const key = `${expression}\t${reading}`;
+
+            if (!termGroups.has(key)) {
+                termGroups.set(key, {
+                    expression,
+                    reading,
+                    definitionTags: definitionTags || [],
+                    rules: rules || '',
+                    score: score || 0,
+                    glossaries: [], // Store multiple glossaries
+                    sequences: [], // Store sequences
+                    termTags: termTags || [],
+                    dictionary
+                });
+            }
+
+            // Process glossary - handle structured content
+            const processedGlossary = glossary.map(item => {
+                if (typeof item === 'string') {
+                    return item;
+                } else if (typeof item === 'object' && item.type === 'text') {
+                    return item.text;
+                } else {
+                    // For structured content, convert to HTML
+                    return this._structuredContentToHtml(item);
+                }
+            });
+
+            const group = termGroups.get(key);
+            group.glossaries.push(processedGlossary);
+            group.sequences.push(sequence || 1);
+
+            // Merge tags (take union)
+            if (definitionTags) {
+                group.definitionTags = [...new Set([...group.definitionTags, ...definitionTags])];
+            }
+            if (termTags) {
+                group.termTags = [...new Set([...group.termTags, ...termTags])];
+            }
+
+            // Take highest score
+            if (score > group.score) {
+                group.score = score;
+            }
+        }
+
+        // Convert grouped terms to final format
+        const result = [];
+        let sequenceCounter = 1;
+
+        for (const group of termGroups.values()) {
+            // Flatten glossaries - each glossary array becomes separate entries in the final glossary
+            const finalGlossary = [];
+            for (const glossary of group.glossaries) {
+                finalGlossary.push(...glossary);
+            }
+
+            result.push({
+                expression: group.expression,
+                reading: group.reading,
+                definitionTags: group.definitionTags,
+                rules: group.rules,
+                score: group.score,
+                glossary: finalGlossary,
+                sequence: sequenceCounter++,
+                termTags: group.termTags,
+                dictionary: group.dictionary
+            });
+        }
+
+        return result;
+    }
+
+    /**
+     * Convert Yomitan term format to LangBro format (legacy single term)
      * @param {Array} terms
      * @param {string} dictionary
      * @param {number} version
@@ -231,8 +330,8 @@ class YomitanDictionaryImporter {
                 } else if (typeof item === 'object' && item.type === 'text') {
                     return item.text;
                 } else {
-                    // For structured content, convert to string representation
-                    return this._structuredContentToString(item);
+                    // For structured content, convert to HTML
+                    return this._structuredContentToHtml(item);
                 }
             });
 
@@ -251,34 +350,93 @@ class YomitanDictionaryImporter {
     }
 
     /**
-     * Convert structured content to string representation
+     * Convert Yomitan structured content to HTML
      * @param {Object} content
      * @returns {string}
      */
-    _structuredContentToString(content) {
+    _structuredContentToHtml(content) {
         if (typeof content === 'string') {
-            return content;
+            return this._escapeHtml(content);
         }
 
         if (Array.isArray(content)) {
-            return content.map(item => this._structuredContentToString(item)).join('');
+            return content.map(item => this._structuredContentToHtml(item)).join('');
         }
 
-        if (content.tag === 'img') {
-            return `[Image: ${content.path || 'unknown'}]`;
+        // Handle Yomitan's structured content tags
+        if (content.tag) {
+            switch (content.tag) {
+                case 'img':
+                    const path = content.path || 'unknown';
+                    const title = content.title || `Image: ${path}`;
+                    return `<img src="${this._escapeHtml(path)}" alt="${this._escapeHtml(title)}" style="max-width: 200px; max-height: 200px;">`;
+
+                case 'a':
+                    const href = content.href || '#';
+                    const linkText = content.content ? this._structuredContentToHtml(content.content) : href;
+                    const rel = href.startsWith('http') ? 'rel="noreferrer noopener" target="_blank"' : '';
+                    return `<a href="${this._escapeHtml(href)}" ${rel}>${linkText}</a>`;
+
+                case 'div':
+                    const divClass = content['data-sc-content'] ? ` data-sc-content="${this._escapeHtml(content['data-sc-content'])}"` : '';
+                    const divContent = content.content ? this._structuredContentToHtml(content.content) : '';
+                    return `<div class="gloss-sc-div"${divClass}>${divContent}</div>`;
+
+                case 'ol':
+                    const olClass = content['data-sc-content'] ? ` data-sc-content="${this._escapeHtml(content['data-sc-content'])}"` : '';
+                    const olContent = content.content ? this._structuredContentToHtml(content.content) : '';
+                    return `<ol class="gloss-sc-ol"${olClass}>${olContent}</ol>`;
+
+                case 'li':
+                    const liContent = content.content ? this._structuredContentToHtml(content.content) : '';
+                    return `<li class="gloss-sc-li">${liContent}</li>`;
+
+                case 'details':
+                    const detailsClass = content['data-sc-content'] ? ` data-sc-content="${this._escapeHtml(content['data-sc-content'])}"` : '';
+                    const detailsContent = content.content ? this._structuredContentToHtml(content.content) : '';
+                    return `<details class="gloss-sc-details"${detailsClass}>${detailsContent}</details>`;
+
+                case 'summary':
+                    const summaryClass = content['data-sc-content'] ? ` data-sc-content="${this._escapeHtml(content['data-sc-content'])}"` : '';
+                    const summaryContent = content.content ? this._structuredContentToHtml(content.content) : '';
+                    return `<summary class="gloss-sc-summary"${summaryClass}>${summaryContent}</summary>`;
+
+                default:
+                    // Generic tag handling
+                    const attrs = [];
+                    for (const [key, value] of Object.entries(content)) {
+                        if (key !== 'tag' && key !== 'content' && key !== 'data-sc-content') {
+                            attrs.push(`${key}="${this._escapeHtml(String(value))}"`);
+                        }
+                    }
+                    const attrString = attrs.length > 0 ? ' ' + attrs.join(' ') : '';
+                    const tagContent = content.content ? this._structuredContentToHtml(content.content) : '';
+                    return `<${content.tag}${attrString}>${tagContent}</${content.tag}>`;
+            }
         }
 
-        if (content.tag === 'a') {
-            const href = content.href || '#';
-            const text = content.content ? this._structuredContentToString(content.content) : href;
-            return text; // For now, just return the text without link formatting
-        }
-
+        // Handle content without tag
         if (content.content) {
-            return this._structuredContentToString(content.content);
+            return this._structuredContentToHtml(content.content);
+        }
+
+        // Handle text content
+        if (content.type === 'text') {
+            return this._escapeHtml(content.text || '');
         }
 
         return '';
+    }
+
+    /**
+     * Escape HTML special characters
+     * @param {string} text
+     * @returns {string}
+     */
+    _escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     /**
