@@ -801,11 +801,12 @@ async function navigateHistory(resultDiv, groupId, direction) {
 
   let newIndex;
   if (direction === 'back') {
-    // Go to older history (higher index)
-    newIndex = currentIndex === -1 ? 0 : currentIndex + 1;
+    // Go to older history (higher index), skip index 0 when coming from current
+    newIndex = currentIndex === -1 ? 1 : currentIndex + 1;
   } else if (direction === 'forward') {
-    // Go to newer history or current (lower index)
+    // Go to newer history or current (lower index), skip index 0
     newIndex = currentIndex - 1;
+    if (newIndex === 0) newIndex = -1;
   } else {
     return; // Invalid direction
   }
@@ -1309,7 +1310,7 @@ function showPopupResult(definition, group, boxId, initialWord = '') {
      resultDiv.dataset.currentDefinition = definition;
 
      // Reset history index for new lookups
-     resultDiv.dataset.historyIndex = '0'; // Start at 0, back will go to history items
+     resultDiv.dataset.historyIndex = '-1'; // Start at -1, representing current lookup
      updateHistoryButtons(resultDiv);
 
      // Show result

@@ -1383,6 +1383,12 @@ async function addToHistory(groupId, word, definition) {
     data[groupId] = [];
   }
 
+  // Check if the most recent entry has the same word - if so, don't add duplicate
+  if (data[groupId].length > 0 && data[groupId][0].word === word) {
+    console.log('Skipping duplicate history entry for word:', word);
+    return;
+  }
+
   // Add new entry at the beginning
   data[groupId].unshift({
     word: word,
