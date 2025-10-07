@@ -1291,10 +1291,10 @@ function showPopupResult(definition, group, boxId, initialWord = '') {
   const contentDiv = resultDiv.querySelector('.langbro-result-content');
   if (!contentDiv) return;
 
-  // If showing a new definition, add current result to history first
-  if (definition && resultDiv.dataset.currentWord) {
-    addCurrentResultToHistory(resultDiv, group.id);
-  }
+  // // If showing a new definition, add current result to history first
+  // if (definition && resultDiv.dataset.currentWord) {
+  //   addCurrentResultToHistory(resultDiv, group.id);
+  // }
 
   // Clear content and show spinner or result
   contentDiv.innerHTML = '';
