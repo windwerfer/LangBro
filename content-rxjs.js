@@ -30,10 +30,10 @@ injectStyles();
 // Merges selectionchange, keyup, and mousedown events to track all selection changes
 const selection$ = merge(
   fromEvent(document, 'selectionchange'),
-  fromEvent(document, 'keyup'),
-  fromEvent(document, 'mousedown')  // For faster response to selection changes
+  // fromEvent(document, 'keyup'),
+  // fromEvent(document, 'mousedown')  // For faster response to selection changes
 ).pipe(
-  filter(() => settings.current.extensionEnabled),  // Only emit when extension is enabled
+  filter(() => settings.current.extensionEnabled ),  // Only emit when extension is enabled
   map(() => {
     const selection = window.getSelection();
     const selectedText = selection.toString().trim();
@@ -1891,7 +1891,7 @@ function handleSingleClickWordMarking(x, y, group) {
   // Prevent lookup icons from appearing during single-click word marking
   window.skipIconDisplay = true;
   // Clear the flag after the selection event has been processed, !! min 400ms (to prevent racing condition with lookup icons)
-  setTimeout(() => delete window.skipIconDisplay, 400);
+  setTimeout(() => delete window.skipIconDisplay, 500);
 
   // Get the word under the cursor
   const word = getWordUnderCursor(x, y);
