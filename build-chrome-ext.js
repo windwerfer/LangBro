@@ -2,10 +2,27 @@
  const path = require('path');
  const JSZip = require('jszip');
 
- (async () => {
-   // Read manifest.json
-   const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
-   const name = manifest.name.replace(/\s+/g, '_') + '_' + manifest.version;
+  (async () => {
+    // Read version from z_version_nr.txt
+    const version = fs.readFileSync('z_version_nr.txt', 'utf8').trim();
+
+    // Backup original manifest and package.json
+    const manifestBackup = 'manifest.json.backup';
+    const packageBackup = 'package.json.backup';
+    fs.copyFileSync('manifest.json', manifestBackup);
+    fs.copyFileSync('package.json', packageBackup);
+
+    try {
+      // Read manifest.json and replace version placeholder
+      let manifestContent = fs.readFileSync('manifest.json', 'utf8');
+      manifestContent = manifestContent.replace('__VERSION__', version);
+      const manifest = JSON.parse(manifestContent);
+
+      // Read package.json and replace version placeholder
+      let packageContent = fs.readFileSync('package.json', 'utf8');
+      packageContent = packageContent.replace('__VERSION__', version);
+
+      const name = manifest.name.replace(/\s+/g, '_') + '_' + manifest.version;
 
    // Create chrome-ext directory
    if (!fs.existsSync('chrome-ext')) {
@@ -79,12 +96,15 @@
      const allFiles = getAllFiles('.');
      const filesToInclude = allFiles.filter(file => !shouldExclude(file.replace(/\//g, path.sep)));
 
-     // Create zip
-     const zip = new JSZip();
-     for (const file of filesToInclude) {
-       const content = fs.readFileSync(file);
-       zip.file(file, content);
-     }
+      // Create zip
+      const zip = new JSZip();
+      for (const file of filesToInclude) {
+        let content = fs.readFileSync(file);
+        if (file === 'package.json') {
+          content = Buffer.from(packageContent);
+        }
+        zip.file(file, content);
+      }
 
      const zipPath = `chrome-ext/chrome_${name}.zip`;
      console.log(`Creating: ${zipPath}`);
@@ -114,9 +134,11 @@
      }
      console.log('✅ Chrome extension package and unpacked version created successfully!');
 
-   } finally {
-     // Always restore original manifest
-     fs.copyFileSync(manifestBackup, 'manifest.json');
-     fs.unlinkSync(manifestBackup);
-   }
+    } finally {
+      // Always restore original manifest and package.json
+      fs.copyFileSync(manifestBackup, 'manifest.json');
+      fs.copyFileSync(packageBackup, 'package.json');
+      fs.unlinkSync(manifestBackup);
+      fs.unlinkSync(packageBackup);
+    }
  })();

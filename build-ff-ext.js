@@ -6,9 +6,11 @@
     // Read version from z_version_nr.txt
     const version = fs.readFileSync('z_version_nr.txt', 'utf8').trim();
 
-    // Backup original manifest
+    // Backup original manifest and package.json
     const manifestBackup = 'manifest.json.backup';
+    const packageBackup = 'package.json.backup';
     fs.copyFileSync('manifest.json', manifestBackup);
+    fs.copyFileSync('package.json', packageBackup);
 
     try {
       // Read manifest.json and replace version placeholder
@@ -17,6 +19,10 @@
       manifestContent = manifestContent.replace('__VERSION__', version);
       console.log('Replaced manifest version:', manifestContent.match(/"version":\s*"([^"]+)"/)[1]);
       const manifest = JSON.parse(manifestContent);
+
+      // Read package.json and replace version placeholder
+      let packageContent = fs.readFileSync('package.json', 'utf8');
+      packageContent = packageContent.replace('__VERSION__', version);
 
       const name = manifest.name.replace(/\s+/g, '_') + '_' + version;
 
@@ -79,6 +85,8 @@
         let content = fs.readFileSync(file);
         if (file === 'manifest.json') {
           content = Buffer.from(manifestContent);
+        } else if (file === 'package.json') {
+          content = Buffer.from(packageContent);
         }
         zip.file(file, content);
       }
@@ -93,8 +101,10 @@
       });
       console.log('✅ Firefox extension package created successfully!');
     } finally {
-      // Always restore original manifest
+      // Always restore original manifest and package.json
       fs.copyFileSync(manifestBackup, 'manifest.json');
+      fs.copyFileSync(packageBackup, 'package.json');
       fs.unlinkSync(manifestBackup);
+      fs.unlinkSync(packageBackup);
     }
   })();
