@@ -202,6 +202,11 @@ class StructuredDictionaryDatabase {
     const allDictionaries = await this.getAllDictionaries();
     const dictionaries = allDictionaries.filter(dict => selectedDictionaryNames.includes(dict.title));
 
+    // Sort dictionaries according to the specified order if provided
+    if (dictionaryOrder) {
+      dictionaries.sort((a, b) => dictionaryOrder.indexOf(a.title) - dictionaryOrder.indexOf(b.title));
+    }
+
     if (dictionaries.length === 0) {
       return null;
     }
