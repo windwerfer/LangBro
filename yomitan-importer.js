@@ -144,9 +144,18 @@ class YomitanDictionaryImporter {
         const termMetaFiles = this._findFiles(files, /^term_meta_bank_\d+\.json$/);
         for (const [filename, content] of termMetaFiles) {
             const termMeta = this._parseJsonFile(content);
+            const logMsg1 = `Processing termMeta file: ${filename} with ${termMeta.length} raw entries`;
+            console.log(logMsg1);
+            if (this.showStatus) this.showStatus(logMsg1);
             const converted = this._convertTermMeta(termMeta, index.title);
+            const logMsg2 = `Converted termMeta to ${converted.length} entries`;
+            console.log(logMsg2);
+            if (this.showStatus) this.showStatus(logMsg2);
             data.termMeta.push(...converted);
         }
+        const logMsg3 = `Total termMeta loaded: ${data.termMeta.length}`;
+        console.log(logMsg3);
+        if (this.showStatus) this.showStatus(logMsg3);
 
         // Parse kanji banks
         const kanjiFiles = this._findFiles(files, /^kanji_bank_\d+\.json$/);
@@ -616,7 +625,7 @@ class YomitanDictionaryImporter {
             importDate: Date.now(),
             prefixWildcardsSupported: false, // Can be enabled later if needed
             counts: {
-                terms: { total: data.terms.length },
+                terms: { total: data.terms.length || data.termMeta.length },
                 termMeta: this._getMetaCounts(data.termMeta),
                 kanji: { total: data.kanji.length },
                 kanjiMeta: this._getMetaCounts(data.kanjiMeta),
@@ -672,7 +681,9 @@ class YomitanDictionaryImporter {
             await database.storeTags(data.tags);
         }
         if (database.storeTermMeta) {
+            dbProgressCallback?.('Storing term metadata...');
             await database.storeTermMeta(data.termMeta);
+            dbProgressCallback?.(`Stored ${data.termMeta.length} term metadata entries`);
         }
         if (database.storeKanjiMeta) {
             await database.storeKanjiMeta(data.kanjiMeta);
