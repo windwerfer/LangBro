@@ -130,8 +130,8 @@
     <h2>Offline Dictionary</h2>
 
      <h3>Import Dictionary (ZIP)</h3>
-     <p>Select a ZIP file containing either StarDict or Yomitan dictionary files:</p>
-     <input type="file" id="dictionaryZipInput" accept=".zip" />
+     <p>Select one or more ZIP files containing either StarDict or Yomitan dictionary files:</p>
+     <input type="file" id="dictionaryZipInput" accept=".zip" multiple />
      <br>
      <button id="importDictionaryBtn">Import Dictionary</button>
      <div id="importStatus"></div>
@@ -474,8 +474,8 @@
     <div id="fullBackupStatus"></div>
   </div>
 
+  <script src="dist/options-bundle.bundle.js"></script>
   <script src="pako.min.js"></script>
-  <script src="jszip.min.js"></script>
   <script src="structured-db.js"></script>
   <script src="parser.js"></script>
    <script src="yomitan-importer.js"></script>

@@ -33,33 +33,73 @@ class DictionaryImporter {
   }
 
   async handleUnifiedImport() {
-    const fileInput = document.getElementById('dictionaryZipInput');
-    const file = fileInput.files[0];
-    if (!file) {
-      this.showStatus('Please select a ZIP file.', 'error');
+    // Load JSZip if not available
+    if (typeof JSZip === 'undefined') {
+      this.showStatus('Loading JSZip library...', 'info');
+      try {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = chrome.runtime.getURL('jszip.min.js');
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('Failed to load JSZip library'));
+          document.head.appendChild(script);
+        });
+        this.showStatus('JSZip library loaded successfully.', 'info');
+      } catch (error) {
+        this.showStatus(error.message + '. Please refresh the page or check the extension installation.', 'error');
+        return;
+      }
+    }
+
+    // Check if required libraries are loaded
+    if (typeof JSZip === 'undefined') {
+      this.showStatus('Error: JSZip library still not available after loading. Please refresh the page or check the extension installation.', 'error');
+      return;
+    }
+    if (typeof StarDictParser === 'undefined') {
+      this.showStatus('Error: StarDictParser not loaded. Please refresh the page or check the extension installation.', 'error');
+      return;
+    }
+    if (typeof YomitanDictionaryImporter === 'undefined') {
+      this.showStatus('Error: YomitanDictionaryImporter not loaded. Please refresh the page or check the extension installation.', 'error');
       return;
     }
 
-    this.showStatus('Reading ZIP file...', 'info');
+    const fileInput = document.getElementById('dictionaryZipInput');
+    const files = Array.from(fileInput.files);
+    if (files.length === 0) {
+      this.showStatus('Please select one or more ZIP files.', 'error');
+      return;
+    }
+
+    let processedCount = 0;
+    const totalFiles = files.length;
 
     try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        this.showStatus(`Processing file ${i + 1} of ${totalFiles}: ${file.name}`, 'info');
+
       const arrayBuffer = await file.arrayBuffer();
       const zip = await JSZip.loadAsync(arrayBuffer);
 
-      const format = await this.detectDictionaryFormat(zip);
+        const format = await this.detectDictionaryFormat(zip);
 
-      if (format === 'stardict') {
-        await this.processStarDictZip(zip);
-      } else if (format === 'yomitan') {
-        await this.processYomitanZip(zip);
+        if (format === 'stardict') {
+          await this.processStarDictZip(zip);
+        } else if (format === 'yomitan') {
+          await this.processYomitanZip(zip);
+        }
+
+        processedCount++;
       }
 
-      this.showStatus(`Dictionary imported successfully!`, 'success');
+      this.showStatus(`${processedCount} dictionary(ies) imported successfully!`, 'success');
       this.loadCurrentDict();
       fileInput.value = ''; // Reset input
 
     } catch (error) {
-      this.showStatus(error.message, 'error');
+      this.showStatus(`Error processing file ${processedCount + 1}: ${error.message}`, 'error');
     }
   }
 

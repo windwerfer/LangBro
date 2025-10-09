@@ -5,9 +5,12 @@ module.exports = (env, argv) => {
   const isWatch = argv.watch;
 
   return {
-    entry: './content-rxjs.js',
+    entry: {
+      'content-rxjs': './content-rxjs.js',
+      'options-bundle': './options-bundle.js'
+    },
     output: {
-      filename: 'content-rxjs.bundle.js',
+      filename: '[name].bundle.js',
       path: path.resolve(__dirname, 'dist'),
       clean: true,
     },
