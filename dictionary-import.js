@@ -184,11 +184,19 @@ class DictionaryImporter {
 
     // Store with progress feedback
     const db = await this.getStructuredDB();
+    const totalEntries = structuredData.terms.length;
     let lastUpdate = 0;
     await db.storeDictionary(structuredData, (message) => {
       const now = Date.now();
       if (now - lastUpdate > 2000) { // Update every 2 seconds
-        this.showStatus(message, 'info');
+        // Extract current count from database message (e.g., "Saved 150 entries to database so far...")
+        const match = message.match(/Saved (\d+) entries/);
+        if (match) {
+          const currentCount = parseInt(match[1]);
+          this.showStatus(`Importing... ${currentCount} / ${totalEntries} entries`, 'info');
+        } else {
+          this.showStatus(message, 'info');
+        }
         lastUpdate = now;
       }
     });
@@ -197,28 +205,24 @@ class DictionaryImporter {
   async processYomitanZip(zip) {
     this.showStatus('Processing Yomitan dictionary...', 'info');
 
-    // Extract Yomitan data (reuse existing logic)
+    // Convert JSZip object back to ArrayBuffer for the importer
+    const zipData = await zip.generateAsync({type: 'uint8array'});
+    const archiveContent = zipData.buffer.slice(zipData.byteOffset, zipData.byteOffset + zipData.byteLength);
+
+    // Use the full Yomitan importer
     const importer = new YomitanDictionaryImporter();
     importer.setProgressCallback((progress) => {
       this.showStatus(`Importing... ${progress.index}/${progress.count} entries`, 'info');
     });
 
-    // Find and load the main Yomitan file
-    let yomitanData = null;
-    for (const [path, zipEntry] of Object.entries(zip.files)) {
-      if (path === 'index.json') {
-        const content = await zipEntry.async('text');
-        yomitanData = JSON.parse(content);
-        break;
-      }
-    }
-
-    if (!yomitanData) {
-      throw new Error('No valid Yomitan index.json found');
-    }
-
     const db = await this.getStructuredDB();
-    await importer.importToStructuredDB(yomitanData, db);
+    const result = await importer.importDictionary(db, archiveContent);
+
+    if (!result.success) {
+      throw new Error(result.error);
+    }
+
+    this.showStatus(`Successfully imported Yomitan dictionary: ${result.dictionary.title}`, 'success');
   }
 
   parseIfo(text) {
