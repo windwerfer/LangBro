@@ -6,80 +6,90 @@
     // Read version from z_version_nr.txt
     const version = fs.readFileSync('z_version_nr.txt', 'utf8').trim();
 
-    // Read manifest.json and replace version placeholder
-    let manifestContent = fs.readFileSync('manifest.json', 'utf8');
-    manifestContent = manifestContent.replace('"__VERSION__"', `"${version}"`);
-    const manifest = JSON.parse(manifestContent);
+    // Backup original manifest
+    const manifestBackup = 'manifest.json.backup';
+    fs.copyFileSync('manifest.json', manifestBackup);
 
-    const name = manifest.name.replace(/\s+/g, '_') + '_' + version;
+    try {
+      // Read manifest.json and replace version placeholder
+      let manifestContent = fs.readFileSync('manifest.json', 'utf8');
+      manifestContent = manifestContent.replace('__VERSION__', version);
+      const manifest = JSON.parse(manifestContent);
 
-   // Create ff-ext directory
-   if (!fs.existsSync('ff-ext')) {
-     fs.mkdirSync('ff-ext');
-   }
+      const name = manifest.name.replace(/\s+/g, '_') + '_' + version;
 
-   // Read .gitignore and create exclude patterns
-   const gitignoreContent = fs.readFileSync('.gitignore', 'utf8');
-   const gitignorePatterns = gitignoreContent
-     .split('\n')
-     .map(line => line.trim())
-     .filter(line => line && !line.startsWith('#'));
+      // Create ff-ext directory
+      if (!fs.existsSync('ff-ext')) {
+        fs.mkdirSync('ff-ext');
+      }
 
-   // Filter out dist patterns to ensure /dist is not excluded
-   const filteredPatterns = gitignorePatterns.filter(p => !p.includes('dist'));
+      // Read .gitignore and create exclude patterns
+      const gitignoreContent = fs.readFileSync('.gitignore', 'utf8');
+      const gitignorePatterns = gitignoreContent
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line && !line.startsWith('#'));
 
-   // Function to check if path matches any pattern
-   function shouldExclude(filePath) {
-     for (const pattern of filteredPatterns) {
-       if (pattern.endsWith('/')) {
-         // Directory pattern
-         const dir = pattern.slice(0, -1);
-         if (filePath.startsWith(dir + path.sep) || filePath === dir) return true;
-       } else if (pattern.includes('*')) {
-         // Simple glob, e.g., *.zip
-         const regex = new RegExp(pattern.replace(/\*/g, '.*').replace(/\//g, path.sep));
-         if (regex.test(filePath)) return true;
-       } else {
-         // Exact match
-         if (filePath === pattern) return true;
-       }
-     }
-     return false;
-   }
+      // Filter out dist patterns to ensure /dist is not excluded
+      const filteredPatterns = gitignorePatterns.filter(p => !p.includes('dist'));
 
-   // Get all files recursively
-   function getAllFiles(dirPath, relativeTo = '') {
-     const files = [];
-     const items = fs.readdirSync(dirPath);
-     for (const item of items) {
-       const fullPath = path.join(dirPath, item);
-       const relPath = path.join(relativeTo, item).replace(/\\/g, '/'); // Normalize to forward slashes for zip
-       if (fs.statSync(fullPath).isDirectory()) {
-         files.push(...getAllFiles(fullPath, relPath));
-       } else {
-         files.push(relPath);
-       }
-     }
-     return files;
-   }
+      // Function to check if path matches any pattern
+      function shouldExclude(filePath) {
+        for (const pattern of filteredPatterns) {
+          if (pattern.endsWith('/')) {
+            // Directory pattern
+            const dir = pattern.slice(0, -1);
+            if (filePath.startsWith(dir + path.sep) || filePath === dir) return true;
+          } else if (pattern.includes('*')) {
+            // Simple glob, e.g., *.zip
+            const regex = new RegExp(pattern.replace(/\*/g, '.*').replace(/\//g, path.sep));
+            if (regex.test(filePath)) return true;
+          } else {
+            // Exact match
+            if (filePath === pattern) return true;
+          }
+        }
+        return false;
+      }
 
-   const allFiles = getAllFiles('.');
-   const filesToInclude = allFiles.filter(file => !shouldExclude(file.replace(/\//g, path.sep)));
+      // Get all files recursively
+      function getAllFiles(dirPath, relativeTo = '') {
+        const files = [];
+        const items = fs.readdirSync(dirPath);
+        for (const item of items) {
+          const fullPath = path.join(dirPath, item);
+          const relPath = path.join(relativeTo, item).replace(/\\/g, '/'); // Normalize to forward slashes for zip
+          if (fs.statSync(fullPath).isDirectory()) {
+            files.push(...getAllFiles(fullPath, relPath));
+          } else {
+            files.push(relPath);
+          }
+        }
+        return files;
+      }
 
-   // Create zip
-   const zip = new JSZip();
-   for (const file of filesToInclude) {
-     const content = fs.readFileSync(file);
-     zip.file(file, content);
-   }
+      const allFiles = getAllFiles('.');
+      const filesToInclude = allFiles.filter(file => !shouldExclude(file.replace(/\//g, path.sep)));
 
-   const zipPath = `ff-ext/ff_${name}.zip`;
-   console.log(`Creating: ${zipPath}`);
-   console.log(`Excluding patterns: ${filteredPatterns.join(', ')}`);
-   await new Promise((resolve) => {
-     zip.generateNodeStream({type:'nodebuffer', streamFiles:true, compression: 'DEFLATE', compressionOptions: {level: 6}})
-       .pipe(fs.createWriteStream(zipPath))
-       .on('finish', resolve);
-   });
-   console.log('✅ Firefox extension package created successfully!');
- })();
+      // Create zip
+      const zip = new JSZip();
+      for (const file of filesToInclude) {
+        const content = fs.readFileSync(file);
+        zip.file(file, content);
+      }
+
+      const zipPath = `ff-ext/ff_${name}.zip`;
+      console.log(`Creating: ${zipPath}`);
+      console.log(`Excluding patterns: ${filteredPatterns.join(', ')}`);
+      await new Promise((resolve) => {
+        zip.generateNodeStream({type:'nodebuffer', streamFiles:true, compression: 'DEFLATE', compressionOptions: {level: 6}})
+          .pipe(fs.createWriteStream(zipPath))
+          .on('finish', resolve);
+      });
+      console.log('✅ Firefox extension package created successfully!');
+    } finally {
+      // Always restore original manifest
+      fs.copyFileSync(manifestBackup, 'manifest.json');
+      fs.unlinkSync(manifestBackup);
+    }
+  })();
