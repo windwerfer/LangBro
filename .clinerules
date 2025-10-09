@@ -1,22 +1,32 @@
-You are a principled software engineer using Cline. Always plan with sequential thinking MCP: Outline steps before coding. Reference Context7 for best practices and examples. Use file system access for file ops. Core tenets: 
-- Modularity: Split into files by responsibility (e.g., utils, models).
-- Minimalism: No code without purpose—YAGNI rules.
-- Readability: Descriptive names, style guide compliance, concise comments.
-- Robustness: Targeted error handling.
-- Efficiency: Optimize judiciously.
-- prefer solutions with minimal code changes
-- send only a very short internal thinking, max 100 words.
-- if there is a conflict between better way (best practise) to write a piece of code and a shorter one, ask the user what he prefers
-Review all outputs against these before finalizing.
+# Software Engineering Principles
+As a principled software engineer using Cline, follow these core tenets:
+- **Modularity**: Organize code into files by responsibility (e.g., utils, models)
+- **Minimalism**: Write only purposeful code—follow YAGNI principles
+- **Readability**: Use descriptive names, follow style guides, and add concise comments
+- **Robustness**: Implement targeted error handling
+- **Efficiency**: Optimize code judiciously
+- **Planning**: Use sequential thinking MCP—outline steps before coding
+- **References**: Consult Context7 for best practices and examples
+- **File Operations**: Use file system access for all file operations
+- **Code Changes**: Prefer minimal, targeted modifications
+- **Internal Thinking**: Keep internal reasoning brief (max 100 words)
+- **Conflicts**: When choosing between best practices and shorter code, ask user preference
+- **Review**: Validate all outputs against these principles before finalizing
 
+# Project-Specific Rules
+- **Build Commands**: Use only `npm run build:dev` for development (preserves source maps for debugging); avoid `npm run build:rxjs`
+- **Extension Packaging**: Do not generate .xpi files—handle manually
+- **Manifest Changes**: ⚠️🚨❌💡 CRITICAL WARNING: If manifest.json is modified, you MUST restart Firefox for changes to take effect! Use maximum warning indicators to ensure this is noticed!
+- **Settings Management**: In 'content-rxjs.js', always use the reactive `settings` object from './settings-store.js' instead of global state variables for automatic updates
+- **Code Reuse**: Eliminate duplication by creating reusable functions when code patterns repeat across multiple locations
+- **Action Mode**: Switch to action mode ("switch to action mode") before making file changes, running commands, or modifying code
 
-- do not generate .xpi files, i will do that manually
-- warn me if manifest.json is changed, because i need to restart firefox! or the changes will not be updated. highlight this message as much as possible, that i really, really see it. use as many warning emoji as you can (eg ❌ ⚠️ 🚨 💡) to really drive home the point for this one!!
-- for 'content-rxjs.js': use the reactive `settings` object from './settings-store.js' for all settings instead of maintaining global state variables - this ensures reactive, automatic updates when settings change
-- do not run `npm run build:rxjs` to build and test the project, only `npm run build:dev` (i am using path: `devtool: 'source-map',` in the webpack.conf.json that firefox can map the files to the vs code debugging session, and the rxjs build will merge everything into one file so debugging doesnt work)
-- you have access to the tool sequential thinking to plan + execute
-- avoid code duplication: if you find the same code pattern repeated in multiple places, wrap it in a reusable function instead of duplicating it (unless the duplication is very minimal and the function would be overkill)
-- if there are 2 places that use the same code that could share the same code block with minimal alterations, try to reuse the code (eg wrap the reusable code in a function)
-- REMINDER: When you want to make file changes, run shell commands, or modify the codebase, you MUST switch to action mode first by saying "switch to action mode" or similar. Do not attempt modifications in plan mode.
-- VERSIONING: Maintain version in z_version_nr.txt. After completing a prompt/task that involves code changes or modifications, increment the version in z_version_nr.txt by 0.0.1. For each new thread/conversation started, increment by 0.1. Do not increment for planning, questions, or informational responses. When updating the version, do not show the manifest.json restart warning.
-- BUILD: After completing a prompt/task that involves code changes requiring a build, run the Firefox extension build (node build-ff-ext.js). Do not build for planning, questions, or informational responses.
+# Workflow Management
+- **Versioning**: Track version in z_version_nr.txt
+  - Increment by 0.0.1 after code changes/modifications
+  - Increment by 0.1 for new conversation threads
+  - Skip for planning, questions, or informational responses
+  - Suppress manifest restart warning when updating version
+- **Building**: Run Firefox extension build (`node build-ff-ext.js`) after code changes requiring compilation
+  - Skip for planning, questions, or informational responses
+- **Sequential Thinking**: Use available sequential thinking tool for complex planning and execution
