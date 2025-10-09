@@ -269,18 +269,25 @@ document.addEventListener('DOMContentLoaded', () => {
           dictDiv.style.border = '1px solid #ccc';
           dictDiv.style.borderRadius = '4px';
 
-          const nameSpan = document.createElement('span');
-          const termCount = dict.counts.terms.total;
-          const metaCount = dict.counts.termMeta ? dict.counts.termMeta.total : 0;
-          nameSpan.textContent = `${dict.title} (${termCount} ${termCount === 0 && metaCount > 0 ? 'meta entries' : 'words'})`;
+           const nameSpan = document.createElement('span');
+           const termCount = dict.counts.terms.total;
+           const metaCount = dict.counts.termMeta ? dict.counts.termMeta.total : 0;
+           const displayName = dict.displayName || dict.title;
+           nameSpan.textContent = `${displayName} (${termCount} ${termCount === 0 && metaCount > 0 ? 'meta entries' : 'words'})`;
 
-          const deleteBtn = document.createElement('button');
-          deleteBtn.textContent = 'Delete';
-          deleteBtn.style.marginLeft = '10px';
-          deleteBtn.onclick = () => deleteDict(dict.title);
+           const editBtn = document.createElement('button');
+           editBtn.textContent = 'Rename';
+           editBtn.style.marginLeft = '10px';
+           editBtn.onclick = () => editDict(dict.title);
 
-          dictDiv.appendChild(nameSpan);
-          dictDiv.appendChild(deleteBtn);
+           const deleteBtn = document.createElement('button');
+           deleteBtn.textContent = 'Delete';
+           deleteBtn.style.marginLeft = '10px';
+           deleteBtn.onclick = () => deleteDict(dict.title);
+
+           dictDiv.appendChild(nameSpan);
+           dictDiv.appendChild(editBtn);
+           dictDiv.appendChild(deleteBtn);
           dictListDiv.appendChild(dictDiv);
         });
 
@@ -294,17 +301,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  async function deleteDict(dictName) {
-    try {
-      showStatus(`Deleting dictionary "${dictName}"...`, 'info');
-      const db = await getStructuredDB();
-      await db.deleteDictionary(dictName, (message) => {
-        showStatus(message, 'info');
-      }); // Delete only the specific dictionary with progress callback
-      showStatus(`Dictionary "${dictName}" deleted successfully.`, 'success');
-      loadCurrentDict(); // Refresh list
+   async function editDict(dictName) {
+     // Find the dict to get current displayName
+     const db = await getStructuredDB();
+     const dicts = await db.getAllDictionaries();
+     const dict = dicts.find(d => d.title === dictName);
+     if (!dict) return;
+     const currentName = dict.displayName || dict.title;
+     const newName = prompt(`Enter new display name for dictionary "${currentName}":`, currentName);
+     if (!newName || newName.trim() === '' || newName.trim() === currentName) return;
 
-      // Notify background script to reload parser
+     try {
+       showStatus(`Renaming dictionary display name to "${newName.trim()}"...`, 'info');
+       await db.renameDictionary(dictName, newName.trim());
+       showStatus(`Dictionary display name updated successfully.`, 'success');
+       loadCurrentDict(); // Refresh list
+     } catch (error) {
+       showStatus('Error updating display name: ' + error.message, 'error');
+     }
+   }
+
+   async function deleteDict(dictName) {
+     try {
+       showStatus(`Deleting dictionary "${dictName}"...`, 'info');
+       const db = await getStructuredDB();
+       await db.deleteDictionary(dictName, (message) => {
+         showStatus(message, 'info');
+       }); // Delete only the specific dictionary with progress callback
+       showStatus(`Dictionary "${dictName}" deleted successfully.`, 'success');
+       loadCurrentDict(); // Refresh list
+
+       // Notify background script to reload parser
       chrome.runtime.sendMessage({ action: 'reloadParser' });
     } catch (error) {
       showStatus('Error deleting dictionary: ' + error.message, 'error');

@@ -73,6 +73,7 @@ class StructuredDictionaryDatabase {
 
     // Store dictionary metadata
     const dictStore = transaction.objectStore('dictionaries');
+    metadata.displayName = metadata.title; // Set display name to title initially
     await this._put(dictStore, metadata);
 
     // Store terms in batches
@@ -244,7 +245,7 @@ class StructuredDictionaryDatabase {
 
         // Add this dictionary's results
         dictionaryResults.push({
-          dictionary: dict.title,
+          dictionary: dict.displayName || dict.title,
           definitions: dictDefinitions
         });
       }
@@ -890,6 +891,34 @@ class StructuredDictionaryDatabase {
     }
 
     return result;
+  }
+
+  // Rename a dictionary (updates display name only)
+  async renameDictionary(oldName, newName) {
+    if (!this.db) await this.open();
+
+    // Check if new display name already exists
+    const allDicts = await this.getAllDictionaries();
+    const existing = allDicts.some(d => d.displayName === newName && d.title !== oldName);
+    if (existing) {
+      throw new Error(`Display name "${newName}" already exists`);
+    }
+
+    const transaction = this.db.transaction(['dictionaries'], 'readwrite');
+    return new Promise((resolve, reject) => {
+      transaction.onerror = () => reject(transaction.error);
+      transaction.oncomplete = () => resolve();
+
+      const dictStore = transaction.objectStore('dictionaries');
+      const request = dictStore.get(oldName);
+      request.onsuccess = () => {
+        if (request.result) {
+          const dict = request.result;
+          dict.displayName = newName;
+          dictStore.put(dict);
+        }
+      };
+    });
   }
 }
 
