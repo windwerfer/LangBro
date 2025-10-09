@@ -129,19 +129,12 @@
   <div id="page-offline" class="page">
     <h2>Offline Dictionary</h2>
 
-    <h3>Upload StarDict Dictionary</h3>
-    <p>Select the .ifo file (other files will be auto-selected):</p>
-    <input type="file" id="filesInput" multiple accept=".ifo,.idx,.dict,.gz,.dz,.syn" />
-    <br>
-    <button id="uploadBtn">Upload & Validate</button>
-    <div id="status"></div>
-
-    <h3>Upload Yomitan Dictionary Archive</h3>
-    <p>Select a .zip file containing a Yomitan dictionary:</p>
-    <input type="file" id="yomitanFileInput" accept=".zip" />
-    <br>
-    <button id="uploadYomitanBtn">Upload Yomitan Dictionary</button>
-    <div id="yomitanStatus"></div>
+     <h3>Import Dictionary (ZIP)</h3>
+     <p>Select a ZIP file containing either StarDict or Yomitan dictionary files:</p>
+     <input type="file" id="dictionaryZipInput" accept=".zip" />
+     <br>
+     <button id="importDictionaryBtn">Import Dictionary</button>
+     <div id="importStatus"></div>
 
     <h3>Loaded Dictionaries</h3>
     <button id="checkDictsBtn">Check Dicts</button>
@@ -485,7 +478,8 @@
   <script src="jszip.min.js"></script>
   <script src="structured-db.js"></script>
   <script src="parser.js"></script>
-  <script src="yomitan-importer.js"></script>
-  <script src="options.js"></script>
+   <script src="yomitan-importer.js"></script>
+   <script src="dictionary-import.js"></script>
+   <script src="options.js"></script>
 </body>
 </html>

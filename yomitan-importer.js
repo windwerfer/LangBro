@@ -715,6 +715,46 @@ class YomitanDictionaryImporter {
     }
 
     /**
+     * Import Yomitan data directly to structured database
+     * @param {Object} yomitanData - Parsed Yomitan data
+     * @param {StructuredDictionaryDatabase} db - Database instance
+     */
+    async importToStructuredDB(yomitanData, db) {
+        // Convert Yomitan format to structured format
+        const dictName = yomitanData.title || 'Yomitan Dictionary';
+
+        const terms = yomitanData.entries.map((entry, index) => ({
+            dictionary: dictName,
+            expression: entry.term,
+            reading: entry.reading || '',
+            glossary: entry.glossary || (entry.definitions ? entry.definitions.map(d => d.text) : ['']),
+            definitionTags: entry.definitionTags || [],
+            termTags: entry.termTags || [],
+            score: entry.score || 0,
+            sequence: entry.sequence || index
+        }));
+
+        const structuredData = {
+            metadata: {
+                title: dictName,
+                format: 'Yomitan',
+                revision: '1',
+                sequenced: true,
+                counts: {
+                    terms: { total: terms.length },
+                    kanji: { total: 0 },
+                    media: { total: 0 }
+                }
+            },
+            terms: terms,
+            kanji: [],
+            media: []
+        };
+
+        await db.storeDictionary(structuredData, this.progressCallback);
+    }
+
+    /**
      * Set progress callback
      * @param {Function} callback
      */

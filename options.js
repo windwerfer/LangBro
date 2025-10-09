@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Import page elements
   const filesInput = document.getElementById('filesInput');
   const uploadBtn = document.getElementById('uploadBtn');
-  const statusDiv = document.getElementById('status');
+  const importStatusDiv = document.getElementById('importStatus');
   const yomitanFileInput = document.getElementById('yomitanFileInput');
   const uploadYomitanBtn = document.getElementById('uploadYomitanBtn');
   const yomitanStatusDiv = document.getElementById('yomitanStatus');
@@ -226,214 +226,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  uploadBtn.addEventListener('click', async () => {
-    const files = Array.from(filesInput.files);
 
-    // Identify files by extension
-    const ifoFile = files.find(file => file.name.endsWith('.ifo'));
-    const idxFile = files.find(file => file.name.endsWith('.idx') || file.name.endsWith('.idx.gz'));
-    const dictFile = files.find(file => file.name.endsWith('.dict') || file.name.endsWith('.dict.gz') || file.name.endsWith('.dict.dz'));
 
-    // Check for synonym file
-    const synFile = files.find(file => file.name.endsWith('.syn'));
 
-    if (!ifoFile) {
-      showStatus('Please select the .ifo file.', 'error');
-      return;
-    }
-    if (!idxFile) {
-      showStatus('Please select the .idx file (.idx or .idx.gz).', 'error');
-      return;
-    }
-    if (!dictFile) {
-      showStatus('Please select the .dict file (.dict, .dict.gz, or .dict.dz).', 'error');
-      return;
-    }
-
-    statusDiv.className = 'info';
-    statusDiv.textContent = 'Validating and saving...';
-
-    try {
-      // Read files as ArrayBuffer
-      const ifoBuffer = await ifoFile.arrayBuffer();
-      let idxBuffer = await idxFile.arrayBuffer();
-      let dictBuffer = await dictFile.arrayBuffer();
-
-      // Read synonym file if present
-      let synBuffer = null;
-      if (synFile) {
-        synBuffer = await synFile.arrayBuffer();
-        console.log('Found synonym file:', synFile.name);
-      }
-
-      // Detect and decompress .idx if .gz
-      let isIdxCompressed = false;
-      if (idxFile.name.endsWith('.gz')) {
-        // Load pako dynamically or include in options.html <script src="pako.min.js"></script>
-        const pako = window.pako; // Assume loaded
-        idxBuffer = pako.inflate(new Uint8Array(idxBuffer), { to: 'uint8array' }).buffer;
-        isIdxCompressed = true;
-      }
-
-      // Detect and decompress .dict if .dz
-      let isDictCompressed = false;
-      if (dictFile.name.endsWith('.dz')) {
-        const pako = window.pako; // From <script src="pako.min.js">
-        dictBuffer = pako.inflate(new Uint8Array(dictBuffer), { to: 'uint8array' }).buffer;
-        isDictCompressed = true;
-      }
-      
-      // Validate .ifo
-      const ifoText = new TextDecoder('utf-8').decode(ifoBuffer);
-      const metadata = parseIfo(ifoText);
-      if (!metadata.isValid) {
-        throw new Error(`Invalid .ifo: ${metadata.error}`);
-      }
-
-      // Basic structure checks
-      if (metadata.wordcount <= 0) throw new Error('Invalid wordcount in .ifo');
-      if (metadata.idxfilesize !== idxBuffer.byteLength) {
-        throw new Error(`.idx size mismatch: expected ${metadata.idxfilesize}, got ${idxBuffer.byteLength}`);
-      }
-      // Note: dictfilesize check optional; add if needed
-
-      // Helper function to convert Uint8Array to string in chunks to avoid call stack overflow
-      function uint8ArrayToString(array) {
-        const chunkSize = 8192; // Process in 8KB chunks
-        let result = '';
-        for (let i = 0; i < array.length; i += chunkSize) {
-          const chunk = array.subarray(i, i + chunkSize);
-          result += String.fromCharCode.apply(null, chunk);
-        }
-        return result;
-      }
-
-      // Parse StarDict and convert to structured format
-      const parser = new StarDictParser();
-      parser.metadata = metadata;
-      parser.idxData = new Uint8Array(idxBuffer);
-      parser.dictData = new Uint8Array(dictBuffer);
-      parser.wordCount = metadata.wordcount;
-
-      // Set synonym data if available
-      parser.setAliasData(null, synBuffer);
-
-      // Build word index
-      await parser.buildWordIndex();
-
-      // Parse synonym file if available
-      if (synBuffer) {
-        await parser.parseSynFile(parser.synonymData);
-      }
-
-      // Extract structured data
-      const dictionaryName = ifoFile.name.replace('.ifo', '');
-      const structuredData = parser.extractStructuredData(dictionaryName);
-
-      // Save to structured database
-      const db = await getStructuredDB();
-      await db.storeDictionary(structuredData, (message) => {
-        showStatus(message, 'info');
-      });
-
-      showStatus(`Dictionary "${dictionaryName}" loaded successfully! (${metadata.wordcount} words)`, 'success');
-      loadCurrentDict(); // Refresh display if needed
-
-      // Notify background script to reload parser
-      chrome.runtime.sendMessage({ action: 'reloadParser' });
-    } catch (error) {
-      showStatus(error.message, 'error');
-    }
-  });
-
-  // Yomitan dictionary upload
-  uploadYomitanBtn.addEventListener('click', async () => {
-    const file = yomitanFileInput.files[0];
-    if (!file) {
-      showYomitanStatus('Please select a .zip file.', 'error');
-      return;
-    }
-
-    if (!file.name.endsWith('.zip')) {
-      showYomitanStatus('Please select a .zip file.', 'error');
-      return;
-    }
-
-    yomitanStatusDiv.className = 'info';
-    yomitanStatusDiv.textContent = 'Reading ZIP file...';
-
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-
-      yomitanStatusDiv.textContent = 'Importing Yomitan dictionary...';
-
-      const importer = new YomitanDictionaryImporter();
-      importer.setProgressCallback((progress) => {
-        showYomitanStatus(`Importing... ${progress.index}/${progress.count} entries`, 'info');
-      });
-
-      const db = await getStructuredDB();
-      const result = await importer.importDictionary(db, arrayBuffer);
-
-      if (result.success) {
-        showYomitanStatus(`Dictionary "${result.dictionary.title}" imported successfully! (${result.dictionary.termCount} terms, ${result.dictionary.kanjiCount} kanji, ${result.dictionary.tagCount} tags)`, 'success');
-        loadCurrentDict(); // Refresh display
-
-        // Notify background script to reload parser
-        chrome.runtime.sendMessage({ action: 'reloadParser' });
-      } else {
-        showYomitanStatus('Import failed: ' + result.error, 'error');
-      }
-    } catch (error) {
-      showYomitanStatus('Import failed: ' + error.message, 'error');
-    }
-
-    // Reset file input
-    yomitanFileInput.value = '';
-  });
-
-  // Parse .ifo metadata
-  function parseIfo(text) {
-    const metadata = {
-      wordcount: 0,
-      idxfilesize: 0,
-      dictfilesize: 0,
-      sametypesequence: 'h',
-      version: '3.0.0',
-      isValid: true,
-      error: ''
-    };
-    const lines = text.split('\n');
-    for (const line of lines) {
-      const eqIndex = line.indexOf('=');
-      if (eqIndex > 0) {
-        const key = line.substring(0, eqIndex).trim();
-        const value = line.substring(eqIndex + 1).trim();
-        switch (key) {
-          case 'wordcount': metadata.wordcount = parseInt(value, 10); break;
-          case 'idxfilesize': metadata.idxfilesize = parseInt(value, 10); break;
-          case 'dictfilesize': metadata.dictfilesize = parseInt(value, 10); break;
-          case 'sametypesequence': metadata.sametypesequence = value; break;
-          case 'version': metadata.version = value; break;
-        }
-      }
-    }
-    if (metadata.wordcount === 0 || metadata.idxfilesize === 0) {
-      metadata.isValid = false;
-      metadata.error = 'Missing required metadata';
-    }
-    return metadata;
-  }
 
   function showStatus(message, type) {
-    statusDiv.textContent = message;
-    statusDiv.className = type;
+    importStatusDiv.textContent = message;
+    importStatusDiv.className = type;
   }
 
-  function showYomitanStatus(message, type) {
-    yomitanStatusDiv.textContent = message;
-    yomitanStatusDiv.className = type;
-  }
+
 
   // Structured database instance
   let structuredDB = null;
@@ -2320,4 +2122,12 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('Error deleting AI service:', error);
     }
   }
+
+  // Initialize dictionary importer
+  const importer = new DictionaryImporter({
+    getStructuredDB,
+    showStatus,
+    loadCurrentDict
+  });
+  importer.init();
 });
