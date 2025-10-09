@@ -17,3 +17,5 @@ Review all outputs against these before finalizing.
 - you have access to the tool sequential thinking to plan + execute
 - avoid code duplication: if you find the same code pattern repeated in multiple places, wrap it in a reusable function instead of duplicating it (unless the duplication is very minimal and the function would be overkill)
 - if there are 2 places that use the same code that could share the same code block with minimal alterations, try to reuse the code (eg wrap the reusable code in a function)
+- REMINDER: When you want to make file changes, run shell commands, or modify the codebase, you MUST switch to action mode first by saying "switch to action mode" or similar. Do not attempt modifications in plan mode.
+- VERSIONING: After completing a prompt/task, increment the version in manifest.json by 0.0.1. For each new thread/conversation started, increment by 0.1. When updating the version, do not show the manifest.json restart warning.
