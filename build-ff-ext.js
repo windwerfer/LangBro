@@ -13,7 +13,9 @@
     try {
       // Read manifest.json and replace version placeholder
       let manifestContent = fs.readFileSync('manifest.json', 'utf8');
+      console.log('Original manifest version:', manifestContent.match(/"version":\s*"([^"]+)"/)[1]);
       manifestContent = manifestContent.replace('__VERSION__', version);
+      console.log('Replaced manifest version:', manifestContent.match(/"version":\s*"([^"]+)"/)[1]);
       const manifest = JSON.parse(manifestContent);
 
       const name = manifest.name.replace(/\s+/g, '_') + '_' + version;
@@ -74,7 +76,10 @@
       // Create zip
       const zip = new JSZip();
       for (const file of filesToInclude) {
-        const content = fs.readFileSync(file);
+        let content = fs.readFileSync(file);
+        if (file === 'manifest.json') {
+          content = Buffer.from(manifestContent);
+        }
         zip.file(file, content);
       }
 
