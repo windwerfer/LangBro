@@ -465,13 +465,19 @@
     <button id="importDictBtn">Import Dictionaries</button>
     <div id="dictStatus"></div>
 
-    <h3>Full Backup</h3>
-    <p>Export both settings and dictionaries in a single backup file.</p>
-    <button id="exportAllBtn">Export Everything</button>
-    <br>
-    <input type="file" id="importAllFile" accept=".json" style="display: none;">
-    <button id="importAllBtn">Import Everything</button>
-    <div id="fullBackupStatus"></div>
+     <h3>Full Backup</h3>
+     <p>Export both settings and dictionaries in a single backup file.</p>
+     <button id="exportAllBtn">Export Everything</button>
+     <br>
+     <input type="file" id="importAllFile" accept=".json" style="display: none;">
+     <button id="importAllBtn">Import Everything</button>
+     <div id="fullBackupStatus"></div>
+
+     <h3>Danger Zone</h3>
+     <p style="color: #d9534f; font-weight: bold;">⚠️ WARNING: This action cannot be undone!</p>
+     <p>Clearing the database will permanently delete all imported dictionaries and their data. Only do this if you are absolutely sure and have backups of your dictionaries.</p>
+     <button id="clearDatabaseBtn" style="background: #d9534f; color: white; border: 1px solid #d9534f;">Clear Database</button>
+     <div id="clearStatus"></div>
   </div>
 
   <script src="dist/options-bundle.bundle.js"></script>

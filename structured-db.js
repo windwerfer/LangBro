@@ -4,7 +4,7 @@
 class StructuredDictionaryDatabase {
   constructor() {
     this.db = null;
-    this.dbVersion = 4; // Increment version for new expressionOnly index
+    this.dbVersion = 7; // Force upgrade to ensure termMeta and kanjiMeta object stores exist
   }
 
   // Initialize database with structured schema
@@ -34,6 +34,12 @@ class StructuredDictionaryDatabase {
         }
         if (!db.objectStoreNames.contains('tagMeta')) {
           db.createObjectStore('tagMeta', { keyPath: ['dictionary', 'name'] });
+        }
+        if (!db.objectStoreNames.contains('termMeta')) {
+          db.createObjectStore('termMeta', { keyPath: ['dictionary', 'expression', 'mode'] });
+        }
+        if (!db.objectStoreNames.contains('kanjiMeta')) {
+          db.createObjectStore('kanjiMeta', { keyPath: ['dictionary', 'character', 'mode'] });
         }
       };
 
@@ -312,7 +318,7 @@ class StructuredDictionaryDatabase {
   async clearAll() {
     if (!this.db) await this.open();
 
-    const stores = ['dictionaries', 'terms', 'kanji', 'media', 'tagMeta'];
+    const stores = ['dictionaries', 'terms', 'kanji', 'media', 'tagMeta', 'termMeta', 'kanjiMeta'];
     const transaction = this.db.transaction(stores, 'readwrite');
 
     for (const storeName of stores) {
@@ -387,7 +393,7 @@ class StructuredDictionaryDatabase {
   async deleteDictionary(dictName, progressCallback = null) {
     if (!this.db) await this.open();
 
-    const stores = ['dictionaries', 'terms', 'kanji', 'media', 'tagMeta'];
+    const stores = ['dictionaries', 'terms', 'kanji', 'media', 'tagMeta', 'termMeta', 'kanjiMeta'];
     const transaction = this.db.transaction(stores, 'readwrite');
 
     let totalDeleted = 0;
@@ -454,6 +460,16 @@ class StructuredDictionaryDatabase {
     console.log(`Starting deletion of tag metadata for dictionary: ${dictName}`);
     const tagStore = transaction.objectStore('tagMeta');
     await deleteWithCursor(tagStore, null, null, 'tag');
+
+    // Delete term metadata for this dictionary (scan all since meta is less common)
+    console.log(`Starting deletion of term metadata for dictionary: ${dictName}`);
+    const termMetaStore = transaction.objectStore('termMeta');
+    await deleteWithCursor(termMetaStore, null, null, 'termMeta');
+
+    // Delete kanji metadata for this dictionary (scan all since meta is less common)
+    console.log(`Starting deletion of kanji metadata for dictionary: ${dictName}`);
+    const kanjiMetaStore = transaction.objectStore('kanjiMeta');
+    await deleteWithCursor(kanjiMetaStore, null, null, 'kanjiMeta');
 
     return new Promise((resolve, reject) => {
       transaction.oncomplete = () => {

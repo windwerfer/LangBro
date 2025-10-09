@@ -17,10 +17,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const importDictFile = document.getElementById('importDictFile');
   const dictStatus = document.getElementById('dictStatus');
 
-  const exportAllBtn = document.getElementById('exportAllBtn');
-  const importAllBtn = document.getElementById('importAllBtn');
-  const importAllFile = document.getElementById('importAllFile');
-  const fullBackupStatus = document.getElementById('fullBackupStatus');
+   const exportAllBtn = document.getElementById('exportAllBtn');
+   const importAllBtn = document.getElementById('importAllBtn');
+   const importAllFile = document.getElementById('importAllFile');
+   const fullBackupStatus = document.getElementById('fullBackupStatus');
+
+   const clearDatabaseBtn = document.getElementById('clearDatabaseBtn');
+   const clearStatus = document.getElementById('clearStatus');
 
   // Main settings elements
   const extensionEnabledCheckbox = document.getElementById('extensionEnabledCheckbox');
@@ -1654,10 +1657,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Full backup import
-  importAllBtn.addEventListener('click', () => {
-    importAllFile.click();
-  });
+   // Full backup import
+   importAllBtn.addEventListener('click', () => {
+     importAllFile.click();
+   });
+
+   // Clear database button
+   clearDatabaseBtn.addEventListener('click', async () => {
+     const confirmed = confirm('⚠️ WARNING: This will permanently delete ALL imported dictionaries and their data!\n\nThis action CANNOT be undone. Make sure you have backups before proceeding.\n\nAre you REALLY sure you want to clear the entire database?');
+     if (!confirmed) return;
+
+     const doubleConfirmed = confirm('FINAL WARNING: This is your last chance to cancel.\n\nAll dictionary data will be lost forever.\n\nType "YES" below if you are absolutely certain:');
+     if (!doubleConfirmed) return;
+
+     try {
+       showBackupStatus('Clearing database...', 'info', 'clearStatus');
+       const db = await getStructuredDB();
+       await db.clearAll();
+       showBackupStatus('Database cleared successfully!', 'success', 'clearStatus');
+
+       // Refresh dictionary list
+       loadCurrentDict();
+
+       // Notify background script to reload parser
+       chrome.runtime.sendMessage({ action: 'reloadParser' });
+     } catch (error) {
+       showBackupStatus('Error clearing database: ' + error.message, 'error', 'clearStatus');
+     }
+   });
 
   importAllFile.addEventListener('change', async (event) => {
     const file = event.target.files[0];
