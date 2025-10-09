@@ -787,40 +787,67 @@ class StructuredDictionaryDatabase {
     const result = {};
 
     for (const dict of dicts) {
-      const transaction = this.db.transaction(['terms'], 'readonly');
-      const store = transaction.objectStore('terms');
+      const transaction = this.db.transaction(['terms', 'termMeta'], 'readonly');
+      const termsStore = transaction.objectStore('terms');
+      const termMetaStore = transaction.objectStore('termMeta');
 
-      // Count terms for this dictionary by iterating over the main store
-      const count = await new Promise((resolve, reject) => {
+      // Count terms for this dictionary
+      const termsCount = await new Promise((resolve, reject) => {
         let termCount = 0;
-        let totalProcessed = 0;
-        const request = store.openCursor();
+        const request = termsStore.openCursor();
 
         request.onsuccess = (event) => {
           const cursor = event.target.result;
           if (cursor) {
-            totalProcessed++;
             // Check if this term belongs to our dictionary
             if (cursor.value.dictionary === dict.title) {
               termCount++;
-              // Debug: log first few matches
-              if (termCount <= 3) {
-                console.log(`Found term ${termCount} for ${dict.title}: "${cursor.value.expression}" (seq: ${cursor.value.sequence})`);
-              }
             }
             cursor.continue();
           } else {
-            // Finished counting
-            console.log(`Finished counting for ${dict.title}: ${termCount} terms found, ${totalProcessed} total terms processed`);
-            resolve({ total: termCount, expected: termCount });
+            resolve(termCount);
           }
         };
         request.onerror = () => reject(request.error);
       });
 
+      // Count termMeta entries for this dictionary
+      const termMetaCount = await new Promise((resolve, reject) => {
+        let metaCount = 0;
+        const request = termMetaStore.openCursor();
+
+        request.onsuccess = (event) => {
+          const cursor = event.target.result;
+          if (cursor) {
+            // Check if this termMeta belongs to our dictionary
+            if (cursor.value.dictionary === dict.title) {
+              metaCount++;
+            }
+            cursor.continue();
+          } else {
+            resolve(metaCount);
+          }
+        };
+        request.onerror = () => reject(request.error);
+      });
+
+      // Calculate total actual count (terms + termMeta)
+      const totalActual = termsCount + termMetaCount;
+
+      // Determine expected total based on which store has the data
+      // If termMeta has entries, use termMeta count; otherwise use terms count
+      let totalExpected;
+      if (termMetaCount > 0) {
+        totalExpected = dict.counts.termMeta ? dict.counts.termMeta.total : 0;
+      } else {
+        totalExpected = dict.counts.terms ? dict.counts.terms.total : 0;
+      }
+
+      console.log(`Dictionary ${dict.title}: terms=${termsCount}, termMeta=${termMetaCount}, total=${totalActual}, expected=${totalExpected}`);
+
       result[dict.title] = {
-        expected: dict.counts.terms.total,
-        actual: count
+        expected: totalExpected,
+        actual: { total: totalActual, terms: termsCount, termMeta: termMetaCount }
       };
     }
 

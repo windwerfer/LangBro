@@ -662,19 +662,23 @@ class YomitanDictionaryImporter {
         };
 
         // Store data
-        await database.storeDictionary({
+        const structuredData = {
             terms: data.terms,
             kanji: data.kanji,
-            media: data.media.map(m => ({
-                dictionary: m.dictionary,
-                path: m.path,
-                mediaType: m.mediaType,
-                width: m.width,
-                height: m.height,
-                content: m.content
-            })),
+            media: data.media.map(function(m) {
+                return {
+                    dictionary: m.dictionary,
+                    path: m.path,
+                    mediaType: m.mediaType,
+                    width: m.width,
+                    height: m.height,
+                    content: m.content
+                };
+            }),
             metadata: summary
-        }, dbProgressCallback);
+        };
+
+        await database.storeDictionary(structuredData, dbProgressCallback);
 
         // Store additional data if database supports it
         if (database.storeTags) {

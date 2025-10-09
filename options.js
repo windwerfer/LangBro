@@ -215,15 +215,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let resultText = 'Dictionary Check Results:\n\n';
       for (const [dictName, countInfo] of Object.entries(counts)) {
-        const status = countInfo.expected === countInfo.actual ? '✓ OK' : '✗ MISMATCH';
-        resultText += `${dictName}: ${countInfo.actual}/${countInfo.expected} words ${status}\n`;
+        const status = countInfo.expected === countInfo.actual.total ? '✓ OK' : '✗ MISMATCH';
+        resultText += `${dictName}: ${countInfo.actual.total}/${countInfo.expected} words ${status}\n`;
       }
 
       if (Object.keys(counts).length === 0) {
         resultText = 'No dictionaries found in database.';
       }
 
-      showStatus(resultText, Object.values(counts).some(c => c.expected !== c.actual) ? 'error' : 'success');
+      showStatus(resultText, Object.values(counts).some(c => c.expected !== c.actual.total) ? 'error' : 'success');
     } catch (error) {
       showStatus('Error checking dictionaries: ' + error.message, 'error');
     }
