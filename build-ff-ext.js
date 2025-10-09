@@ -71,7 +71,7 @@
    console.log(`Creating: ${zipPath}`);
    console.log(`Excluding patterns: ${filteredPatterns.join(', ')}`);
    await new Promise((resolve) => {
-     zip.generateNodeStream({type:'nodebuffer', streamFiles:true, compression: 'DEFLATE', compressionOptions: {level: 9}})
+     zip.generateNodeStream({type:'nodebuffer', streamFiles:true, compression: 'DEFLATE', compressionOptions: {level: 6}})
        .pipe(fs.createWriteStream(zipPath))
        .on('finish', resolve);
    });

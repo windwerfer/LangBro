@@ -1216,8 +1216,12 @@ document.addEventListener('DOMContentLoaded', () => {
         availableDicts.appendChild(dictDiv);
       });
 
-      // Create initial selected dictionaries list
-      updateSelectedDictsList(dictionaries, selectedDictionaries);
+       // Initialize the dictionary order manager
+       const selectedDictsContainer = document.getElementById('selectedDicts');
+       dictOrderManager.initialize(selectedDictsContainer, dictionaries);
+
+       // Create initial selected dictionaries list
+       updateSelectedDictsList(dictionaries, selectedDictionaries);
 
     } catch (error) {
       console.error('Error loading available dictionaries:', error);
@@ -1228,116 +1232,372 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Unified Dictionary Order Manager
+  class DictionaryOrderManager {
+    constructor() {
+      this.order = [];
+      this.allDictionaries = [];
+      this.inputAdapters = [];
+      this.container = null;
+    }
+
+    initialize(container, allDictionaries) {
+      this.container = container;
+      this.allDictionaries = allDictionaries;
+      this.inputAdapters = [
+        new DragInput(this),
+        new TouchInput(this)
+      ];
+    }
+
+    setOrder(newOrder) {
+      this.order = [...newOrder];
+      this.render();
+      this.updatePositionInputs();
+    }
+
+    getOrder() {
+      return [...this.order];
+    }
+
+    moveItem(fromIndex, toIndex) {
+      if (fromIndex < 0 || toIndex < 0 || fromIndex >= this.order.length || toIndex >= this.order.length) return;
+      const item = this.order.splice(fromIndex, 1)[0];
+      this.order.splice(toIndex, 0, item);
+      this.render();
+      this.updatePositionInputs();
+    }
+
+    moveItemUp(item) {
+      const currentIndex = Array.from(this.container.children).indexOf(item);
+      if (currentIndex > 0) {
+        this.moveItem(currentIndex, currentIndex - 1);
+      }
+    }
+
+    moveItemDown(item) {
+      const currentIndex = Array.from(this.container.children).indexOf(item);
+      if (currentIndex < this.order.length - 1) {
+        this.moveItem(currentIndex, currentIndex + 1);
+      }
+    }
+
+    updateAvailableDictionaries(allDictionaries, forcedOrder = null) {
+      this.allDictionaries = allDictionaries;
+
+      const checkedBoxes = document.querySelectorAll('#availableDicts input[type="checkbox"]:checked');
+      const selectedNames = Array.from(checkedBoxes).map(cb => cb.value);
+
+      if (forcedOrder && forcedOrder.length > 0) {
+        // Use forced order (from loading existing group)
+        this.order = forcedOrder.filter(name => selectedNames.includes(name));
+        // Add any newly selected that aren't in the forced order
+        selectedNames.forEach(name => {
+          if (!this.order.includes(name)) {
+            this.order.push(name);
+          }
+        });
+      } else {
+        // Use current checkbox order, preserving existing order where possible
+        const newOrder = [];
+        this.order.forEach(name => {
+          if (selectedNames.includes(name)) {
+            newOrder.push(name);
+          }
+        });
+        selectedNames.forEach(name => {
+          if (!newOrder.includes(name)) {
+            newOrder.push(name);
+          }
+        });
+        this.order = newOrder;
+      }
+
+      this.render();
+      this.inputAdapters.forEach(adapter => adapter.attach());
+    }
+
+    render() {
+      if (!this.container) return;
+
+      this.container.innerHTML = '';
+
+      if (this.order.length === 0) {
+        this.container.innerHTML = '<p style="color: #666; font-style: italic; margin: 10px;">Select dictionaries above to add them here</p>';
+        return;
+      }
+
+      this.order.forEach((dictName, index) => {
+        const dict = this.allDictionaries.find(d => d.title === dictName);
+        if (!dict) return;
+
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'sortable-item';
+        itemDiv.dataset.dict = dictName;
+
+        // Position controls (input + arrows)
+        const positionControls = document.createElement('div');
+        positionControls.className = 'position-controls';
+
+        const upBtn = document.createElement('button');
+        upBtn.className = 'position-btn';
+        upBtn.textContent = '▲';
+        upBtn.title = 'Move up';
+        upBtn.addEventListener('click', () => this.moveItemUp(itemDiv));
+
+        const positionInput = document.createElement('input');
+        positionInput.type = 'number';
+        positionInput.className = 'position-input';
+        positionInput.value = index + 1;
+        positionInput.min = 1;
+        positionInput.max = this.order.length;
+        positionInput.title = 'Enter new position number';
+        positionInput.addEventListener('change', (e) => this.handlePositionChange(itemDiv, parseInt(e.target.value)));
+        positionInput.addEventListener('input', (e) => this.handlePositionInput(e.target));
+
+        const downBtn = document.createElement('button');
+        downBtn.className = 'position-btn';
+        downBtn.textContent = '▼';
+        downBtn.title = 'Move down';
+        downBtn.addEventListener('click', () => this.moveItemDown(itemDiv));
+
+        positionControls.appendChild(upBtn);
+        positionControls.appendChild(positionInput);
+        positionControls.appendChild(downBtn);
+
+        const dragHandle = document.createElement('span');
+        dragHandle.className = 'drag-handle';
+        dragHandle.textContent = '⋮⋮';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'dict-name';
+        nameSpan.textContent = `${dict.title} (${dict.counts.terms.total} words)`;
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-btn';
+        removeBtn.textContent = '×';
+        removeBtn.title = 'Remove from selection';
+        removeBtn.addEventListener('click', () => {
+          const checkbox = document.getElementById(`dict-${dictName}`);
+          if (checkbox) {
+            checkbox.checked = false;
+            this.updateAvailableDictionaries(this.allDictionaries);
+          }
+        });
+
+        itemDiv.appendChild(positionControls);
+        itemDiv.appendChild(dragHandle);
+        itemDiv.appendChild(nameSpan);
+        itemDiv.appendChild(removeBtn);
+
+        this.container.appendChild(itemDiv);
+      });
+    }
+
+    updatePositionInputs() {
+      const items = this.container.querySelectorAll('.sortable-item');
+      items.forEach((item, index) => {
+        const input = item.querySelector('.position-input');
+        if (input) {
+          input.value = index + 1;
+          input.max = this.order.length;
+          input.classList.remove('error');
+        }
+        // Update button states
+        const upBtn = item.querySelector('.position-btn:first-child');
+        const downBtn = item.querySelector('.position-btn:last-child');
+        if (upBtn) upBtn.disabled = index === 0;
+        if (downBtn) downBtn.disabled = index === this.order.length - 1;
+      });
+    }
+
+    handlePositionChange(item, newPosition) {
+      const currentIndex = Array.from(this.container.children).indexOf(item);
+      const targetIndex = Math.max(0, Math.min(this.order.length - 1, newPosition - 1));
+
+      if (currentIndex !== targetIndex) {
+        this.moveItem(currentIndex, targetIndex);
+        this.updatePositionInputs();
+      }
+    }
+
+    handlePositionInput(input) {
+      const value = parseInt(input.value);
+      const max = this.order.length;
+
+      // Auto-clamp invalid values
+      if (isNaN(value) || value < 1) {
+        input.value = 1;
+        input.classList.remove('error');
+      } else if (value > max) {
+        input.value = max;
+        input.classList.remove('error');
+      } else {
+        input.classList.remove('error');
+      }
+
+      input.title = `Enter new position number (1-${max})`;
+    }
+  }
+
+  // Input Method Adapters
+  class DragInput {
+    constructor(manager) {
+      this.manager = manager;
+      this.draggedElement = null;
+      this.isMobile = this.detectMobile();
+    }
+
+    detectMobile() {
+      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+             ('ontouchstart' in window && window.innerWidth <= 768);
+    }
+
+    attach() {
+      if (this.isMobile) return; // Use TouchInput instead
+
+      const items = this.manager.container.querySelectorAll('.sortable-item');
+      items.forEach(item => {
+        item.draggable = true;
+        item.addEventListener('dragstart', this.handleDragStart.bind(this));
+        item.addEventListener('dragend', this.handleDragEnd.bind(this));
+        item.addEventListener('dragover', this.handleDragOver.bind(this));
+        item.addEventListener('drop', this.handleDrop.bind(this));
+      });
+    }
+
+    handleDragStart(e) {
+      this.draggedElement = e.target;
+      e.target.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    }
+
+    handleDragEnd(e) {
+      e.target.classList.remove('dragging');
+      this.draggedElement = null;
+    }
+
+    handleDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+
+      const target = e.target.closest('.sortable-item');
+      if (!target || target === this.draggedElement) return;
+
+      const container = this.manager.container;
+      const items = Array.from(container.children);
+      const fromIndex = items.indexOf(this.draggedElement);
+      const toIndex = items.indexOf(target);
+
+      const rect = target.getBoundingClientRect();
+      const midpoint = rect.top + rect.height / 2;
+
+      if (e.clientY < midpoint) {
+        if (fromIndex > toIndex) {
+          container.insertBefore(this.draggedElement, target);
+          this.manager.moveItem(fromIndex, toIndex);
+        }
+      } else {
+        if (fromIndex < toIndex) {
+          container.insertBefore(this.draggedElement, target.nextSibling);
+          this.manager.moveItem(fromIndex, toIndex + 1);
+        }
+      }
+    }
+
+    handleDrop(e) {
+      e.preventDefault();
+    }
+  }
+
+  class TouchInput {
+    constructor(manager) {
+      this.manager = manager;
+      this.touchStartY = 0;
+      this.touchStartX = 0;
+      this.touchDraggedElement = null;
+      this.isMobile = this.detectMobile();
+    }
+
+    detectMobile() {
+      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+             ('ontouchstart' in window && window.innerWidth <= 768);
+    }
+
+    attach() {
+      if (!this.isMobile) return; // Use DragInput instead
+
+      const items = this.manager.container.querySelectorAll('.sortable-item');
+      items.forEach(item => {
+        item.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
+        item.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
+        item.addEventListener('touchend', this.handleTouchEnd.bind(this));
+        item.style.cursor = 'grab';
+      });
+    }
+
+    handleTouchStart(e) {
+      if (e.touches.length !== 1) return;
+
+      const touch = e.touches[0];
+      this.touchStartX = touch.clientX;
+      this.touchStartY = touch.clientY;
+
+      const target = e.target.closest('.sortable-item');
+      if (!target) return;
+
+      this.touchDraggedElement = target;
+    }
+
+    handleTouchMove(e) {
+      if (!this.touchDraggedElement || e.touches.length !== 1) return;
+
+      e.preventDefault();
+
+      const touch = e.touches[0];
+      const deltaY = Math.abs(touch.clientY - this.touchStartY);
+      const deltaX = Math.abs(touch.clientX - this.touchStartX);
+
+      if (deltaY < 10 || deltaX > deltaY) return;
+
+      const target = e.target.closest('.sortable-item');
+      if (!target || target === this.touchDraggedElement) return;
+
+      const container = this.manager.container;
+      const items = Array.from(container.children);
+      const fromIndex = items.indexOf(this.touchDraggedElement);
+      const toIndex = items.indexOf(target);
+
+      const rect = target.getBoundingClientRect();
+      const midpoint = rect.top + rect.height / 2;
+
+      if (touch.clientY < midpoint && fromIndex > toIndex) {
+        container.insertBefore(this.touchDraggedElement, target);
+        this.manager.moveItem(fromIndex, toIndex);
+      } else if (touch.clientY >= midpoint && fromIndex < toIndex) {
+        container.insertBefore(this.touchDraggedElement, target.nextSibling);
+        this.manager.moveItem(fromIndex, toIndex + 1);
+      }
+    }
+
+    handleTouchEnd(e) {
+      if (!this.touchDraggedElement) return;
+      this.touchDraggedElement.classList.remove('dragging');
+      this.touchDraggedElement = null;
+    }
+  }
+
+
+
+  // Initialize the unified sorting system
+  const dictOrderManager = new DictionaryOrderManager();
+
   // Update the sortable selected dictionaries list
   function updateSelectedDictsList(allDictionaries, forcedOrder = null) {
-    const selectedDicts = document.getElementById('selectedDicts');
-    const checkedBoxes = document.querySelectorAll('#availableDicts input[type="checkbox"]:checked');
-
-    selectedDicts.innerHTML = '';
-
-    if (checkedBoxes.length === 0) {
-      selectedDicts.innerHTML = '<p style="color: #666; font-style: italic; margin: 10px;">Select dictionaries above to add them here</p>';
-      return;
-    }
-
-    // Get selected dictionary names in order
-    let selectedNames = [];
-    if (forcedOrder && forcedOrder.length > 0) {
-      // Use forced order (from loading existing group)
-      selectedNames = forcedOrder.filter(name =>
-        Array.from(checkedBoxes).some(cb => cb.value === name)
-      );
-      // Add any newly selected that aren't in the forced order
-      checkedBoxes.forEach(cb => {
-        if (!selectedNames.includes(cb.value)) {
-          selectedNames.push(cb.value);
-        }
-      });
-    } else {
-      // Use current checkbox order
-      checkedBoxes.forEach(cb => {
-        selectedNames.push(cb.value);
-      });
-    }
-
-    // Create sortable items
-    selectedNames.forEach(dictName => {
-      const dict = allDictionaries.find(d => d.title === dictName);
-      if (!dict) return;
-
-      const itemDiv = document.createElement('div');
-      itemDiv.className = 'sortable-item';
-      itemDiv.draggable = true;
-      itemDiv.dataset.dict = dictName;
-
-      const dragHandle = document.createElement('span');
-      dragHandle.className = 'drag-handle';
-      dragHandle.textContent = '⋮⋮';
-
-      const nameSpan = document.createElement('span');
-      nameSpan.className = 'dict-name';
-      nameSpan.textContent = `${dict.title} (${dict.counts.terms.total} words)`;
-
-      const removeBtn = document.createElement('button');
-      removeBtn.className = 'remove-btn';
-      removeBtn.textContent = '×';
-      removeBtn.title = 'Remove from selection';
-      removeBtn.addEventListener('click', () => {
-        const checkbox = document.getElementById(`dict-${dictName}`);
-        if (checkbox) {
-          checkbox.checked = false;
-          updateSelectedDictsList(allDictionaries);
-        }
-      });
-
-      itemDiv.appendChild(dragHandle);
-      itemDiv.appendChild(nameSpan);
-      itemDiv.appendChild(removeBtn);
-
-      // Add drag and drop event listeners
-      itemDiv.addEventListener('dragstart', handleDragStart);
-      itemDiv.addEventListener('dragend', handleDragEnd);
-      itemDiv.addEventListener('dragover', handleDragOver);
-      itemDiv.addEventListener('drop', handleDrop);
-
-      selectedDicts.appendChild(itemDiv);
-    });
+    dictOrderManager.updateAvailableDictionaries(allDictionaries, forcedOrder);
   }
 
-  // Drag and drop handlers
-  let draggedElement = null;
 
-  function handleDragStart(e) {
-    draggedElement = e.target;
-    e.target.classList.add('dragging');
-    e.dataTransfer.effectAllowed = 'move';
-  }
-
-  function handleDragEnd(e) {
-    e.target.classList.remove('dragging');
-    draggedElement = null;
-  }
-
-  function handleDragOver(e) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-
-    const target = e.target.closest('.sortable-item');
-    if (!target || target === draggedElement) return;
-
-    const rect = target.getBoundingClientRect();
-    const midpoint = rect.top + rect.height / 2;
-
-    if (e.clientY < midpoint) {
-      target.parentNode.insertBefore(draggedElement, target);
-    } else {
-      target.parentNode.insertBefore(draggedElement, target.nextSibling);
-    }
-  }
-
-  function handleDrop(e) {
-    e.preventDefault();
-  }
 
   // Backup/Restore functionality
   function showBackupStatus(message, type, elementId) {
