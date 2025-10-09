@@ -270,7 +270,9 @@ document.addEventListener('DOMContentLoaded', () => {
           dictDiv.style.borderRadius = '4px';
 
           const nameSpan = document.createElement('span');
-          nameSpan.textContent = `${dict.title} (${dict.counts.terms.total} words)`;
+          const termCount = dict.counts.terms.total;
+          const metaCount = dict.counts.termMeta ? dict.counts.termMeta.total : 0;
+          nameSpan.textContent = `${dict.title} (${termCount} ${termCount === 0 && metaCount > 0 ? 'meta entries' : 'words'})`;
 
           const deleteBtn = document.createElement('button');
           deleteBtn.textContent = 'Delete';

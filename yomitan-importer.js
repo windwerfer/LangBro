@@ -740,11 +740,12 @@ class YomitanDictionaryImporter {
                 format: 'Yomitan',
                 revision: '1',
                 sequenced: true,
-                counts: {
-                    terms: { total: terms.length },
-                    kanji: { total: 0 },
-                    media: { total: 0 }
-                }
+    counts: {
+      terms: { total: data.terms.length || data.termMeta.length },
+      kanji: { total: data.kanji.length },
+      media: { total: data.media.length },
+      termMeta: { total: data.termMeta.length }
+    }
             },
             terms: terms,
             kanji: [],

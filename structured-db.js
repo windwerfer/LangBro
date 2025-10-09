@@ -810,11 +810,11 @@ class StructuredDictionaryDatabase {
             }
             cursor.continue();
           } else {
-            console.log(`Counted ${termCount} terms for ${dict.title} (processed ${totalProcessed} total records)`);
-            resolve(termCount);
+            // Finished counting
+            console.log(`Finished counting for ${dict.title}: ${termCount} terms found, ${totalProcessed} total terms processed`);
+            resolve({ total: termCount, expected: termCount });
           }
         };
-
         request.onerror = () => reject(request.error);
       });
 
