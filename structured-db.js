@@ -158,7 +158,7 @@ class StructuredDictionaryDatabase {
   }
 
   // Lookup term in specific dictionaries only
-  async lookupTermInDictionaries(expression, selectedDictionaryNames, reading = expression) {
+  async lookupTermInDictionaries(expression, selectedDictionaryNames, reading = expression, dictionaryOrder = null) {
     if (!this.db) await this.open();
 
     // Get all dictionaries first, then filter to selected ones
@@ -288,9 +288,37 @@ class StructuredDictionaryDatabase {
         } catch (error) {
           console.error('Failed to store item:', item, error);
           // Continue with other items
-        }
       }
     }
+
+    if (dictionaryResults.length > 0) {
+      // Sort dictionaryResults according to dictionaryOrder if provided
+      if (dictionaryOrder && dictionaryOrder.length > 0) {
+        dictionaryResults.sort((a, b) => {
+          const indexA = dictionaryOrder.indexOf(a.dictionary);
+          const indexB = dictionaryOrder.indexOf(b.dictionary);
+          // If a dictionary is not in the order array, put it at the end
+          if (indexA === -1) return 1;
+          if (indexB === -1) return -1;
+          return indexA - indexB;
+        });
+      }
+
+      // Combine definitions from different dictionaries with <hr> separators
+      const allDefinitions = [];
+      for (let i = 0; i < dictionaryResults.length; i++) {
+        allDefinitions.push(...dictionaryResults[i].definitions);
+        // Add <hr> between different dictionaries (but not after the last one)
+        if (i < dictionaryResults.length - 1) {
+          allDefinitions.push('<hr>');
+        }
+      }
+
+      return allDefinitions.join('\n\n');
+    }
+
+    return null;
+  }
 
     // Send final progress update
     if (progressCallback) {

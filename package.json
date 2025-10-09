@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "jszip": "^3.10.1",
+    "opencode-ai": "^0.14.6",
     "rxjs": "^7.8.2"
   },
   "devDependencies": {

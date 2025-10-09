@@ -238,12 +238,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           // Use selective StarDict lookup based on selected dictionaries
           const db = await getStructuredDB();
           const selectedDictionaries = request.settings?.selectedDictionaries || [];
+          const dictionaryOrder = request.settings?.dictionaryOrder || selectedDictionaries;
 
           if (selectedDictionaries.length === 0) {
             definition = 'No dictionaries selected for this query group.';
           } else {
-            // Query only selected dictionaries
-            definition = await db.lookupTermInDictionaries(word, selectedDictionaries);
+            // Query only selected dictionaries with specified order
+            definition = await db.lookupTermInDictionaries(word, selectedDictionaries, undefined, dictionaryOrder);
             console.log('LOG', 'Selective offline lookup result:', word, ' -> ',  definition);
           }
         } else if (request.queryType === 'web' || request.queryType === 'google_translate') {

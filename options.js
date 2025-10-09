@@ -802,22 +802,23 @@ document.addEventListener('DOMContentLoaded', () => {
       // Populate bottom panel settings
       bottomHeightInput.value = group.bottomSettings?.height || '200px';
 
-      // Populate type-specific settings
-      if (group.queryType === 'web') {
-        loadWebServicesForSelection(group.settings?.serviceId || '');
-      } else if (group.queryType === 'ai') {
-        loadAiServicesForSelection(group.settings?.serviceId || '');
-        document.getElementById('aiMaxTokens').value = group.settings?.maxTokens || 2048;
-        document.getElementById('aiPrompt').value = group.settings?.prompt || 'You are a Tutor, give a grammar breakdown for: {text}';
-        document.getElementById('aiSendContext').checked = group.settings?.sendContext || false;
-        document.getElementById('aiWordsBefore').value = group.settings?.wordsBefore || 40;
-        document.getElementById('aiWordsAfter').value = group.settings?.wordsAfter || 40;
-        document.getElementById('aiCompleteContext').checked = group.settings?.completeContext || false;
-        document.getElementById('aiContextSettings').style.display = group.settings?.sendContext ? 'block' : 'none';
-      } else if (group.queryType === 'offline') {
-        // Load selected dictionaries for offline groups
-        loadAvailableDictionaries(group.settings?.selectedDictionaries || []);
-      }
+       // Populate type-specific settings
+       if (group.queryType === 'web') {
+         loadWebServicesForSelection(group.settings?.serviceId || '');
+       } else if (group.queryType === 'ai') {
+         loadAiServicesForSelection(group.settings?.serviceId || '');
+         document.getElementById('aiMaxTokens').value = group.settings?.maxTokens || 2048;
+         document.getElementById('aiPrompt').value = group.settings?.prompt || 'You are a Tutor, give a grammar breakdown for: {text}';
+         document.getElementById('aiSendContext').checked = group.settings?.sendContext || false;
+         document.getElementById('aiWordsBefore').value = group.settings?.wordsBefore || 40;
+         document.getElementById('aiWordsAfter').value = group.settings?.wordsAfter || 40;
+         document.getElementById('aiCompleteContext').checked = group.settings?.completeContext || false;
+         document.getElementById('aiContextSettings').style.display = group.settings?.sendContext ? 'block' : 'none';
+       } else if (group.queryType === 'offline') {
+         // Load selected dictionaries for offline groups with order
+         const dictionaryOrder = group.settings?.dictionaryOrder || group.settings?.selectedDictionaries || [];
+         loadAvailableDictionaries(dictionaryOrder);
+       }
     } else {
       formTitle.textContent = 'Add Query Group';
       groupNameInput.value = '';
@@ -959,11 +960,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Build settings based on query type
     let settings = {};
     if (queryType === 'offline') {
-      // Collect selected dictionaries
+      // Collect selected dictionaries and their order
       const selectedDictionaries = [];
-      const checkboxes = document.querySelectorAll('#dictionarySelection input[type="checkbox"]:checked');
-      checkboxes.forEach(checkbox => {
-        selectedDictionaries.push(checkbox.value);
+      const dictionaryOrder = [];
+
+      // Get order from sortable list
+      const sortableItems = document.querySelectorAll('#selectedDicts .sortable-item');
+      sortableItems.forEach(item => {
+        const dictName = item.dataset.dict;
+        dictionaryOrder.push(dictName);
+        selectedDictionaries.push(dictName);
       });
 
       if (selectedDictionaries.length === 0) {
@@ -971,7 +977,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      settings = { selectedDictionaries };
+      settings = { selectedDictionaries, dictionaryOrder };
     } else if (queryType === 'web') {
       const selectedWebServiceId = document.getElementById('selectedWebService').value;
       if (!selectedWebServiceId) {
@@ -1173,19 +1179,22 @@ document.addEventListener('DOMContentLoaded', () => {
       const db = await getStructuredDB();
       const dictionaries = await db.getAllDictionaries();
 
-      const dictionarySelection = document.getElementById('dictionarySelection');
-      dictionarySelection.innerHTML = '';
+      const availableDicts = document.getElementById('availableDicts');
+      const selectedDicts = document.getElementById('selectedDicts');
+
+      availableDicts.innerHTML = '';
+      selectedDicts.innerHTML = '';
 
       if (dictionaries.length === 0) {
-        dictionarySelection.innerHTML = '<p style="color: #666; font-style: italic;">No dictionaries available. Please import dictionaries first.</p>';
+        availableDicts.innerHTML = '<p style="color: #666; font-style: italic;">No dictionaries available. Please import dictionaries first.</p>';
+        selectedDicts.innerHTML = '<p style="color: #666; font-style: italic;">No dictionaries available</p>';
         return;
       }
 
+      // Create available dictionaries checkboxes
       dictionaries.forEach(dict => {
         const dictDiv = document.createElement('div');
-        dictDiv.style.display = 'flex';
-        dictDiv.style.alignItems = 'center';
-        dictDiv.style.margin = '5px 0';
+        dictDiv.className = 'dict-item';
 
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
@@ -1193,21 +1202,141 @@ document.addEventListener('DOMContentLoaded', () => {
         checkbox.id = `dict-${dict.title}`;
         checkbox.checked = selectedDictionaries.includes(dict.title);
 
+        // Add change listener to update sortable list
+        checkbox.addEventListener('change', () => {
+          updateSelectedDictsList(dictionaries);
+        });
+
         const label = document.createElement('label');
         label.htmlFor = `dict-${dict.title}`;
-        label.style.marginLeft = '8px';
-        label.style.flex = '1';
         label.textContent = `${dict.title} (${dict.counts.terms.total} words)`;
 
         dictDiv.appendChild(checkbox);
         dictDiv.appendChild(label);
-        dictionarySelection.appendChild(dictDiv);
+        availableDicts.appendChild(dictDiv);
       });
+
+      // Create initial selected dictionaries list
+      updateSelectedDictsList(dictionaries, selectedDictionaries);
+
     } catch (error) {
       console.error('Error loading available dictionaries:', error);
-      const dictionarySelection = document.getElementById('dictionarySelection');
-      dictionarySelection.innerHTML = '<p style="color: #d9534f;">Error loading dictionaries.</p>';
+      const availableDicts = document.getElementById('availableDicts');
+      const selectedDicts = document.getElementById('selectedDicts');
+      availableDicts.innerHTML = '<p style="color: #d9534f;">Error loading dictionaries.</p>';
+      selectedDicts.innerHTML = '<p style="color: #d9534f;">Error loading dictionaries.</p>';
     }
+  }
+
+  // Update the sortable selected dictionaries list
+  function updateSelectedDictsList(allDictionaries, forcedOrder = null) {
+    const selectedDicts = document.getElementById('selectedDicts');
+    const checkedBoxes = document.querySelectorAll('#availableDicts input[type="checkbox"]:checked');
+
+    selectedDicts.innerHTML = '';
+
+    if (checkedBoxes.length === 0) {
+      selectedDicts.innerHTML = '<p style="color: #666; font-style: italic; margin: 10px;">Select dictionaries above to add them here</p>';
+      return;
+    }
+
+    // Get selected dictionary names in order
+    let selectedNames = [];
+    if (forcedOrder && forcedOrder.length > 0) {
+      // Use forced order (from loading existing group)
+      selectedNames = forcedOrder.filter(name =>
+        Array.from(checkedBoxes).some(cb => cb.value === name)
+      );
+      // Add any newly selected that aren't in the forced order
+      checkedBoxes.forEach(cb => {
+        if (!selectedNames.includes(cb.value)) {
+          selectedNames.push(cb.value);
+        }
+      });
+    } else {
+      // Use current checkbox order
+      checkedBoxes.forEach(cb => {
+        selectedNames.push(cb.value);
+      });
+    }
+
+    // Create sortable items
+    selectedNames.forEach(dictName => {
+      const dict = allDictionaries.find(d => d.title === dictName);
+      if (!dict) return;
+
+      const itemDiv = document.createElement('div');
+      itemDiv.className = 'sortable-item';
+      itemDiv.draggable = true;
+      itemDiv.dataset.dict = dictName;
+
+      const dragHandle = document.createElement('span');
+      dragHandle.className = 'drag-handle';
+      dragHandle.textContent = '⋮⋮';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'dict-name';
+      nameSpan.textContent = `${dict.title} (${dict.counts.terms.total} words)`;
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'remove-btn';
+      removeBtn.textContent = '×';
+      removeBtn.title = 'Remove from selection';
+      removeBtn.addEventListener('click', () => {
+        const checkbox = document.getElementById(`dict-${dictName}`);
+        if (checkbox) {
+          checkbox.checked = false;
+          updateSelectedDictsList(allDictionaries);
+        }
+      });
+
+      itemDiv.appendChild(dragHandle);
+      itemDiv.appendChild(nameSpan);
+      itemDiv.appendChild(removeBtn);
+
+      // Add drag and drop event listeners
+      itemDiv.addEventListener('dragstart', handleDragStart);
+      itemDiv.addEventListener('dragend', handleDragEnd);
+      itemDiv.addEventListener('dragover', handleDragOver);
+      itemDiv.addEventListener('drop', handleDrop);
+
+      selectedDicts.appendChild(itemDiv);
+    });
+  }
+
+  // Drag and drop handlers
+  let draggedElement = null;
+
+  function handleDragStart(e) {
+    draggedElement = e.target;
+    e.target.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function handleDragEnd(e) {
+    e.target.classList.remove('dragging');
+    draggedElement = null;
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+
+    const target = e.target.closest('.sortable-item');
+    if (!target || target === draggedElement) return;
+
+    const rect = target.getBoundingClientRect();
+    const midpoint = rect.top + rect.height / 2;
+
+    if (e.clientY < midpoint) {
+      target.parentNode.insertBefore(draggedElement, target);
+    } else {
+      target.parentNode.insertBefore(draggedElement, target.nextSibling);
+    }
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
   }
 
   // Backup/Restore functionality

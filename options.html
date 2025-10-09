@@ -26,6 +26,23 @@
     .form-group #aiPrompt { width: 300px; height: 300px;}
     .form-group label { margin-bottom: 5px; }
     .form-group input, .form-group select { padding: 5px; }
+
+    /* Dictionary sorting styles */
+    .dict-selection-section { margin-bottom: 15px; }
+    .dict-selection-section h5 { margin: 0 0 8px 0; font-size: 14px; font-weight: bold; color: #333; }
+    .dict-checkboxes { max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 8px; border-radius: 4px; background: white; }
+    .dict-checkboxes .dict-item { display: flex; align-items: center; margin: 4px 0; }
+    .dict-checkboxes .dict-item input { margin-right: 8px; }
+    .dict-checkboxes .dict-item label { flex: 1; cursor: pointer; }
+    .sortable-list { min-height: 40px; border: 1px solid #ddd; border-radius: 4px; padding: 5px; background: #f9f9f9; }
+    .sortable-item { display: flex; align-items: center; padding: 8px; margin: 4px 0; background: white; border: 1px solid #ddd; border-radius: 3px; cursor: move; }
+    .sortable-item:hover { background: #f0f0f0; }
+    .sortable-item.dragging { opacity: 0.5; transform: rotate(5deg); }
+    .drag-handle { margin-right: 8px; color: #999; font-size: 14px; cursor: grab; }
+    .drag-handle:active { cursor: grabbing; }
+    .dict-name { flex: 1; }
+    .remove-btn { background: none; border: none; color: #999; cursor: pointer; font-size: 18px; padding: 0 5px; }
+    .remove-btn:hover { color: #d9534f; }
   </style>
 </head>
 <body>
@@ -402,10 +419,19 @@
       <div id="offlineSettings" class="query-type-settings">
         <p>This group will use the selected StarDict dictionaries.</p>
         <div class="form-group">
-          <label>Available Dictionaries:</label>
-          <div id="dictionarySelection" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: white;">
-            <!-- Dictionary checkboxes will be loaded here -->
-            <p style="color: #666; font-style: italic;">Loading dictionaries...</p>
+          <div id="dictionarySelection">
+            <div class="dict-selection-section">
+              <h5>Available Dictionaries:</h5>
+              <div id="availableDicts" class="dict-checkboxes">
+                <p style="color: #666; font-style: italic;">Loading dictionaries...</p>
+              </div>
+            </div>
+            <div class="dict-selection-section">
+              <h5>Selected Dictionaries (drag to reorder):</h5>
+              <div id="selectedDicts" class="sortable-list">
+                <p style="color: #666; font-style: italic; margin: 10px;">Select dictionaries above to add them here</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
