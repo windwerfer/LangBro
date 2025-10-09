@@ -1571,40 +1571,80 @@ document.addEventListener('DOMContentLoaded', () => {
         const db = await getStructuredDB();
         const dictName = importData.title || 'Imported Dictionary';
 
-        // Convert entries to the format expected by storeDictionary
-        const terms = importData.entries.map((entry, index) => ({
-          dictionary: dictName,
-          expression: entry.term,
-          reading: entry.reading || '',
-          glossary: entry.glossary || (entry.definitions ? entry.definitions.map(d => d.text) : ['']),
-          definitionTags: entry.definitionTags || [],
-          termTags: entry.termTags || [],
-          score: entry.score || 0,
-          sequence: entry.sequence || index
-        }));
+        // Detect if this is an IPA dictionary (only has metadata entries)
+        const isIPA = dictName.toLowerCase().includes('ipa');
 
-        const structuredData = {
-          metadata: {
-            title: dictName,
-            format: 'StarDict',
-            revision: '1',
-            sequenced: true,
-            counts: {
-              terms: { total: terms.length },
-              kanji: { total: 0 },
-              media: { total: 0 }
+        let structuredData;
+
+        if (isIPA) {
+          // Convert entries to termMeta format for IPA dictionaries
+          const termMeta = importData.entries.map((entry, index) => ({
+            dictionary: dictName,
+            expression: entry.term,
+            mode: 'default', // Default mode for IPA
+            data: {
+              reading: entry.reading || '',
+              score: entry.score || 0,
+              sequence: entry.sequence || index,
+              termTags: entry.termTags || []
             }
-          },
-          terms: terms,
-          kanji: [],
-          media: []
-        };
+          }));
+
+          structuredData = {
+            metadata: {
+              title: dictName,
+              format: 'StarDict',
+              revision: '1',
+              sequenced: true,
+              counts: {
+                terms: { total: 0 },
+                termMeta: { total: termMeta.length },
+                kanji: { total: 0 },
+                media: { total: 0 }
+              }
+            },
+            terms: [],
+            termMeta: termMeta,
+            kanji: [],
+            media: []
+          };
+        } else {
+          // Convert entries to terms format for regular dictionaries
+          const terms = importData.entries.map((entry, index) => ({
+            dictionary: dictName,
+            expression: entry.term,
+            reading: entry.reading || '',
+            glossary: entry.glossary || (entry.definitions ? entry.definitions.map(d => d.text) : ['']),
+            definitionTags: entry.definitionTags || [],
+            termTags: entry.termTags || [],
+            score: entry.score || 0,
+            sequence: entry.sequence || index
+          }));
+
+          structuredData = {
+            metadata: {
+              title: dictName,
+              format: 'StarDict',
+              revision: '1',
+              sequenced: true,
+              counts: {
+                terms: { total: terms.length },
+                kanji: { total: 0 },
+                media: { total: 0 }
+              }
+            },
+            terms: terms,
+            kanji: [],
+            media: []
+          };
+        }
 
         await db.storeDictionary(structuredData, (message) => {
           showBackupStatus(message, 'info', 'dictStatus');
         });
 
-        showBackupStatus(`Dictionary "${dictName}" imported successfully! (${importData.entries.length} terms)`, 'success', 'dictStatus');
+        const entryType = isIPA ? 'IPA entries' : 'terms';
+        showBackupStatus(`Dictionary "${dictName}" imported successfully! (${importData.entries.length} ${entryType})`, 'success', 'dictStatus');
 
         // Refresh dictionary list
         loadCurrentDict();

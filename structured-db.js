@@ -60,11 +60,16 @@ class StructuredDictionaryDatabase {
   async storeDictionary(structuredData, progressCallback = null) {
     if (!this.db) await this.open();
 
-    const { terms, kanji, media, metadata } = structuredData;
+    const { terms, kanji, media, termMeta, kanjiMeta, tags, metadata } = structuredData;
 
-    console.log(`Storing dictionary ${metadata.title} with ${terms.length} terms`);
+    console.log(`Storing dictionary ${metadata.title} with ${terms.length} terms, ${termMeta?.length || 0} termMeta, ${kanji.length} kanji, ${kanjiMeta?.length || 0} kanjiMeta, ${tags?.length || 0} tags, ${media.length} media`);
 
-    const transaction = this.db.transaction(['dictionaries', 'terms', 'kanji', 'media'], 'readwrite');
+    const stores = ['dictionaries', 'terms', 'kanji', 'media'];
+    if (termMeta && termMeta.length > 0) stores.push('termMeta');
+    if (kanjiMeta && kanjiMeta.length > 0) stores.push('kanjiMeta');
+    if (tags && tags.length > 0) stores.push('tagMeta');
+
+    const transaction = this.db.transaction(stores, 'readwrite');
 
     // Store dictionary metadata
     const dictStore = transaction.objectStore('dictionaries');
@@ -75,17 +80,43 @@ class StructuredDictionaryDatabase {
     const termsStored = await this._storeBatch(termStore, terms, 100, progressCallback);
     console.log(`Terms storage: sent ${terms.length}, stored ${termsStored}`);
 
+    // Store termMeta if any
+    let termMetaStored = 0;
+    if (termMeta && termMeta.length > 0) {
+      const termMetaStore = transaction.objectStore('termMeta');
+      termMetaStored = await this._storeBatch(termMetaStore, termMeta, 100, progressCallback);
+      console.log(`TermMeta storage: sent ${termMeta.length}, stored ${termMetaStored}`);
+    }
+
     // Store kanji if any
+    let kanjiStored = 0;
     if (kanji.length > 0) {
       const kanjiStore = transaction.objectStore('kanji');
-      const kanjiStored = await this._storeBatch(kanjiStore, kanji, 100, progressCallback);
+      kanjiStored = await this._storeBatch(kanjiStore, kanji, 100, progressCallback);
       console.log(`Kanji storage: sent ${kanji.length}, stored ${kanjiStored}`);
     }
 
+    // Store kanjiMeta if any
+    let kanjiMetaStored = 0;
+    if (kanjiMeta && kanjiMeta.length > 0) {
+      const kanjiMetaStore = transaction.objectStore('kanjiMeta');
+      kanjiMetaStored = await this._storeBatch(kanjiMetaStore, kanjiMeta, 100, progressCallback);
+      console.log(`KanjiMeta storage: sent ${kanjiMeta.length}, stored ${kanjiMetaStored}`);
+    }
+
+    // Store tags if any
+    let tagsStored = 0;
+    if (tags && tags.length > 0) {
+      const tagStore = transaction.objectStore('tagMeta');
+      tagsStored = await this._storeBatch(tagStore, tags, 100, progressCallback);
+      console.log(`Tags storage: sent ${tags.length}, stored ${tagsStored}`);
+    }
+
     // Store media if any
+    let mediaStored = 0;
     if (media.length > 0) {
       const mediaStore = transaction.objectStore('media');
-      const mediaStored = await this._storeBatch(mediaStore, media, 100, progressCallback);
+      mediaStored = await this._storeBatch(mediaStore, media, 100, progressCallback);
       console.log(`Media storage: sent ${media.length}, stored ${mediaStored}`);
     }
 

@@ -616,6 +616,8 @@ class YomitanDictionaryImporter {
      * @param {Object} data
      */
     async _storeInDatabase(database, index, data) {
+        console.log('Storing dictionary:', index.title, 'terms:', data.terms.length, 'termMeta:', data.termMeta.length, 'kanji:', data.kanji.length, 'kanjiMeta:', data.kanjiMeta.length, 'tags:', data.tags.length, 'media:', data.media.length);
+
         // Create dictionary summary
         const summary = {
             title: index.title,
@@ -625,7 +627,7 @@ class YomitanDictionaryImporter {
             importDate: Date.now(),
             prefixWildcardsSupported: false, // Can be enabled later if needed
             counts: {
-                terms: { total: data.terms.length || data.termMeta.length },
+                terms: { total: data.terms.length },
                 termMeta: this._getMetaCounts(data.termMeta),
                 kanji: { total: data.kanji.length },
                 kanjiMeta: this._getMetaCounts(data.kanjiMeta),
@@ -635,6 +637,8 @@ class YomitanDictionaryImporter {
             styles: '', // Could extract from styles.css if present
             yomitanVersion: '1.0.0' // Placeholder
         };
+
+        console.log('counts:', summary.counts);
 
         // Add optional metadata
         if (index.author) summary.author = index.author;
@@ -654,9 +658,23 @@ class YomitanDictionaryImporter {
             // Extract number from database progress message (e.g., "Saved 150 entries to database so far...")
             const match = message.match(/Saved (\d+) entries/);
             if (match) {
-                this.currentProgress.index = parseInt(match[1]);
-                if (this.progressCallback) {
-                    this.progressCallback(this.currentProgress);
+                const current = parseInt(match[1]);
+                let type, typeIndex, typeTotal;
+                if (current <= data.terms.length) {
+                    type = 'terms';
+                    typeIndex = current;
+                    typeTotal = data.terms.length;
+                } else if (current <= data.terms.length + data.kanji.length) {
+                    type = 'kanji';
+                    typeIndex = current - data.terms.length;
+                    typeTotal = data.kanji.length;
+                } else {
+                    type = 'media';
+                    typeIndex = current - data.terms.length - data.kanji.length;
+                    typeTotal = data.media.length;
+                }
+                if (this.progressCallback && typeTotal > 0) {
+                    this.progressCallback({ index: typeIndex, count: typeTotal, type });
                 }
             }
         };
@@ -685,12 +703,40 @@ class YomitanDictionaryImporter {
             await database.storeTags(data.tags);
         }
         if (database.storeTermMeta) {
-            dbProgressCallback?.('Storing term metadata...');
+            if (this.progressCallback) {
+                this.progressCallback({ index: 0, count: data.termMeta.length, type: 'termMeta' });
+            }
+            const startTime = Date.now();
+            const updateInterval = setInterval(() => {
+                const elapsed = Date.now() - startTime;
+                const simulatedIndex = Math.min(data.termMeta.length, Math.floor(elapsed / 2000) * Math.max(1, Math.floor(data.termMeta.length / 10)));
+                if (this.progressCallback) {
+                    this.progressCallback({ index: simulatedIndex, count: data.termMeta.length, type: 'termMeta' });
+                }
+            }, 2000);
             await database.storeTermMeta(data.termMeta);
-            dbProgressCallback?.(`Stored ${data.termMeta.length} term metadata entries`);
+            clearInterval(updateInterval);
+            if (this.progressCallback) {
+                this.progressCallback({ index: data.termMeta.length, count: data.termMeta.length, type: 'termMeta' });
+            }
         }
         if (database.storeKanjiMeta) {
+            if (this.progressCallback) {
+                this.progressCallback({ index: 0, count: data.kanjiMeta.length, type: 'kanjiMeta' });
+            }
+            const startTime = Date.now();
+            const updateInterval = setInterval(() => {
+                const elapsed = Date.now() - startTime;
+                const simulatedIndex = Math.min(data.kanjiMeta.length, Math.floor(elapsed / 2000) * Math.max(1, Math.floor(data.kanjiMeta.length / 10)));
+                if (this.progressCallback) {
+                    this.progressCallback({ index: simulatedIndex, count: data.kanjiMeta.length, type: 'kanjiMeta' });
+                }
+            }, 2000);
             await database.storeKanjiMeta(data.kanjiMeta);
+            clearInterval(updateInterval);
+            if (this.progressCallback) {
+                this.progressCallback({ index: data.kanjiMeta.length, count: data.kanjiMeta.length, type: 'kanjiMeta' });
+            }
         }
     }
 

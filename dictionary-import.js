@@ -212,7 +212,8 @@ class DictionaryImporter {
     // Use the full Yomitan importer
     const importer = new YomitanDictionaryImporter();
     importer.setProgressCallback((progress) => {
-      this.showStatus(`Importing... ${progress.index}/${progress.count} entries`, 'info');
+      const typeLabel = progress.type ? `${progress.type}: ` : '';
+      this.showStatus(`Importing... ${typeLabel}${progress.index}/${progress.count} entries`, 'info');
     });
 
     const db = await this.getStructuredDB();
