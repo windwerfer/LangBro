@@ -251,13 +251,15 @@ class StructuredDictionaryDatabase {
     }
 
     if (dictionaryResults.length > 0) {
-      // Combine definitions from different dictionaries with <hr> separators
+      // Combine definitions from different dictionaries with dictionary names and separators
       const allDefinitions = [];
       for (let i = 0; i < dictionaryResults.length; i++) {
+        // Add dictionary name in gray small font
+        allDefinitions.push(`<div style="color: #666; font-size: 11px; margin: 15px 0 5px 0; font-weight: bold;">${dictionaryResults[i].dictionary}</div>`);
         allDefinitions.push(...dictionaryResults[i].definitions);
-        // Add <hr> between different dictionaries (but not after the last one)
+        // Add separator between dictionaries (but not after the last one)
         if (i < dictionaryResults.length - 1) {
-          allDefinitions.push('<hr>');
+          allDefinitions.push('<hr style="border: none; border-top: 1px solid #eee; margin: 10px 0;">');
         }
       }
 
