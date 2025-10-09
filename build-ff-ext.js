@@ -2,10 +2,16 @@
  const path = require('path');
  const JSZip = require('jszip');
 
- (async () => {
-   // Read manifest.json
-   const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
-   const name = manifest.name.replace(/\s+/g, '_') + '_' + manifest.version;
+  (async () => {
+    // Read version from z_version_nr.txt
+    const version = fs.readFileSync('z_version_nr.txt', 'utf8').trim();
+
+    // Read manifest.json and replace version placeholder
+    let manifestContent = fs.readFileSync('manifest.json', 'utf8');
+    manifestContent = manifestContent.replace('"__VERSION__"', `"${version}"`);
+    const manifest = JSON.parse(manifestContent);
+
+    const name = manifest.name.replace(/\s+/g, '_') + '_' + version;
 
    // Create ff-ext directory
    if (!fs.existsSync('ff-ext')) {

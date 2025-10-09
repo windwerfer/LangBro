@@ -10,3 +10,4 @@ dist/
 *.lnk
 ff-ext/
 chrome-ext/
+z_version_nr.txt
