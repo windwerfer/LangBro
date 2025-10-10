@@ -1,8 +1,8 @@
 // Content script for langbro Dictionary v2 - RxJS Implementation
 // Handles text selection and displays multiple lookup icons for query groups
 
-import { fromEvent, merge, combineLatest, Observable } from 'rxjs';
-import { map, filter, debounceTime, throttleTime, switchMap, takeUntil, bufferTime, pairwise } from 'rxjs/operators';
+import { fromEvent, merge, combineLatest, Observable, timer } from 'rxjs';
+import { map, filter, debounceTime, throttleTime, switchMap, takeUntil, bufferTime, pairwise, take } from 'rxjs/operators';
 import { settings } from './settings-store.js';
 
 
@@ -571,6 +571,8 @@ function createFavoritesStar(resultDiv, group, boxId) {
   starBtn.title = 'Add to favorites';
 
   let longPressDetected = false;
+  const LONG_PRESS_DURATION = 500;
+  const MOVE_THRESHOLD_PX = 10;
 
   // Get current lookup data from the result div
   const getCurrentLookupData = () => {
@@ -645,7 +647,7 @@ function createFavoritesStar(resultDiv, group, boxId) {
   };
 
   // Click handler - toggle favorites in active list
-  starBtn.onclick = async (e) => {
+  starBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
 
     if (longPressDetected) {
@@ -710,26 +712,46 @@ function createFavoritesStar(resultDiv, group, boxId) {
     } catch (error) {
       console.error('Error toggling favorites:', error);
     }
-  };
+  });
 
-  // Long press handler for list selection
-  let pressTimer;
-  starBtn.onmousedown = (e) => {
-    longPressDetected = false;
-    pressTimer = setTimeout(() => {
-      longPressDetected = true;
-      showFavoritesListDropdown(starBtn, resultDiv, group, boxId, getCurrentLookupData);
-    }, 500); // 500ms for long press
-  };
+  const pointerDown$ = fromEvent(starBtn, 'pointerdown').pipe(
+    filter(event => !(event.pointerType === 'mouse' && event.button !== 0))
+  );
+  const pointerMove$ = fromEvent(starBtn, 'pointermove');
+  const pointerUp$ = fromEvent(starBtn, 'pointerup');
+  const pointerCancel$ = fromEvent(starBtn, 'pointercancel');
+  const pointerLeave$ = fromEvent(starBtn, 'pointerleave');
+  const pointerEnd$ = merge(pointerUp$, pointerCancel$, pointerLeave$);
 
-  starBtn.onmouseup = () => {
-    clearTimeout(pressTimer);
-  };
+  const longPress$ = pointerDown$.pipe(
+    map(downEvent => {
+      longPressDetected = false;
+      return downEvent;
+    }),
+    switchMap(downEvent => {
+      const startX = downEvent.clientX;
+      const startY = downEvent.clientY;
 
-  starBtn.onmouseleave = () => {
-    clearTimeout(pressTimer);
-    longPressDetected = false;
-  };
+      const movementExceeded$ = pointerMove$.pipe(
+        filter(moveEvent =>
+          Math.abs(moveEvent.clientX - startX) > MOVE_THRESHOLD_PX ||
+          Math.abs(moveEvent.clientY - startY) > MOVE_THRESHOLD_PX
+        ),
+        take(1),
+        takeUntil(pointerEnd$)
+      );
+
+      return timer(LONG_PRESS_DURATION).pipe(
+        takeUntil(merge(pointerEnd$, movementExceeded$)),
+        map(() => downEvent)
+      );
+    })
+  );
+
+  longPress$.subscribe(() => {
+    longPressDetected = true;
+    showFavoritesListDropdown(starBtn, resultDiv, group, boxId, getCurrentLookupData);
+  });
 
   // Initialize appearance
   updateStarAppearance();
