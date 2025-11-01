@@ -33,7 +33,8 @@
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "langbro-dictionary@example.com"
+      "id": "langbro-dictionary@example.com",
+      "data_collection_permissions": {}
     }
   }
 }
