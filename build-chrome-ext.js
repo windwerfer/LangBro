@@ -134,11 +134,14 @@
      }
      console.log('✅ Chrome extension package and unpacked version created successfully!');
 
-    } finally {
-      // Always restore original manifest and package.json
-      fs.copyFileSync(manifestBackup, 'manifest.json');
-      fs.copyFileSync(packageBackup, 'package.json');
-      fs.unlinkSync(manifestBackup);
-      fs.unlinkSync(packageBackup);
-    }
- })();
+     } finally {
+       // Always restore original manifest and package.json
+       fs.copyFileSync(manifestBackup, 'manifest.json');
+       fs.copyFileSync(packageBackup, 'package.json');
+       fs.unlinkSync(manifestBackup);
+       fs.unlinkSync(packageBackup);
+     }
+  } catch (error) {
+    console.error('Build failed:', error);
+  }
+})();
