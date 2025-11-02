@@ -5,14 +5,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const statusDiv = document.getElementById('status');
   const extensionToggle = document.getElementById('extensionToggle');
 
-  favoritesBtn.addEventListener('click', () => {
-    // Open favorites page in new tab
-    chrome.tabs.create({ url: chrome.runtime.getURL('favorites.html') });
-  });
+   favoritesBtn.addEventListener('click', () => {
+     // Open favorites page in new tab
+     chrome.tabs.create({ url: chrome.runtime.getURL('favorites.html') });
+     window.close();
+   });
 
-  optionsBtn.addEventListener('click', () => {
-    chrome.runtime.openOptionsPage();
-  });
+   optionsBtn.addEventListener('click', () => {
+     chrome.runtime.openOptionsPage();
+     window.close();
+   });
 
   // Load extension enabled state
   loadExtensionEnabledState();

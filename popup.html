@@ -2,14 +2,44 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>langbro Dictionary</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 10px; width: 200px; }
+    body { font-family: Arial, sans-serif; padding: 10px; width: 200px; max-width: 100vw; box-sizing: border-box; }
     button { margin: 5px 0; padding: 5px; width: 100%; }
     #status { margin-top: 10px; padding: 5px; border-radius: 3px; font-size: 12px; }
     .success { background: #d4edda; color: #155724; }
     .error { background: #f8d7da; color: #721c24; }
     .info { background: #d1ecf1; color: #0c5460; }
+
+    /* Mobile responsive styles */
+    @media (max-width: 768px) {
+      body {
+        width: 100%;
+        padding: 15px;
+        font-size: 16px; /* Prevent zoom on iOS */
+      }
+
+      h3 {
+        font-size: 20px;
+        margin-bottom: 15px;
+      }
+
+      button {
+        padding: 12px;
+        font-size: 16px;
+        margin: 8px 0;
+      }
+
+      #status {
+        padding: 10px;
+        font-size: 14px;
+      }
+
+      label span {
+        font-size: 16px;
+      }
+    }
   </style>
 </head>
 <body>
