@@ -325,12 +325,24 @@ async function initializeSimpleDict() {
 
 
 
-  // Focus search input
-  searchInput.focus();
-}
+   // Focus search input
+   searchInput.focus();
 
+   // Connect document click stream to hide result windows
+   const documentClickSub = fromEvent(document, 'click').pipe(
+     filter(event => !event.target.closest('.lookup-icon') && !event.target.closest('[data-box-id]'))
+   ).subscribe(() => {
+     // Hide popup result divs if clicked outside and hideOnClickOutside is enabled
+     settings.current.resultDivs.forEach(div => {
+       if (div && div.dataset.hideOnClickOutside === 'true') {
+         div.style.display = 'none';
+       }
+     });
+   });
+ }
 
-// ===== UTILITY FUNCTIONS =====
+ 
+ // ===== UTILITY FUNCTIONS =====
 
 // Create group label with icon and name
 function createGroupLabel(group) {
