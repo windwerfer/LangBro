@@ -38,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const iconSpacingInput = document.getElementById('iconSpacing');
   const rightSwipeGroupSelect = document.getElementById('rightSwipeGroup');
   const singleClickGroupSelect = document.getElementById('singleClickGroup');
+  const simpleDictGroupSelect = document.getElementById('simpleDictGroup');
 
   // Import page elements
   const filesInput = document.getElementById('filesInput');
@@ -120,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load settings
   async function loadSettings() {
     try {
-      const result = await chrome.storage.local.get(['extensionEnabled', 'darkMode', 'hideGroupNames', 'cachingEnabled', 'cacheTimeoutDays', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'singleClickGroup']);
+      const result = await chrome.storage.local.get(['extensionEnabled', 'darkMode', 'hideGroupNames', 'cachingEnabled', 'cacheTimeoutDays', 'targetLanguage', 'iconPlacement', 'iconOffset', 'iconSpacing', 'rightSwipeGroup', 'singleClickGroup', 'simpleDictGroup']);
       console.log('Loaded settings:', result);
       extensionEnabledCheckbox.checked = result.extensionEnabled !== undefined ? result.extensionEnabled : true;
       darkModeCheckbox.checked = result.darkMode || false;
@@ -134,6 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
       iconSpacingInput.value = result.iconSpacing || 10;
       rightSwipeGroupSelect.value = result.rightSwipeGroup || '';
       singleClickGroupSelect.value = result.singleClickGroup || '';
+      simpleDictGroupSelect.value = result.simpleDictGroup || '';
     } catch (error) {
       console.error('Error loading settings:', error);
     }
@@ -180,10 +182,15 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.storage.local.set({ iconSpacing: spacing });
   });
 
-  singleClickGroupSelect.addEventListener('change', () => {
-    console.log('Saving single click group setting:', singleClickGroupSelect.value);
-    chrome.storage.local.set({ singleClickGroup: singleClickGroupSelect.value });
-  });
+   singleClickGroupSelect.addEventListener('change', () => {
+     console.log('Saving single click group setting:', singleClickGroupSelect.value);
+     chrome.storage.local.set({ singleClickGroup: singleClickGroupSelect.value });
+   });
+
+   simpleDictGroupSelect.addEventListener('change', () => {
+     console.log('Saving simple dict group setting:', simpleDictGroupSelect.value);
+     chrome.storage.local.set({ simpleDictGroup: simpleDictGroupSelect.value });
+   });
 
   rightSwipeGroupSelect.addEventListener('change', () => {
     console.log('Saving right swipe group setting:', rightSwipeGroupSelect.value);
@@ -519,6 +526,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     updateDropdown(singleClickGroupSelect);
     updateDropdown(rightSwipeGroupSelect);
+
+    const updateSimpleDictDropdown = (selectElement) => {
+      selectElement.innerHTML = '<option value="">None</option>';
+      groups.filter(group => group.showSearchField && group.showSearchField !== 'none').forEach(group => {
+        const option = document.createElement('option');
+        option.value = group.id;
+        const displayText = group.icon && group.icon.endsWith('.png') ? group.name : `${group.icon} ${group.name}`;
+        option.textContent = displayText;
+        selectElement.appendChild(option);
+      });
+    };
+
+    updateSimpleDictDropdown(simpleDictGroupSelect);
 
     if (groups.length === 0) {
       groupsList.innerHTML = '<p>No query groups configured. Click "Add Query Group" to create one.</p>';

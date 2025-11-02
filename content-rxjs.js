@@ -217,6 +217,182 @@ export {
   domReady$
 };
 
+// ===== STANDALONE SIMPLE DICT INITIALIZATION =====
+
+// Check if this is the simple-dict page
+if (document.querySelector('#resultDiv')) {
+  initializeSimpleDict();
+}
+
+async function initializeSimpleDict() {
+  const resultDiv = document.getElementById('resultDiv');
+  const searchInput = resultDiv.querySelector('.langbro-search-input');
+  const headerDiv = resultDiv.querySelector('.langbro-result-header');
+
+  // Load settings
+  let selectedGroup = null;
+  try {
+    const result = await chrome.storage.local.get(['simpleDictGroup', 'queryGroups', 'darkMode']);
+    const groupId = result.simpleDictGroup;
+    if (groupId && result.queryGroups) {
+      selectedGroup = result.queryGroups.find(g => g.id === groupId);
+    }
+    // Apply dark mode
+    alert('Dark mode loaded: ' + result.darkMode);
+    if (result.darkMode) {
+      resultDiv.classList.add('langbro-dark');
+      document.body.classList.add('langbro-dark');
+      alert('Dark classes applied. ResultDiv classes: ' + resultDiv.classList.toString());
+      alert('Body classes: ' + document.body.classList.toString());
+    }
+  } catch (error) {
+    console.error('Error loading settings:', error);
+  }
+
+  if (!selectedGroup) {
+    resultDiv.querySelector('.langbro-result-content').innerHTML =
+      '<div style="text-align: center; padding: 40px; color: #666;">No dictionary group selected for Simple Dict. Please select one in settings.</div>';
+    searchInput.disabled = true;
+    return;
+  }
+
+  // Set data attributes
+  resultDiv.dataset.groupId = selectedGroup.id;
+  resultDiv.dataset.boxId = 'simple-dict';
+  resultDiv.dataset.historyIndex = '-1';
+  resultDiv.dataset.historyLength = '0';
+
+  // Add padding above input to prevent jumping from suggestions
+  resultDiv.style.paddingTop = '220px';
+
+  // Add header controls
+  const historyButtons = createHistoryButtons(resultDiv, selectedGroup, 'simple-dict');
+  const starBtn = createFavoritesStar(resultDiv, selectedGroup, 'simple-dict');
+
+  // Insert at the beginning of header
+  headerDiv.insertBefore(historyButtons.backBtn, headerDiv.firstChild);
+  headerDiv.insertBefore(historyButtons.forwardBtn, historyButtons.backBtn.nextSibling);
+  headerDiv.insertBefore(starBtn, historyButtons.forwardBtn.nextSibling);
+
+  // Load initial history
+  loadHistoryForGroup(resultDiv, selectedGroup.id);
+
+  // Set up search input
+  const searchContainer = resultDiv.querySelector('.langbro-search-container');
+
+  if (selectedGroup.showSearchField === 'onPressingEnter') {
+    // Add search button
+    const searchButton = document.createElement('button');
+    searchButton.className = 'langbro-search-button';
+    searchButton.innerHTML = '🔍';
+    searchButton.onclick = () => {
+      const query = searchInput.value.trim();
+      if (query) {
+        performStandaloneSearch(query, selectedGroup, resultDiv);
+      }
+    };
+    searchContainer.appendChild(searchButton);
+  } else if (selectedGroup.showSearchField === 'liveResults') {
+    let searchTimeout;
+    searchInput.addEventListener('input', () => {
+      clearTimeout(searchTimeout);
+      const query = searchInput.value.trim();
+      if (query.length === 0) {
+        resultDiv.querySelector('.langbro-result-content').innerHTML =
+          '<div style="text-align: center; padding: 40px; color: #666;">Enter a word to search.</div>';
+      } else if (query.length > 2) {
+        searchTimeout = setTimeout(() => performStandaloneSearch(query, selectedGroup, resultDiv), 300);
+      }
+    });
+  }
+
+  // Always handle Enter key
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const query = searchInput.value.trim();
+      if (query) {
+        performStandaloneSearch(query, selectedGroup, resultDiv);
+      }
+    }
+  });
+
+  // Set up suggestions if enabled
+  if (selectedGroup.queryType === 'offline' && selectedGroup.displaySuggestions !== 0) {
+    addSuggestionsHandlers(searchInput, resultDiv, selectedGroup, 'simple-dict');
+  }
+
+
+
+  // Focus search input
+  searchInput.focus();
+}
+
+async function performStandaloneSearch(word, group, resultDiv) {
+  const contentDiv = resultDiv.querySelector('.langbro-result-content');
+
+  // Show spinner
+  contentDiv.innerHTML = '';
+  const spinner = createSpinner(`Searching ${group.name}...`);
+  contentDiv.appendChild(spinner);
+
+  try {
+    // Send lookup message
+    const message = {
+      action: 'lookup',
+      word: word,
+      groupId: group.id,
+      queryType: group.queryType,
+      settings: group.settings,
+      context: ''
+    };
+
+    chrome.runtime.sendMessage(message, (response) => {
+      if (chrome.runtime.lastError) {
+        contentDiv.innerHTML = `Extension error: ${chrome.runtime.lastError.message}`;
+        return;
+      }
+
+      if (response && response.error) {
+        contentDiv.innerHTML = `Lookup error: ${response.error}`;
+      } else if (response && response.definition) {
+        // Create group label
+        const groupLabel = createGroupLabel(group);
+
+        // Sanitize and display result
+        const sanitizedHTML = sanitizeDictHTML(`${groupLabel}\n\n${response.definition}`);
+        contentDiv.innerHTML = sanitizedHTML;
+
+        // Debug content background
+        alert('Content background computed style: ' + getComputedStyle(contentDiv).background);
+
+        // Add to history
+        chrome.runtime.sendMessage({
+          action: 'addToHistory',
+          groupId: group.id,
+          word: word,
+          definition: sanitizedHTML
+        });
+
+        // Update history index for new search
+        resultDiv.dataset.historyIndex = '-1';
+        updateHistoryButtons(resultDiv);
+
+        // Update star appearance
+        const star = resultDiv.querySelector('.langbro-favorites-star');
+        if (star) {
+          const updateEvent = new CustomEvent('updateFavoritesStar');
+          star.dispatchEvent(updateEvent);
+        }
+      } else {
+        contentDiv.innerHTML = `No definition found for "${word}".`;
+      }
+    });
+  } catch (error) {
+    console.error('Error performing search:', error);
+    contentDiv.innerHTML = `Unable to search. Please refresh the page.`;
+  }
+}
+
 // ===== UTILITY FUNCTIONS =====
 
 // Create group label with icon and name
@@ -1275,7 +1451,7 @@ function showSuggestions(suggestions, searchInput, resultDiv, group, boxId) {
       searchInput.value = suggestion;
       hideSuggestions(resultDiv);
       // Trigger search directly without dispatching input event to avoid showing suggestions again
-      performSearch(suggestion, group, resultDiv, boxId);
+      performStandaloneSearch(suggestion, group, resultDiv);
       // Don't focus here to avoid triggering showSuggestionsIfContent
     });
 

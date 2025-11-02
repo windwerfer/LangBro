@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simple Dictionary</title>
+  <link rel="stylesheet" href="content-rxjs.css">
+  <style>
+     body {
+       margin: 0;
+       padding: 0;
+       font-family: Arial, sans-serif;
+       background: #f5f5f5;
+     }
+
+     body.langbro-dark {
+       background: #333;
+     }
+
+    .langbro-result {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: white;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .langbro-result.langbro-dark {
+      background: #333;
+      color: #ccc;
+    }
+
+    .langbro-result-header {
+      display: flex;
+      align-items: center;
+      padding: 8px;
+      border-bottom: 1px solid #ddd;
+      background: #f8f8f8;
+    }
+
+    .langbro-result.langbro-dark .langbro-result-header {
+      background: #444;
+      border-bottom-color: #555;
+    }
+
+
+
+    .langbro-search-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .langbro-search-input {
+      flex: 1;
+      padding: 6px;
+      border: 1px solid #ddd;
+      border-radius: 3px;
+    }
+
+    .langbro-result.langbro-dark .langbro-search-input {
+      background: #555;
+      color: #ccc;
+      border-color: #666;
+    }
+
+    .langbro-result-content {
+      flex: 1;
+      padding: 12px;
+      overflow-y: auto;
+      background: white;
+    }
+
+    .langbro-result.langbro-dark .langbro-result-content {
+      background: #333 !important;
+      color: #ccc !important;
+    }
+
+    .langbro-spinner-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .langbro-spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid #f3f3f3;
+      border-top: 2px solid #3498db;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 10px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Mobile styles */
+    @media (max-width: 768px) {
+      .langbro-result {
+        font-size: 16px;
+      }
+
+      .langbro-result-header {
+        padding: 12px;
+      }
+
+      .langbro-search-input {
+        padding: 10px;
+        font-size: 16px;
+      }
+
+      .langbro-result-content {
+        padding: 15px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="resultDiv" class="langbro-result">
+     <div class="langbro-result-header">
+       <div class="langbro-search-container">
+         <input type="text" class="langbro-search-input" placeholder="Enter word to search...">
+       </div>
+     </div>
+    <div class="langbro-result-content">
+      <div style="text-align: center; padding: 40px; color: #666;">
+        Select a dictionary group in settings and enter a word to search.
+      </div>
+    </div>
+  </div>
+   <script src="dist/content-rxjs.bundle.js"></script>
+</body>
+</html></content>
+</xai:function_call">The file simple-dict.html has been created successfully.

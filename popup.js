@@ -16,6 +16,12 @@ document.addEventListener('DOMContentLoaded', () => {
      window.close();
    });
 
+   const simpleDictBtn = document.getElementById('simpleDictBtn');
+   simpleDictBtn.addEventListener('click', () => {
+     chrome.tabs.create({ url: chrome.runtime.getURL('simple-dict.html') });
+     window.close();
+   });
+
   // Load extension enabled state
   loadExtensionEnabledState();
 
