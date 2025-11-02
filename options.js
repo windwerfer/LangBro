@@ -1199,13 +1199,21 @@ document.addEventListener('DOMContentLoaded', () => {
         positionControls.appendChild(positionInput);
         positionControls.appendChild(downBtn);
 
-        const dragHandle = document.createElement('span');
-        dragHandle.className = 'drag-handle';
-        dragHandle.textContent = '⋮⋮';
+        const nameDiv = document.createElement('div');
+        nameDiv.className = 'item-header';
 
         const nameSpan = document.createElement('span');
         nameSpan.className = 'dict-name';
         nameSpan.textContent = `${dict.title} (${dict.counts.terms.total} words)`;
+
+        nameDiv.appendChild(nameSpan);
+
+        const buttonsDiv = document.createElement('div');
+        buttonsDiv.className = 'item-buttons';
+
+        const dragHandle = document.createElement('span');
+        dragHandle.className = 'drag-handle';
+        dragHandle.textContent = '⋮⋮';
 
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-btn';
@@ -1219,10 +1227,12 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
 
-        itemDiv.appendChild(positionControls);
-        itemDiv.appendChild(dragHandle);
-        itemDiv.appendChild(nameSpan);
-        itemDiv.appendChild(removeBtn);
+        buttonsDiv.appendChild(positionControls);
+        buttonsDiv.appendChild(dragHandle);
+        buttonsDiv.appendChild(removeBtn);
+
+        itemDiv.appendChild(nameDiv);
+        itemDiv.appendChild(buttonsDiv);
 
         this.container.appendChild(itemDiv);
       });

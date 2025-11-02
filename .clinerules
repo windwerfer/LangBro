@@ -20,8 +20,7 @@ As a principled software engineer using Cline, follow these core tenets:
 - **Settings Management**: In 'content-rxjs.js', always use the reactive `settings` object from './settings-store.js' instead of global state variables for automatic updates
 - **Code Reuse**: Eliminate duplication by creating reusable functions when code patterns repeat across multiple locations
 - **Action Mode**: Switch to action mode ("switch to action mode") before making file changes, running commands, or modifying code
-- **Source Code Build**: Before running `node build-ff-ext-src.js`, verify README.md contains up-to-date "Source Code Submission for Mozilla Review" section with step-by-step build instructions, OS/environment details, and program versions. Update README.md if outdated to ensure compliance.
-- **Source Build Dependency**: When building source code (`node build-ff-ext-src.js`), always also build the regular Firefox extension (`node build-ff-ext.js`) to ensure both packages are up to date.
+- **Source Code Build**: Only run `node build-ff-ext-src.js` when explicitly requested by the user. Before running, verify README.md contains up-to-date "Source Code Submission for Mozilla Review" section with step-by-step build instructions, OS/environment details, and program versions. Update README.md if outdated to ensure compliance.
 
 # Workflow Management
 - **Versioning**: Track version in z_version_nr.txt
@@ -29,6 +28,6 @@ As a principled software engineer using Cline, follow these core tenets:
   - Increment by 0.1 for new conversation threads
   - Skip for planning, questions, or informational responses
   - Suppress manifest restart warning when updating version
-- **Building**: Run Firefox extension build (`node build-ff-ext.js`) after code changes requiring compilation
+- **Building**: Run Firefox extension build (`node build-ff-ext.js`) after code changes requiring compilation or whenever version changes
   - Skip for planning, questions, or informational responses
 - **Sequential Thinking**: Use available sequential thinking tool for complex planning and execution
