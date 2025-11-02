@@ -238,12 +238,9 @@ async function initializeSimpleDict() {
       selectedGroup = result.queryGroups.find(g => g.id === groupId);
     }
     // Apply dark mode
-    alert('Dark mode loaded: ' + result.darkMode);
     if (result.darkMode) {
       resultDiv.classList.add('langbro-dark');
       document.body.classList.add('langbro-dark');
-      alert('Dark classes applied. ResultDiv classes: ' + resultDiv.classList.toString());
-      alert('Body classes: ' + document.body.classList.toString());
     }
   } catch (error) {
     console.error('Error loading settings:', error);
@@ -262,8 +259,10 @@ async function initializeSimpleDict() {
   resultDiv.dataset.historyIndex = '-1';
   resultDiv.dataset.historyLength = '0';
 
-  // Add padding above input to prevent jumping from suggestions
-  resultDiv.style.paddingTop = '220px';
+  // Add to result divs array so it's found by createResultDiv
+  settings.current.resultDivs.push(resultDiv);
+
+
 
   // Add header controls
   const historyButtons = createHistoryButtons(resultDiv, selectedGroup, 'simple-dict');
@@ -288,7 +287,7 @@ async function initializeSimpleDict() {
     searchButton.onclick = () => {
       const query = searchInput.value.trim();
       if (query) {
-        performStandaloneSearch(query, selectedGroup, resultDiv);
+        performSearch(query, selectedGroup, resultDiv, 'simple-dict');
       }
     };
     searchContainer.appendChild(searchButton);
@@ -301,7 +300,7 @@ async function initializeSimpleDict() {
         resultDiv.querySelector('.langbro-result-content').innerHTML =
           '<div style="text-align: center; padding: 40px; color: #666;">Enter a word to search.</div>';
       } else if (query.length > 2) {
-        searchTimeout = setTimeout(() => performStandaloneSearch(query, selectedGroup, resultDiv), 300);
+        searchTimeout = setTimeout(() => performSearch(query, selectedGroup, resultDiv, 'simple-dict'), 300);
       }
     });
   }
@@ -311,7 +310,7 @@ async function initializeSimpleDict() {
     if (e.key === 'Enter') {
       const query = searchInput.value.trim();
       if (query) {
-        performStandaloneSearch(query, selectedGroup, resultDiv);
+        performSearch(query, selectedGroup, resultDiv, 'simple-dict');
       }
     }
   });
@@ -327,71 +326,6 @@ async function initializeSimpleDict() {
   searchInput.focus();
 }
 
-async function performStandaloneSearch(word, group, resultDiv) {
-  const contentDiv = resultDiv.querySelector('.langbro-result-content');
-
-  // Show spinner
-  contentDiv.innerHTML = '';
-  const spinner = createSpinner(`Searching ${group.name}...`);
-  contentDiv.appendChild(spinner);
-
-  try {
-    // Send lookup message
-    const message = {
-      action: 'lookup',
-      word: word,
-      groupId: group.id,
-      queryType: group.queryType,
-      settings: group.settings,
-      context: ''
-    };
-
-    chrome.runtime.sendMessage(message, (response) => {
-      if (chrome.runtime.lastError) {
-        contentDiv.innerHTML = `Extension error: ${chrome.runtime.lastError.message}`;
-        return;
-      }
-
-      if (response && response.error) {
-        contentDiv.innerHTML = `Lookup error: ${response.error}`;
-      } else if (response && response.definition) {
-        // Create group label
-        const groupLabel = createGroupLabel(group);
-
-        // Sanitize and display result
-        const sanitizedHTML = sanitizeDictHTML(`${groupLabel}\n\n${response.definition}`);
-        contentDiv.innerHTML = sanitizedHTML;
-
-        // Debug content background
-        alert('Content background computed style: ' + getComputedStyle(contentDiv).background);
-
-        // Add to history
-        chrome.runtime.sendMessage({
-          action: 'addToHistory',
-          groupId: group.id,
-          word: word,
-          definition: sanitizedHTML
-        });
-
-        // Update history index for new search
-        resultDiv.dataset.historyIndex = '-1';
-        updateHistoryButtons(resultDiv);
-
-        // Update star appearance
-        const star = resultDiv.querySelector('.langbro-favorites-star');
-        if (star) {
-          const updateEvent = new CustomEvent('updateFavoritesStar');
-          star.dispatchEvent(updateEvent);
-        }
-      } else {
-        contentDiv.innerHTML = `No definition found for "${word}".`;
-      }
-    });
-  } catch (error) {
-    console.error('Error performing search:', error);
-    contentDiv.innerHTML = `Unable to search. Please refresh the page.`;
-  }
-}
 
 // ===== UTILITY FUNCTIONS =====
 
@@ -1451,7 +1385,7 @@ function showSuggestions(suggestions, searchInput, resultDiv, group, boxId) {
       searchInput.value = suggestion;
       hideSuggestions(resultDiv);
       // Trigger search directly without dispatching input event to avoid showing suggestions again
-      performStandaloneSearch(suggestion, group, resultDiv);
+      performSearch(suggestion, group, resultDiv, resultDiv.dataset.boxId);
       // Don't focus here to avoid triggering showSuggestionsIfContent
     });
 
@@ -1530,6 +1464,50 @@ function showPopupResult(definition, group, boxId, initialWord = '') {
 
    // Store hide on click outside setting for later use
    resultDiv.dataset.hideOnClickOutside = popupSettings.hideOnClickOutside;
+
+  resultDiv.style.display = 'flex';
+}
+
+// Show the result in fullscreen mode
+function showFullscreenResult(definition, group, boxId, initialWord = '') {
+  let resultDiv = createResultDiv('popup', group, boxId, initialWord);
+
+  // Get content div
+  const contentDiv = resultDiv.querySelector('.langbro-result-content');
+  if (!contentDiv) return;
+
+  // // If showing a new definition, add current result to history first
+  // if (definition && resultDiv.dataset.currentWord) {
+  //   addCurrentResultToHistory(resultDiv, group.id);
+  // }
+
+  // Clear content and show spinner or result
+  contentDiv.innerHTML = '';
+
+   if (!definition) {
+     // Show spinner
+     const spinner = createSpinner(`Loading ${group.name}...`);
+     contentDiv.appendChild(spinner);
+   } else {
+     // Store current word and definition for history
+     resultDiv.dataset.currentWord = initialWord;
+     resultDiv.dataset.currentDefinition = definition;
+
+     // Reset history index for new lookups
+     resultDiv.dataset.historyIndex = '-1'; // Start at -1, representing current lookup
+     updateHistoryButtons(resultDiv);
+
+     // Show result
+     const sanitizedHTML = sanitizeDictHTML(definition);
+     contentDiv.innerHTML = sanitizedHTML;
+
+     // Update star appearance now that content is loaded
+     const star = resultDiv.querySelector('.langbro-favorites-star');
+     if (star) {
+       const updateEvent = new CustomEvent('updateFavoritesStar');
+       star.dispatchEvent(updateEvent);
+     }
+   }
 
   resultDiv.style.display = 'flex';
 }
@@ -1704,13 +1682,15 @@ function showResult(definition, group, locationInfo, initialWord = '') {
     savedRange = currentSelection.getRangeAt(0).cloneRange();
   }
 
-  if (displayMethod === 'inline') {
-    showInlineResult(definition, group, boxId, initialWord);
-  } else if (displayMethod === 'bottom') {
-    showBottomResult(definition, group, boxId, initialWord);
-  } else {
-    // Default to popup
-    showPopupResult(definition, group, boxId, initialWord);
+   if (displayMethod === 'inline') {
+     showInlineResult(definition, group, boxId, initialWord);
+   } else if (displayMethod === 'bottom') {
+     showBottomResult(definition, group, boxId, initialWord);
+   } else if (displayMethod === 'fullscreen') {
+     showFullscreenResult(definition, group, boxId, initialWord);
+   } else {
+     // Default to popup
+     showPopupResult(definition, group, boxId, initialWord);
   }
 
   // Restore the saved selection after result window is created
@@ -1780,8 +1760,8 @@ function performSearch(query, group, resultDiv, boxId) {
   const spinner = createSpinner(`Searching ${group.name}...`);
   contentDiv.appendChild(spinner);
 
-  // Perform lookup
-  lookupWord(query, group, { boxId, displayMethod: group.displayMethod || 'popup' });
+   // Perform lookup
+   lookupWord(query, group, { boxId, displayMethod: boxId === 'simple-dict' ? 'fullscreen' : (group.displayMethod || 'popup') });
 }
 
 // Fetch and show did-you-mean suggestions for offline queries
