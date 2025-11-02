@@ -1,8 +1,13 @@
- const fs = require('fs');
- const path = require('path');
- const JSZip = require('jszip');
+  const fs = require('fs');
+  const path = require('path');
+  const { execSync } = require('child_process');
+  const JSZip = require('jszip');
 
   (async () => {
+    // Run webpack build first
+    console.log('Running webpack build...');
+    execSync('npm run build:rxjs', { stdio: 'inherit' });
+
     // Read version from z_version_nr.txt
     const version = fs.readFileSync('z_version_nr.txt', 'utf8').trim();
 
@@ -132,16 +137,20 @@
          fs.writeFileSync(fullPath, content);
        }
      }
-     console.log('✅ Chrome extension package and unpacked version created successfully!');
+      console.log('✅ Chrome extension package and unpacked version created successfully!');
 
-     } finally {
-       // Always restore original manifest and package.json
-       fs.copyFileSync(manifestBackup, 'manifest.json');
-       fs.copyFileSync(packageBackup, 'package.json');
-       fs.unlinkSync(manifestBackup);
-       fs.unlinkSync(packageBackup);
-     }
-  } catch (error) {
-    console.error('Build failed:', error);
-  }
+      } finally {
+        // Always restore original manifest and package.json
+        fs.copyFileSync(manifestBackup, 'manifest.json');
+        fs.copyFileSync(packageBackup, 'package.json');
+        fs.unlinkSync(manifestBackup);
+        fs.unlinkSync(packageBackup);
+      }
+
+      // Run development build after files are restored
+      console.log('Running development build...');
+      execSync('npm run build:dev', { stdio: 'inherit' });
+   } catch (error) {
+     console.error('Build failed:', error);
+   }
 })();

@@ -1,8 +1,13 @@
- const fs = require('fs');
- const path = require('path');
- const JSZip = require('jszip');
+  const fs = require('fs');
+  const path = require('path');
+  const { execSync } = require('child_process');
+  const JSZip = require('jszip');
 
   (async () => {
+    // Run webpack build first
+    console.log('Running webpack build...');
+    execSync('npm run build:rxjs', { stdio: 'inherit' });
+
     // Read version from z_version_nr.txt
     const version = fs.readFileSync('z_version_nr.txt', 'utf8').trim();
 
