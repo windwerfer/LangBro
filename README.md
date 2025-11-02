@@ -209,6 +209,54 @@ The build scripts automatically exclude files listed in `.gitignore` and include
 - structured-db.js
 - yomitan-importer.js
 
+## Source Code Submission for Mozilla Review
+
+This section provides the required information for submitting source code to Mozilla Add-ons (AMO) for review.
+
+### Operating System and Build Environment Requirements
+- **OS**: Linux (primary), macOS, or Windows
+- **Node.js**: Version 18 or higher (LTS recommended)
+- **npm**: Version 8 or higher (included with Node.js)
+
+### Program Installation Instructions
+1. Download and install Node.js from https://nodejs.org/ (choose LTS version)
+2. npm is automatically included with Node.js installation
+3. Verify installation: `node --version` and `npm --version`
+
+### Step-by-Step Build Instructions
+To create an exact copy of the extension from source:
+
+1. **Clone/Download Source**: Obtain all source files from the repository
+2. **Install Dependencies**: Run `npm install` in the project root directory
+3. **Build RxJS Components**: Run `npm run build:rxjs` to generate bundled JavaScript (this creates `dist/` directory with transpiled files)
+4. **Package for Firefox**: Run `npm run build:ff-ext` to create the Firefox extension package
+5. **Output**: The exact extension package will be created as `ff-ext/ff_LangBro_[version].zip`
+
+### Build Script
+The build script `npm run build:ff-ext` executes all necessary technical steps:
+- Builds RxJS components with Webpack
+- Modifies manifest.json for Firefox compatibility
+- Packages all required files into a ZIP archive
+
+### Source Files
+All source files are included in the repository:
+- JavaScript files (.js) - not transpiled, concatenated, or minified except for third-party libraries
+- HTML, CSS, JSON files
+- Build configuration files (webpack.config.js, package.json)
+- Documentation (README.md, README_DEV.md)
+
+Note: The `dist/` directory contains machine-generated files and is excluded from source code submission. Reviewers can regenerate them using the build instructions above.
+
+### Third-Party Libraries and Licenses
+The extension uses the following open-source third-party libraries:
+
+- **JSZip** (MIT License): For ZIP file handling. Source: https://github.com/Stuk/jszip
+- **Pako** (MIT License): For zlib compression. Source: https://github.com/nodeca/pako
+- **RxJS** (Apache License 2.0): For reactive programming. Source: https://github.com/ReactiveX/rxjs
+- **opencode-ai** (MIT License): For AI integration. Source: https://github.com/sst/opencode
+
+All licenses are included in the respective library files or repositories. The extension complies with all license terms.
+
 ## Usage
 
 1. Click the extension icon to check status

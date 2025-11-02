@@ -34,7 +34,7 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "langbro-dictionary@example.com",
-      "data_collection_permissions": {}
+      "data_collection_permissions": { "required": ["none"] }
     }
   }
 }
