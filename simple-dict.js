@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Check if group is selected and has search field
   if (!selectedGroup || !selectedGroup.showSearchField || selectedGroup.showSearchField === 'none') {
-    contentDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">No dictionary group selected for Simple Dict. Please select one in settings that has a search field enabled.</div>';
+    contentDiv.textContent = 'No dictionary group selected for Simple Dict. Please select one in settings that has a search field enabled.';
     searchInput.disabled = true;
     return;
   }
@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const query = searchInput.value.trim();
 
     if (query.length === 0) {
-      contentDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">Enter a word to search.</div>';
+      contentDiv.textContent = 'Enter a word to search.';
       return;
     }
 
@@ -87,12 +87,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       chrome.runtime.sendMessage(message, (response) => {
         if (chrome.runtime.lastError) {
-          contentDiv.innerHTML = `Extension error: ${chrome.runtime.lastError.message}`;
+          contentDiv.textContent = `Extension error: ${chrome.runtime.lastError.message}`;
           return;
         }
 
         if (response && response.error) {
-          contentDiv.innerHTML = `Lookup error: ${response.error}`;
+          contentDiv.textContent = `Lookup error: ${response.error}`;
         } else if (response && response.definition) {
           // Create group label
           const groupLabel = selectedGroup.icon && selectedGroup.icon.endsWith('.png')
@@ -103,18 +103,19 @@ document.addEventListener('DOMContentLoaded', async () => {
           const sanitizedHTML = sanitizeDictHTML(`${groupLabel}\n\n${response.definition}`);
           contentDiv.innerHTML = sanitizedHTML;
         } else {
-          contentDiv.innerHTML = `No definition found for "${word}".`;
+          contentDiv.textContent = `No definition found for "${word}".`;
         }
       });
     } catch (error) {
       console.error('Error performing search:', error);
-      contentDiv.innerHTML = `Unable to search. Please refresh the page.`;
+      contentDiv.textContent = `Unable to search. Please refresh the page.`;
     }
   }
 
-  // Sanitize HTML (copied from content-rxjs.js)
+  // Sanitize HTML to replace inline styles with classes and sanitize
   function sanitizeDictHTML(html) {
-    let sanitized = html
+    // Replace common inline styles with classes and convert custom tags to spans
+    let processed = html
       .replace(/style="color:green"/g, 'class="dict-type"')
       .replace(/style="color:brown"/g, 'class="dict-pron"')
       .replace(/style="font-size:0\.7em"/g, 'class="dict-level"')
@@ -129,7 +130,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       .replace(/<def/g, '<span')
       .replace(/<\/def>/g, '</span>');
 
-    return sanitized;
+    // Sanitize with DOMPurify, allowing only safe tags and attributes
+    return DOMPurify.sanitize(processed, {
+      ALLOWED_TAGS: ['span', 'b', 'i', 'em', 'strong', 'br', 'p', 'div', 'ul', 'li', 'ol'],
+      ALLOWED_ATTR: ['class']
+    });
   }
 
   // Focus search input

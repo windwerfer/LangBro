@@ -4,6 +4,7 @@
 import { fromEvent, merge, combineLatest, Observable, timer } from 'rxjs';
 import { map, filter, debounceTime, throttleTime, switchMap, takeUntil, bufferTime, pairwise, take } from 'rxjs/operators';
 import { settings } from './settings-store.js';
+import DOMPurify from 'dompurify';
 
 
 console.log('RxJS Content script loaded successfully v05');
@@ -247,8 +248,8 @@ async function initializeSimpleDict() {
   }
 
   if (!selectedGroup) {
-    resultDiv.querySelector('.langbro-result-content').innerHTML =
-      '<div style="text-align: center; padding: 40px; color: #666;">No dictionary group selected for Simple Dict. Please select one in settings.</div>';
+    resultDiv.querySelector('.langbro-result-content').textContent =
+      'No dictionary group selected for Simple Dict. Please select one in settings.';
     searchInput.disabled = true;
     return;
   }
@@ -283,7 +284,7 @@ async function initializeSimpleDict() {
     // Add search button
     const searchButton = document.createElement('button');
     searchButton.className = 'langbro-search-button';
-    searchButton.innerHTML = '🔍';
+    searchButton.textContent = '🔍';
     searchButton.onclick = () => {
       const query = searchInput.value.trim();
       if (query) {
@@ -297,8 +298,8 @@ async function initializeSimpleDict() {
       clearTimeout(searchTimeout);
       const query = searchInput.value.trim();
       if (query.length === 0) {
-        resultDiv.querySelector('.langbro-result-content').innerHTML =
-          '<div style="text-align: center; padding: 40px; color: #666;">Enter a word to search.</div>';
+        resultDiv.querySelector('.langbro-result-content').textContent =
+          'Enter a word to search.';
       } else if (query.length > 2) {
         searchTimeout = setTimeout(() => performSearch(query, selectedGroup, resultDiv, 'simple-dict'), 300);
       }
@@ -691,7 +692,7 @@ function addHeaderControls(headerDiv, resultDiv, group, boxId) {
 // Create favorites star button for result div
 function createFavoritesStar(resultDiv, group, boxId) {
   const starBtn = document.createElement('button');
-  starBtn.innerHTML = '☆'; // Empty star by default
+  starBtn.textContent = '☆'; // Empty star by default
   starBtn.className = 'langbro-favorites-star';
   starBtn.title = 'Add to favorites';
 
@@ -757,7 +758,7 @@ function createFavoritesStar(resultDiv, group, boxId) {
         item.name === lookupData.name && item.type === lookupData.type
       );
 
-      starBtn.innerHTML = isFavorited ? '★' : '☆';
+      starBtn.textContent = isFavorited ? '★' : '☆';
       starBtn.classList.toggle('favorited', isFavorited);
 
       // Show list abbreviation on the left side of the star
@@ -765,7 +766,7 @@ function createFavoritesStar(resultDiv, group, boxId) {
       starBtn.title = isFavorited ? `Remove from favorites (${listAbbrev})` : `Add to favorites (${listAbbrev})`;
 
       // Add list abbreviation as text before the star
-      starBtn.innerHTML = `${listAbbrev} ${isFavorited ? '★' : '☆'}`;
+      starBtn.textContent = `${listAbbrev} ${isFavorited ? '★' : '☆'}`;
     } catch (error) {
       console.error('Error updating star appearance:', error);
     }
@@ -893,14 +894,14 @@ function createFavoritesStar(resultDiv, group, boxId) {
 function createHistoryButtons(resultDiv, group, boxId) {
   // Back button
   const backBtn = document.createElement('button');
-  backBtn.innerHTML = '◀';
+  backBtn.textContent = '◀';
   backBtn.className = 'langbro-history-back-btn';
   backBtn.title = 'Go back in history (older lookup)';
   backBtn.disabled = true; // Initially disabled
 
   // Forward button
   const forwardBtn = document.createElement('button');
-  forwardBtn.innerHTML = '▶';
+  forwardBtn.textContent = '▶';
   forwardBtn.className = 'langbro-history-forward-btn';
   forwardBtn.title = 'Go forward in history (newer lookup)';
   forwardBtn.disabled = true; // Initially disabled
@@ -973,10 +974,10 @@ async function navigateHistory(resultDiv, groupId, direction) {
 
   const contentDiv = resultDiv.querySelector('.langbro-result-content');
   if (contentDiv) {
-    if (newIndex === -1) {
-      // Restore current content
-      contentDiv.innerHTML = resultDiv.dataset.currentContent || '';
-    } else {
+      if (newIndex === -1) {
+        // Restore current content
+        contentDiv.innerHTML = sanitizeDictHTML(resultDiv.dataset.currentContent || '');
+      } else {
       try {
         const response = await chrome.runtime.sendMessage({
           action: 'getHistoryEntry',
@@ -1254,7 +1255,7 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
     // Add search button
     const searchButton = document.createElement('button');
     searchButton.className = 'langbro-search-button';
-    searchButton.innerHTML = '🔍';
+    searchButton.textContent = '🔍';
 
     searchButton.onclick = () => performSearch(searchInput.value.trim(), group, resultDiv, boxId);
     searchContainer.appendChild(searchButton);
@@ -1728,10 +1729,10 @@ function showResult(definition, group, locationInfo, initialWord = '') {
   return { boxId, displayMethod };
 }
 
-// Sanitize HTML to replace inline styles with classes
+// Sanitize HTML to replace inline styles with classes and sanitize
 function sanitizeDictHTML(html) {
-  // Replace common inline styles with classes
-  let sanitized = html
+  // Replace common inline styles with classes and convert custom tags to spans
+  let processed = html
     .replace(/style="color:green"/g, 'class="dict-type"')
     .replace(/style="color:brown"/g, 'class="dict-pron"')
     .replace(/style="font-size:0\.7em"/g, 'class="dict-level"')
@@ -1746,7 +1747,11 @@ function sanitizeDictHTML(html) {
     .replace(/<def/g, '<span')
     .replace(/<\/def>/g, '</span>');
 
-  return sanitized;
+  // Sanitize with DOMPurify, allowing only safe tags and attributes
+  return DOMPurify.sanitize(processed, {
+    ALLOWED_TAGS: ['span', 'b', 'i', 'em', 'strong', 'br', 'p', 'div', 'ul', 'li', 'ol'],
+    ALLOWED_ATTR: ['class']
+  });
 }
 
 // Create spinner element for loading states
@@ -1898,9 +1903,9 @@ function showDidYouMeanSuggestions(suggestions, locationInfo) {
           if (chrome.runtime.lastError) {
             const errorMsg = chrome.runtime.lastError.message;
             if (errorMsg.includes('Extension context invalidated')) {
-              contentDiv.innerHTML = 'Dictionary updated! Please refresh this page to continue using word lookup.';
+              contentDiv.textContent = 'Dictionary updated! Please refresh this page to continue using word lookup.';
             } else {
-              contentDiv.innerHTML = `Extension error: ${errorMsg}`;
+              contentDiv.textContent = `Extension error: ${errorMsg}`;
             }
             return;
           }
@@ -1920,7 +1925,7 @@ function showDidYouMeanSuggestions(suggestions, locationInfo) {
         });
       } catch (error) {
         console.error('CONTENT: Error in did-you-mean lookup:', error);
-        contentDiv.innerHTML = `Unable to query ${group.name}. Please refresh the page.`;
+        contentDiv.textContent = `Unable to query ${group.name}. Please refresh the page.`;
       }
     });
 

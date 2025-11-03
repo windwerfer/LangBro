@@ -10,6 +10,7 @@
     "watch": "webpack --mode=development --watch --config webpack.config.js"
   },
   "dependencies": {
+    "dompurify": "^3.3.0",
     "jszip": "^3.10.1",
     "opencode-ai": "^0.14.6",
     "rxjs": "^7.8.2"
