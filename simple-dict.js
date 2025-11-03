@@ -134,5 +134,4 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Focus search input
   searchInput.focus();
-});</content>
-</xai:function_call">The file simple-dict.js has been created successfully.
+});
