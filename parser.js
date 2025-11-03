@@ -241,9 +241,11 @@ class StarDictParser {
 
       const key = `${entry.word}|${entry.word}`; // expression|reading (same for StarDict)
 
+      const sanitizedDefinition = sanitizeDictHTML(mainData.definition);
+
       if (termMap.has(key)) {
         // Merge glossary with existing term
-        termMap.get(key).glossary.push(mainData.definition);
+        termMap.get(key).glossary.push(sanitizedDefinition);
       } else {
         // Create new term entry
         const termEntry = {
@@ -252,7 +254,7 @@ class StarDictParser {
           definitionTags: [],
           rules: [],
           score: 0,
-          glossary: [mainData.definition], // Array of definitions
+          glossary: [sanitizedDefinition], // Array of definitions
           termTags: [],
           dictionary: dictionaryName
         };
@@ -350,6 +352,14 @@ class StarDictParser {
     // Requires a JS LZO library (e.g., lzodecode.js)
     throw new Error('LZO decompression requires external lib');
   }
+}
+
+// Sanitize HTML using DOMPurify
+function sanitizeDictHTML(html) {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['span', 'b', 'i', 'em', 'strong', 'br', 'p', 'div', 'ul', 'li', 'ol'],
+    ALLOWED_ATTR: ['class']
+  });
 }
 
 // Export for use
