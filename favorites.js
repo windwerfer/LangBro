@@ -81,7 +81,7 @@ function displayFavorites() {
   // Sort items by timestamp (newest first)
   const sortedItems = [...currentList.items].sort((a, b) => b.timestamp - a.timestamp);
 
-  favoritesList.innerHTML = sortedItems.map(item => `
+  const html = sortedItems.map(item => `
     <div class="favorite-item" data-id="${item.id}">
       <div class="favorite-header">
         <div>
@@ -94,6 +94,13 @@ function displayFavorites() {
       <div class="favorite-timestamp">${formatTimestamp(item.timestamp)}</div>
     </div>
   `).join('');
+
+  favoritesList.innerHTML = '';
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  while (doc.body.firstChild) {
+    favoritesList.appendChild(doc.body.firstChild);
+  }
 
   // Add event listeners for items
   document.querySelectorAll('.favorite-item').forEach(item => {
@@ -122,17 +129,36 @@ function showFavoriteDetails(item) {
   // Create modal for full content
   const modal = document.createElement('div');
   modal.className = 'modal';
-  modal.innerHTML = `
-    <div class="modal-content">
-      <h3>${escapeHtml(item.name)}</h3>
-      <div style="max-height: 400px; overflow-y: auto; margin: 15px 0;">
-        ${item.data}
-      </div>
-      <div class="modal-buttons">
-        <button class="modal-btn">Close</button>
-      </div>
-    </div>
-  `;
+
+  const modalContent = document.createElement('div');
+  modalContent.className = 'modal-content';
+
+  const h3 = document.createElement('h3');
+  h3.textContent = item.name; // Already escaped? escapeHtml was for name, but here it's item.name
+
+  const contentDiv = document.createElement('div');
+  contentDiv.style.maxHeight = '400px';
+  contentDiv.style.overflowY = 'auto';
+  contentDiv.style.margin = '15px 0';
+  // For item.data, if it's HTML, need to insert safely
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(item.data, 'text/html');
+  while (doc.body.firstChild) {
+    contentDiv.appendChild(doc.body.firstChild);
+  }
+
+  const buttonsDiv = document.createElement('div');
+  buttonsDiv.className = 'modal-buttons';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'modal-btn';
+  closeBtn.textContent = 'Close';
+
+  buttonsDiv.appendChild(closeBtn);
+  modalContent.appendChild(h3);
+  modalContent.appendChild(contentDiv);
+  modalContent.appendChild(buttonsDiv);
+  modal.appendChild(modalContent);
 
   document.body.appendChild(modal);
 

@@ -101,7 +101,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
           // Sanitize and display result
           const sanitizedHTML = sanitizeDictHTML(`${groupLabel}\n\n${response.definition}`);
-          contentDiv.innerHTML = sanitizedHTML;
+          contentDiv.innerHTML = '';
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(sanitizedHTML, 'text/html');
+          while (doc.body.firstChild) {
+            contentDiv.appendChild(doc.body.firstChild);
+          }
         } else {
           contentDiv.textContent = `No definition found for "${word}".`;
         }
@@ -115,8 +120,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Sanitize HTML using DOMPurify
   function sanitizeDictHTML(html) {
     return DOMPurify.sanitize(html, {
-      ALLOWED_TAGS: ['span', 'b', 'i', 'em', 'strong', 'br', 'p', 'div', 'ul', 'li', 'ol'],
-      ALLOWED_ATTR: ['class']
+      ALLOWED_TAGS: ['span', 'b', 'i', 'em', 'strong', 'br', 'p', 'div', 'ul', 'li', 'ol', 'style'],
+      ALLOWED_ATTR: ['class'],
+      FORBID_ATTR: ['on*', 'href', 'src'],
+      SAFE_FOR_TEMPLATES: true
     });
   }
 

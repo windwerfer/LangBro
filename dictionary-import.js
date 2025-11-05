@@ -107,6 +107,7 @@ class DictionaryImporter {
     // Extract required files, ignore redundant ones
     const requiredFiles = {};
     const ignorePatterns = ['.xoft', '.oft']; // Ignore redundant StarDict files
+    let stylesCss = null;
 
     for (const [path, zipEntry] of Object.entries(zip.files)) {
       if (zipEntry.dir) continue;
@@ -125,6 +126,20 @@ class DictionaryImporter {
         requiredFiles.dictName = path;
       } else if (path.endsWith('.syn')) {
         requiredFiles.syn = await zipEntry.async('uint8array');
+      } else if (path.endsWith('.res.zip')) {
+        // Extract styles.css from .res.zip
+        try {
+          const resZipData = await zipEntry.async('uint8array');
+          const resZip = await JSZip.loadAsync(resZipData);
+          const stylesEntry = resZip.file('styles.css');
+          if (stylesEntry) {
+            const stylesData = await stylesEntry.async('uint8array');
+            stylesCss = new TextDecoder('utf-8').decode(stylesData);
+            this.showStatus('Found and extracted styles.css from .res.zip', 'info');
+          }
+        } catch (error) {
+          this.showStatus(`Warning: Could not extract styles.css from ${path}: ${error.message}`, 'warning');
+        }
       }
     }
 
@@ -136,10 +151,10 @@ class DictionaryImporter {
     this.showStatus('Processing StarDict files...', 'info');
 
     // Process like existing StarDict import
-    await this.processStarDictFiles(requiredFiles);
+    await this.processStarDictFiles(requiredFiles, stylesCss);
   }
 
-  async processStarDictFiles(files) {
+  async processStarDictFiles(files, stylesCss = null) {
     // Reuse existing StarDict processing logic
     const ifoBuffer = files.ifo.buffer;
     let idxBuffer = files.idx.buffer;
@@ -181,6 +196,11 @@ class DictionaryImporter {
 
     const dictionaryName = files.ifoName.replace('.ifo', '').split('/').pop(); // Extract filename
     const structuredData = parser.extractStructuredData(dictionaryName);
+
+    // Add styles.css if available
+    if (stylesCss) {
+      structuredData.metadata.styles = stylesCss;
+    }
 
     // Store with progress feedback
     const db = await this.getStructuredDB();

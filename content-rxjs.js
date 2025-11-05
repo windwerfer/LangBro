@@ -976,7 +976,10 @@ async function navigateHistory(resultDiv, groupId, direction) {
   if (contentDiv) {
       if (newIndex === -1) {
         // Restore current content
-        contentDiv.innerHTML = sanitizeDictHTML(resultDiv.dataset.currentContent || '');
+        const sanitizedHTML = sanitizeDictHTML(resultDiv.dataset.currentContent || '');
+        contentDiv.innerHTML = '';
+        const fragment = document.createRange().createContextualFragment(sanitizedHTML);
+        contentDiv.appendChild(fragment);
       } else {
       try {
         const response = await chrome.runtime.sendMessage({
@@ -996,7 +999,10 @@ async function navigateHistory(resultDiv, groupId, direction) {
           const groupLabel = group ? createGroupLabel(group) : '';
 
           // Update content with history entry
-          contentDiv.innerHTML = sanitizeDictHTML(`${groupLabel}\n\n${response.entry.definition}`);
+          const sanitizedHTML = sanitizeDictHTML(`${groupLabel}\n\n${response.entry.definition}`);
+          contentDiv.innerHTML = '';
+          const fragment = document.createRange().createContextualFragment(sanitizedHTML);
+          contentDiv.appendChild(fragment);
         }
       } catch (error) {
         console.error('Error navigating history:', error);
@@ -1469,13 +1475,18 @@ function showPopupResult(definition, group, boxId, initialWord = '') {
 
      // Reset history index for new lookups
      resultDiv.dataset.historyIndex = '-1'; // Start at -1, representing current lookup
-     updateHistoryButtons(resultDiv);
+      updateHistoryButtons(resultDiv);
 
-     // Show result
-     const sanitizedHTML = sanitizeDictHTML(definition);
-     contentDiv.innerHTML = sanitizedHTML;
+      // Show result
+      const sanitizedHTML = sanitizeDictHTML(definition);
+      contentDiv.innerHTML = '';
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(sanitizedHTML, 'text/html');
+      while (doc.body.firstChild) {
+        contentDiv.appendChild(doc.body.firstChild);
+      }
 
-     // Update star appearance now that content is loaded
+      // Update star appearance now that content is loaded
      const star = resultDiv.querySelector('.langbro-favorites-star');
      if (star) {
        const updateEvent = new CustomEvent('updateFavoritesStar');
@@ -1518,9 +1529,14 @@ function showFullscreenResult(definition, group, boxId, initialWord = '') {
      resultDiv.dataset.historyIndex = '-1'; // Start at -1, representing current lookup
      updateHistoryButtons(resultDiv);
 
-     // Show result
-     const sanitizedHTML = sanitizeDictHTML(definition);
-     contentDiv.innerHTML = sanitizedHTML;
+      // Show result
+      const sanitizedHTML = sanitizeDictHTML(definition);
+      contentDiv.innerHTML = '';
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(sanitizedHTML, 'text/html');
+      while (doc.body.firstChild) {
+        contentDiv.appendChild(doc.body.firstChild);
+      }
 
      // Update star appearance now that content is loaded
      const star = resultDiv.querySelector('.langbro-favorites-star');
@@ -1635,13 +1651,18 @@ function showInlineResult(definition, group, boxId, initialWord = '') {
        contentDiv.style.maxHeight = 'none';
      } else {
        contentDiv.style.maxHeight = '180px'; // Account for header
-     }
+      }
 
-     const sanitizedHTML = sanitizeDictHTML(definition);
-     contentDiv.innerHTML = sanitizedHTML;
+      const sanitizedHTML = sanitizeDictHTML(definition);
+      contentDiv.innerHTML = '';
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(sanitizedHTML, 'text/html');
+      while (doc.body.firstChild) {
+        contentDiv.appendChild(doc.body.firstChild);
+      }
 
-     // Update star appearance now that content is loaded
-     const star = inlineDiv.querySelector('.langbro-favorites-star');
+      // Update star appearance now that content is loaded
+      const star = inlineDiv.querySelector('.langbro-favorites-star');
      if (star) {
        const updateEvent = new CustomEvent('updateFavoritesStar');
        star.dispatchEvent(updateEvent);
@@ -1672,13 +1693,18 @@ function showBottomResult(definition, group, boxId, initialWord = '') {
      // Show spinner
      const spinner = createSpinner(`Loading ${group.name}...`);
      contentDiv.appendChild(spinner);
-   } else {
-     // Show result
-     const sanitizedHTML = sanitizeDictHTML(definition);
-     contentDiv.innerHTML = sanitizedHTML;
+    } else {
+      // Show result
+      const sanitizedHTML = sanitizeDictHTML(definition);
+      contentDiv.innerHTML = '';
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(sanitizedHTML, 'text/html');
+      while (doc.body.firstChild) {
+        contentDiv.appendChild(doc.body.firstChild);
+      }
 
-     // Update star appearance now that content is loaded
-     const star = bottomDiv.querySelector('.langbro-favorites-star');
+      // Update star appearance now that content is loaded
+      const star = bottomDiv.querySelector('.langbro-favorites-star');
      if (star) {
        const updateEvent = new CustomEvent('updateFavoritesStar');
        star.dispatchEvent(updateEvent);
@@ -1732,8 +1758,10 @@ function showResult(definition, group, locationInfo, initialWord = '') {
 // Sanitize HTML using DOMPurify
 function sanitizeDictHTML(html) {
   return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ['span', 'b', 'i', 'em', 'strong', 'br', 'p', 'div', 'ul', 'li', 'ol'],
-    ALLOWED_ATTR: ['class']
+    ALLOWED_TAGS: ['span', 'b', 'i', 'em', 'strong', 'br', 'p', 'div', 'ul', 'li', 'ol', 'style'],
+    ALLOWED_ATTR: ['class'],
+    FORBID_ATTR: ['on*', 'href', 'src'],
+    SAFE_FOR_TEMPLATES: true
   });
 }
 
@@ -1897,13 +1925,22 @@ function showDidYouMeanSuggestions(suggestions, locationInfo) {
 
           if (response && response.error) {
             const groupLabel = createGroupLabel(group);
-            contentDiv.innerHTML = sanitizeDictHTML(`Lookup error (${groupLabel}): ${response.error}`);
+            const sanitizedHTML = sanitizeDictHTML(`Lookup error (${groupLabel}): ${response.error}`);
+            contentDiv.innerHTML = '';
+            const fragment = document.createRange().createContextualFragment(sanitizedHTML);
+            contentDiv.appendChild(fragment);
           } else if (response && response.definition) {
             const groupLabel = createGroupLabel(group);
-            contentDiv.innerHTML = sanitizeDictHTML(`${groupLabel}\n\n${response.definition}`);
+            const sanitizedHTML = sanitizeDictHTML(`${groupLabel}\n\n${response.definition}`);
+            contentDiv.innerHTML = '';
+            const fragment = document.createRange().createContextualFragment(sanitizedHTML);
+            contentDiv.appendChild(fragment);
           } else {
             const groupLabel = createGroupLabel(group);
-            contentDiv.innerHTML = sanitizeDictHTML(`No definition found for "${suggestion}" in ${groupLabel}.`);
+            const sanitizedHTML = sanitizeDictHTML(`No definition found for "${suggestion}" in ${groupLabel}.`);
+            contentDiv.innerHTML = '';
+            const fragment = document.createRange().createContextualFragment(sanitizedHTML);
+            contentDiv.appendChild(fragment);
           }
         });
       } catch (error) {

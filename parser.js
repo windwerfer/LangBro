@@ -357,8 +357,10 @@ class StarDictParser {
 // Sanitize HTML using DOMPurify
 function sanitizeDictHTML(html) {
   return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ['span', 'b', 'i', 'em', 'strong', 'br', 'p', 'div', 'ul', 'li', 'ol'],
-    ALLOWED_ATTR: ['class']
+    ALLOWED_TAGS: ['span', 'b', 'i', 'em', 'strong', 'br', 'p', 'div', 'ul', 'li', 'ol', 'style'],
+    ALLOWED_ATTR: ['class'],
+    FORBID_ATTR: ['on*', 'href', 'src'],
+    SAFE_FOR_TEMPLATES: true
   });
 }
 

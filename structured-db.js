@@ -173,7 +173,8 @@ class StructuredDictionaryDatabase {
         // Add this dictionary's results
         dictionaryResults.push({
           dictionary: dict.title,
-          definitions: dictDefinitions
+          definitions: dictDefinitions,
+          styles: dict.styles || null
         });
       }
     }
@@ -182,7 +183,12 @@ class StructuredDictionaryDatabase {
       // Combine definitions from different dictionaries with <hr> separators
       const allDefinitions = [];
       for (let i = 0; i < dictionaryResults.length; i++) {
-        allDefinitions.push(...dictionaryResults[i].definitions);
+        const result = dictionaryResults[i];
+        // Add styles if available
+        if (result.styles) {
+          allDefinitions.push(`<style>${result.styles}</style>`);
+        }
+        allDefinitions.push(...result.definitions);
         // Add <hr> between different dictionaries (but not after the last one)
         if (i < dictionaryResults.length - 1) {
           allDefinitions.push('<hr>');
@@ -246,7 +252,8 @@ class StructuredDictionaryDatabase {
         // Add this dictionary's results
         dictionaryResults.push({
           dictionary: dict.displayName || dict.title,
-          definitions: dictDefinitions
+          definitions: dictDefinitions,
+          styles: dict.styles || null
         });
       }
     }
@@ -255,9 +262,14 @@ class StructuredDictionaryDatabase {
       // Combine definitions from different dictionaries with dictionary names and separators
       const allDefinitions = [];
       for (let i = 0; i < dictionaryResults.length; i++) {
+        const result = dictionaryResults[i];
+        // Add styles if available
+        if (result.styles) {
+          allDefinitions.push(`<style>${result.styles}</style>`);
+        }
         // Add dictionary name in gray small font
-        allDefinitions.push(`<div style="color: #666; font-size: 11px; margin: 15px 0 5px 0; font-weight: bold;">${dictionaryResults[i].dictionary}</div>`);
-        allDefinitions.push(...dictionaryResults[i].definitions);
+        allDefinitions.push(`<div style="color: #666; font-size: 11px; margin: 15px 0 5px 0; font-weight: bold;">${result.dictionary}</div>`);
+        allDefinitions.push(...result.definitions);
         // Add separator between dictionaries (but not after the last one)
         if (i < dictionaryResults.length - 1) {
           allDefinitions.push('<hr style="border: none; border-top: 1px solid #eee; margin: 10px 0;">');
