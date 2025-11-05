@@ -241,11 +241,9 @@ class StarDictParser {
 
       const key = `${entry.word}|${entry.word}`; // expression|reading (same for StarDict)
 
-      const sanitizedDefinition = sanitizeDictHTML(mainData.definition);
-
       if (termMap.has(key)) {
         // Merge glossary with existing term
-        termMap.get(key).glossary.push(sanitizedDefinition);
+        termMap.get(key).glossary.push(mainData.definition);
       } else {
         // Create new term entry
         const termEntry = {
@@ -254,7 +252,7 @@ class StarDictParser {
           definitionTags: [],
           rules: [],
           score: 0,
-          glossary: [sanitizedDefinition], // Array of definitions
+          glossary: [mainData.definition], // Array of definitions
           termTags: [],
           dictionary: dictionaryName
         };
@@ -354,15 +352,7 @@ class StarDictParser {
   }
 }
 
-// Sanitize HTML using DOMPurify
-function sanitizeDictHTML(html) {
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ['span', 'b', 'i', 'em', 'strong', 'br', 'p', 'div', 'ul', 'li', 'ol', 'style'],
-    ALLOWED_ATTR: ['class'],
-    FORBID_ATTR: ['on*', 'href', 'src'],
-    SAFE_FOR_TEMPLATES: true
-  });
-}
+
 
 // Export for use
 if (typeof module !== 'undefined') {

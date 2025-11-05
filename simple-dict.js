@@ -69,9 +69,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function performSearch(word) {
     // Show spinner
     contentDiv.innerHTML = '';
-    const spinner = document.createElement('div');
-    spinner.className = 'langbro-spinner-container';
-    spinner.innerHTML = '<div class="langbro-spinner"></div><span class="langbro-spinner-text">Searching...</span>';
+    const spinner = createSpinner('Searching...');
     contentDiv.appendChild(spinner);
 
     try {
@@ -99,14 +97,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             ? `<img src="${chrome.runtime.getURL(selectedGroup.icon)}" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;" alt="${selectedGroup.icon}">`
             : `${selectedGroup.icon} ${selectedGroup.name}`;
 
-          // Sanitize and display result
-          const sanitizedHTML = sanitizeDictHTML(`${groupLabel}\n\n${response.definition}`);
-          contentDiv.innerHTML = '';
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(sanitizedHTML, 'text/html');
-          while (doc.body.firstChild) {
-            contentDiv.appendChild(doc.body.firstChild);
-          }
+           // Sanitize and display result
+           const sanitizedHTML = sanitizeDictHTML(`${groupLabel}\n\n${response.definition}`);
+           contentDiv.innerHTML = '';
+           const parser = new DOMParser();
+           const doc = parser.parseFromString(sanitizedHTML, 'text/html');
+           while (doc.body.firstChild) {
+             contentDiv.appendChild(doc.body.firstChild);
+           }
+         } else {
+           contentDiv.innerHTML = '';
+           const spinner = createSpinner('Searching...');
+           contentDiv.appendChild(spinner);
         } else {
           contentDiv.textContent = `No definition found for "${word}".`;
         }
@@ -117,15 +119,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Sanitize HTML using DOMPurify
-  function sanitizeDictHTML(html) {
-    return DOMPurify.sanitize(html, {
-      ALLOWED_TAGS: ['span', 'b', 'i', 'em', 'strong', 'br', 'p', 'div', 'ul', 'li', 'ol', 'style'],
-      ALLOWED_ATTR: ['class'],
-      FORBID_ATTR: ['on*', 'href', 'src'],
-      SAFE_FOR_TEMPLATES: true
-    });
-  }
+
 
   // Focus search input
   searchInput.focus();

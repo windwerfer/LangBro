@@ -1755,33 +1755,10 @@ function showResult(definition, group, locationInfo, initialWord = '') {
   return { boxId, displayMethod };
 }
 
-// Sanitize HTML using DOMPurify
-function sanitizeDictHTML(html) {
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ['span', 'b', 'i', 'em', 'strong', 'br', 'p', 'div', 'ul', 'li', 'ol', 'style'],
-    ALLOWED_ATTR: ['class'],
-    FORBID_ATTR: ['on*', 'href', 'src'],
-    SAFE_FOR_TEMPLATES: true
-  });
-}
+import { sanitizeDictHTML } from './sanitize-util.js';
+import { createSpinner } from './ui-util.js';
 
-// Create spinner element for loading states
-function createSpinner(groupName = 'Loading...') {
-  const spinnerContainer = document.createElement('div');
-  spinnerContainer.className = 'langbro-spinner-container';
 
-  const spinner = document.createElement('div');
-  spinner.className = 'langbro-spinner';
-
-  const text = document.createElement('span');
-  text.className = 'langbro-spinner-text';
-  text.textContent = groupName;
-
-  spinnerContainer.appendChild(spinner);
-  spinnerContainer.appendChild(text);
-
-  return spinnerContainer;
-}
 
 // Perform search with the given query
 function performSearch(query, group, resultDiv, boxId) {

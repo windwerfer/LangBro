@@ -351,11 +351,7 @@ function formatTimestamp(timestamp) {
   }
 }
 
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
+
 
 function showError(message) {
   // Simple error display - could be enhanced with a proper notification system
