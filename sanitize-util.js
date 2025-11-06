@@ -20,7 +20,7 @@ export function sanitizeDictHTML(html) {
 
   // Sanitize with DOMPurify, allowing only safe tags and attributes
   return DOMPurify.sanitize(processed, {
-    ALLOWED_TAGS: ['span', 'b', 'i', 'em', 'strong', 'br', 'p', 'div', 'ul', 'li', 'ol'],
+    ALLOWED_TAGS: ['span', 'b', 'i', 'em', 'strong', 'br', 'p', 'div', 'ul', 'li', 'ol', 'style'],
     ALLOWED_ATTR: ['class'],
     SAFE_FOR_TEMPLATES: true
   });
