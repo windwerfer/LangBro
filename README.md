@@ -35,6 +35,8 @@ Keep the manifest as-is with:
 - Multiple query groups with different display methods
 - Web dictionary APIs and AI integration
 - Touch and mouse gesture support
+- **Smart Suggestions**: "Did you mean" suggestions for compound word decomposition
+- **Internal Word Analysis**: Automatically finds constituent words within compound words (e.g., "apfelbaum" → "apfel", "baum")
 
 ## Dictionary Compatibility
 
@@ -128,6 +130,39 @@ Yomitan dictionaries contain multiple JSON files:
 - **Cross-Platform**: Works identically on Chrome, Firefox, and other browsers
 - **Performance**: Efficient batch processing with progress feedback
 - **Data Integrity**: Preserves all original formatting and metadata
+
+## Smart Suggestions
+
+LangBro includes intelligent suggestion features to help users discover related words and compound word components.
+
+### "Did You Mean" Suggestions
+
+When you select text that includes additional characters after a word, LangBro suggests alternative lookups based on the selected word plus following text.
+
+**Example:**
+- Select "apple" with " pie" following it
+- LangBro suggests looking up "applepie" or "application" if those terms exist in your dictionaries
+
+### "Did You Mean (Internal)" Suggestions
+
+For compound words, LangBro automatically decomposes them into constituent parts that exist in your dictionaries.
+
+**Example:**
+- Search for "apfelbaum" (German compound word)
+- LangBro finds and suggests: "apfel" (apple) and "baum" (tree)
+- All suggestions are clickable for immediate lookup
+
+**Features:**
+- Finds all substrings of the search term that exist as dictionary entries
+- Displays constituent words in clickable badges
+- Includes the original search term when suggestions are available
+- Works with any dictionary format (StarDict, Yomitan)
+- Configurable per query group in extension settings
+
+**Use Cases:**
+- Language learning: Break down compound words in German, Dutch, etc.
+- Technical terms: Decompose complex terminology
+- Historical linguistics: Find word roots and components
 
 ## Development Installation
 
