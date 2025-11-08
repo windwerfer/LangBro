@@ -830,6 +830,110 @@ class StructuredDictionaryDatabase {
     });
   }
 
+  // Get "did you mean (internal)" suggestions - decompose compound words into constituent parts
+  async getDidYouMeanInternalSuggestions(word, maxResults = 10, selectedDictionaryNames = []) {
+    if (!this.db) await this.open();
+
+    console.log('DB: getDidYouMeanInternalSuggestions called with word:', word, 'maxResults:', maxResults, 'dictionaries:', selectedDictionaryNames);
+
+    if (selectedDictionaryNames.length === 0) {
+      console.log('DB: No dictionaries selected, returning empty suggestions');
+      return [];
+    }
+
+    if (word.length < 4) {
+      console.log('DB: Word too short for internal decomposition, returning empty suggestions');
+      return [];
+    }
+
+    const transaction = this.db.transaction(['terms'], 'readonly');
+    const store = transaction.objectStore('terms');
+    const index = store.index('expression'); // Use compound index [dictionary, expression]
+
+    return new Promise((resolve, reject) => {
+      const suggestions = new Set(); // Use Set to avoid duplicates
+
+      // Generate all possible substrings of the word
+      const substrings = this.generateSubstrings(word);
+      console.log('DB: Generated', substrings.length, 'substrings to check:', substrings.slice(0, 10), substrings.length > 10 ? '...' : '');
+
+      // We need to query each selected dictionary separately
+      let dictionariesProcessed = 0;
+      const totalDictionaries = selectedDictionaryNames.length;
+
+      const processDictionary = (dictName) => {
+        console.log('DB: Processing dictionary:', dictName, 'for internal suggestions');
+
+        const checkSubstring = (substring) => {
+          return new Promise((resolveSubstring) => {
+            const range = IDBKeyRange.only([dictName, substring]);
+            const request = index.openCursor(range);
+
+            request.onsuccess = (event) => {
+              const cursor = event.target.result;
+              if (cursor) {
+                const expression = cursor.value.expression;
+                console.log('DB: Found substring match:', expression, 'in dict:', dictName);
+                suggestions.add(expression);
+                console.log('DB: Added internal suggestion:', expression, 'total suggestions:', suggestions.size);
+              }
+              resolveSubstring();
+            };
+
+            request.onerror = (event) => {
+              console.error('DB: Error checking substring:', substring, 'in dict:', dictName, event.target.error);
+              resolveSubstring(); // Continue with other substrings
+            };
+          });
+        };
+
+        // Check ALL substrings concurrently for this dictionary
+        const substringChecks = substrings.map(substring => checkSubstring(substring));
+
+        Promise.all(substringChecks).then(() => {
+          dictionariesProcessed++;
+          console.log('DB: Finished processing dictionary:', dictName, 'processed:', dictionariesProcessed, '/', totalDictionaries);
+
+          if (dictionariesProcessed >= totalDictionaries) {
+            // All dictionaries processed
+            let result = Array.from(suggestions).sort();
+
+            // Remove the original word if present (internal suggestions should show constituents)
+            result = result.filter(suggestion => suggestion !== word);
+
+            // Limit results
+            result = result.slice(0, maxResults);
+
+            console.log('DB: Returning internal suggestions:', result);
+            resolve(result);
+          } else {
+            // Process next dictionary
+            const nextDict = selectedDictionaryNames[dictionariesProcessed];
+            processDictionary(nextDict);
+          }
+        });
+      };
+
+      // Start processing the first dictionary
+      processDictionary(selectedDictionaryNames[0]);
+    });
+  }
+
+  // Generate all possible substrings of a word (length >= 2)
+  generateSubstrings(word) {
+    const substrings = [];
+
+    // Generate all possible contiguous substrings of length >= 2
+    for (let start = 0; start < word.length; start++) {
+      for (let end = start + 2; end <= word.length; end++) {
+        substrings.push(word.substring(start, end));
+      }
+    }
+
+    // Remove duplicates (in case of repeated substrings)
+    return [...new Set(substrings)];
+  }
+
   // Get actual term counts for verification
   async getActualTermCounts() {
     if (!this.db) await this.open();

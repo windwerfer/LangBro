@@ -1797,7 +1797,7 @@ async function fetchAndShowDidYouMeanSuggestions(word, group, locationInfo) {
 
     if (didYouMeanResponse && didYouMeanResponse.suggestions && didYouMeanResponse.suggestions.length > 0) {
       console.log('CONTENT: Showing did-you-mean suggestions:', didYouMeanResponse.suggestions);
-      showDidYouMeanSuggestions(didYouMeanResponse.suggestions, locationInfo);
+      showDidYouMeanSuggestions(didYouMeanResponse.suggestions, locationInfo, word);
     } else {
       console.log('CONTENT: No did-you-mean suggestions to show');
     }
@@ -1806,9 +1806,41 @@ async function fetchAndShowDidYouMeanSuggestions(word, group, locationInfo) {
   }
 }
 
+
+
+async function fetchAndShowDidYouMeanInternalSuggestions(word, group, locationInfo) {
+  // Only check for did-you-mean-internal suggestions for offline queries with setting enabled
+  if (group.queryType !== 'offline' || !group.showDidYouMeanInternalSuggestions) {
+    return;
+  }
+
+  console.log('CONTENT: Checking for did-you-mean-internal suggestions for offline query');
+  try {
+    const didYouMeanInternalResponse = await chrome.runtime.sendMessage({
+      action: 'didYouMeanInternal',
+      word: word,
+      maxResults: 5, // Limit to 5 suggestions
+      selectedDictionaries: group.settings?.selectedDictionaries || []
+    });
+    console.log('CONTENT: Received did-you-mean-internal response:', didYouMeanInternalResponse);
+
+    if (didYouMeanInternalResponse && didYouMeanInternalResponse.suggestions && didYouMeanInternalResponse.suggestions.length > 0) {
+      console.log('CONTENT: Showing did-you-mean-internal suggestions:', didYouMeanInternalResponse.suggestions);
+      showDidYouMeanInternalSuggestions(didYouMeanInternalResponse.suggestions, locationInfo, word);
+    } else {
+      console.log('CONTENT: No did-you-mean-internal suggestions to show');
+    }
+  } catch (error) {
+    console.error('CONTENT: Error getting did-you-mean-internal suggestions:', error);
+  }
+}
+
 // Show did-you-mean suggestions in the result header
-function showDidYouMeanSuggestions(suggestions, locationInfo) {
+function showDidYouMeanSuggestions(suggestions, locationInfo, originalWord) {
   if (!suggestions || suggestions.length === 0) return;
+
+  // Add original word at the beginning if there are suggestions
+  suggestions.unshift(originalWord);
 
   // Find the result div
   const resultDiv = settings.current.resultDivs.find(div => div.dataset.boxId == locationInfo.boxId) ||
@@ -1945,6 +1977,155 @@ function showDidYouMeanSuggestions(suggestions, locationInfo) {
 
   console.log('CONTENT: Did-you-mean suggestions displayed:', suggestions.length, 'words');
 }
+
+// Show did-you-mean-internal suggestions in the result header
+function showDidYouMeanInternalSuggestions(suggestions, locationInfo, originalWord) {
+  if (!suggestions || suggestions.length === 0) return;
+
+  // Add original word at the beginning if there are suggestions
+  suggestions.unshift(originalWord);
+
+  // Find the result div
+  const resultDiv = settings.current.resultDivs.find(div => div.dataset.boxId == locationInfo.boxId) ||
+                   settings.current.inlineDivs.find(div => div.dataset.boxId == locationInfo.boxId) ||
+                   settings.current.bottomDivs.find(div => div.dataset.boxId == locationInfo.boxId);
+
+  if (!resultDiv) {
+    console.error('CONTENT: Could not find result div for did-you-mean-internal suggestions');
+    return;
+  }
+
+  // Get the header div
+  const headerDiv = resultDiv.querySelector('.langbro-result-header');
+  if (!headerDiv) {
+    console.error('CONTENT: Could not find header div for did-you-mean-internal suggestions');
+    return;
+  }
+
+  // Remove existing did-you-mean-internal container
+  const existingContainer = headerDiv.querySelector('.did-you-mean-internal-container');
+  if (existingContainer) {
+    existingContainer.remove();
+  }
+
+  // Create did-you-mean-internal container
+  const didYouMeanInternalContainer = document.createElement('div');
+  didYouMeanInternalContainer.className = 'did-you-mean-internal-container';
+
+  // Add each suggestion as a clickable span
+  suggestions.forEach(suggestion => {
+    const suggestionSpan = document.createElement('span');
+    suggestionSpan.className = 'did-you-mean-internal-word';
+    suggestionSpan.textContent = suggestion;
+
+    // Make it clickable
+    suggestionSpan.addEventListener('click', async () => {
+      console.log('CONTENT: Did-you-mean-internal word clicked:', suggestion);
+
+      // Update the search field if it exists
+      const searchInput = headerDiv.querySelector('.langbro-search-input');
+      if (searchInput) {
+        searchInput.value = suggestion;
+      }
+
+      // Update content directly (preserve did-you-mean-internal container)
+      const contentDiv = resultDiv.querySelector('.langbro-result-content');
+      if (!contentDiv) return;
+
+      // Get group info
+      const groupId = resultDiv.dataset.groupId;
+      const group = settings.current.queryGroups.find(g => g.id === groupId);
+
+      // Show spinner in content
+      contentDiv.innerHTML = '';
+      const spinner = createSpinner(`Loading ${group.name}...`);
+      contentDiv.appendChild(spinner);
+
+      if (!group) {
+        console.error('CONTENT: Could not find group for did-you-mean-internal click, groupId:', groupId, 'available groups:', settings.current.queryGroups.map(g => g.id));
+        // Clear the did-you-mean-internal container since we can't handle clicks
+        const existingContainer = headerDiv.querySelector('.did-you-mean-internal-container');
+        if (existingContainer) {
+          existingContainer.remove();
+        }
+        return;
+      }
+
+      try {
+        // Perform lookup
+        const message = {
+          action: 'lookup',
+          word: suggestion,
+          groupId: group.id,
+          queryType: group.queryType,
+          settings: group.settings,
+          context: settings.current.currentSelection?.context || ''
+        };
+
+        chrome.runtime.sendMessage(message, (response) => {
+          if (chrome.runtime.lastError) {
+            const errorMsg = chrome.runtime.lastError.message;
+            if (errorMsg.includes('Extension context invalidated')) {
+              contentDiv.textContent = 'Dictionary updated! Please refresh this page to continue using word lookup.';
+            } else {
+              contentDiv.textContent = `Extension error: ${errorMsg}`;
+            }
+            return;
+          }
+
+          if (response && response.error) {
+            const groupLabel = createGroupLabel(group);
+            const sanitizedHTML = sanitizeDictHTML(`Lookup error (${groupLabel}): ${response.error}`);
+            contentDiv.innerHTML = '';
+            const fragment = document.createRange().createContextualFragment(sanitizedHTML);
+            contentDiv.appendChild(fragment);
+          } else if (response && response.definition) {
+            const groupLabel = createGroupLabel(group);
+            const sanitizedHTML = sanitizeDictHTML(`${groupLabel}\n\n${response.definition}`);
+            contentDiv.innerHTML = '';
+            const fragment = document.createRange().createContextualFragment(sanitizedHTML);
+            contentDiv.appendChild(fragment);
+          } else {
+            const groupLabel = createGroupLabel(group);
+            const sanitizedHTML = sanitizeDictHTML(`No definition found for "${suggestion}" in ${groupLabel}.`);
+            contentDiv.innerHTML = '';
+            const fragment = document.createRange().createContextualFragment(sanitizedHTML);
+            contentDiv.appendChild(fragment);
+          }
+        });
+      } catch (error) {
+        console.error('CONTENT: Error in did-you-mean-internal lookup:', error);
+        contentDiv.textContent = `Unable to query ${group.name}. Please refresh the page.`;
+      }
+    });
+
+    didYouMeanInternalContainer.appendChild(suggestionSpan);
+  });
+
+  // Insert after existing did-you-mean container, or after search container
+  const existingDidYouMean = headerDiv.querySelector('.did-you-mean-container');
+  if (existingDidYouMean) {
+    existingDidYouMean.insertAdjacentElement('afterend', didYouMeanInternalContainer);
+  } else {
+    const searchContainer = headerDiv.querySelector('.langbro-search-container');
+    if (searchContainer) {
+      searchContainer.insertAdjacentElement('afterend', didYouMeanInternalContainer);
+    } else {
+      // Fallback: insert after close button if no search container
+      const closeBtn = headerDiv.querySelector('.langbro-close-btn');
+      if (closeBtn) {
+        closeBtn.insertAdjacentElement('afterend', didYouMeanInternalContainer);
+      } else {
+        headerDiv.appendChild(didYouMeanInternalContainer);
+      }
+    }
+  }
+
+  console.log('CONTENT: Did-you-mean-internal suggestions displayed:', suggestions.length, 'words');
+}
+
+
+
 
 // ===== LOOKUP ICONS FUNCTIONALITY =====
 
@@ -2390,12 +2571,14 @@ function lookupWord(word, group, locationInfo) {
 
         // For offline queries, also check for did-you-mean suggestions
         await fetchAndShowDidYouMeanSuggestions(word, group, locationInfo);
+        await fetchAndShowDidYouMeanInternalSuggestions(word, group, locationInfo);
       } else {
         const groupLabel = createGroupLabel(group);
         showResult(`No definition found for "${word}" in ${groupLabel}.`, group, locationInfo);
 
         // For offline queries with no definition found, still check for did-you-mean suggestions
         await fetchAndShowDidYouMeanSuggestions(word, group, locationInfo);
+        await fetchAndShowDidYouMeanInternalSuggestions(word, group, locationInfo);
       }
     });
   } catch (error) {

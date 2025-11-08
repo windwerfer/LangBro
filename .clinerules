@@ -21,6 +21,8 @@ As a principled software engineer using Cline, follow these core tenets:
 - **Code Reuse**: Eliminate duplication by creating reusable functions when code patterns repeat across multiple locations
 - **Action Mode**: Switch to action mode ("switch to action mode") before making file changes, running commands, or modifying code
 - **Source Code Build**: Only run `node build-ff-ext-src.js` when explicitly requested by the user. Before running, verify README.md contains up-to-date "Source Code Submission for Mozilla Review" section with step-by-step build instructions, OS/environment details, and program versions. Update README.md if outdated to ensure compliance.
+- **Simple Solutions**: Always prefer the simplest solution that works. Avoid over-engineering - if a requirement can be met with minimal changes, do not create complex abstractions or new architectural patterns. Ask: "Is this the most straightforward way to solve this problem?"
+- **User-Centric Development**: Be responsive to user feedback and preferences. When users point out over-engineering or suggest simpler approaches, acknowledge and implement the better solution. Maintain a collaborative and user-friendly development process.
 
 # Workflow Management
 - **Versioning**: Track version in z_version_nr.txt

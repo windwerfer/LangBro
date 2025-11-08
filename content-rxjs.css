@@ -242,6 +242,30 @@
   background-color: #e0e0e0;
 }
 
+.did-you-mean-internal-container {
+  padding: 5px 0px;
+  font-size: 12px;
+  color: #666;
+  display: block;
+  width: 100%;
+}
+
+.did-you-mean-internal-word {
+  display: inline-block;
+  margin-right: 8px;
+  margin-bottom: 2px;
+  padding: 2px 4px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  background-color: #f0f0f0;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.did-you-mean-internal-word:hover {
+  background-color: #e0e0e0;
+}
+
 /* Dictionary content styles */
 .dict-type { color: green; }
 .dict-pron { color: brown; }
@@ -332,6 +356,22 @@
 }
 
 .langbro-dark .did-you-mean-word:hover {
+  background-color: #4a4a4a;
+}
+
+/* Did-you-mean-internal dark mode */
+.langbro-dark .did-you-mean-internal-container {
+  color: #aaa;
+  padding: 5px 0px;
+}
+
+.langbro-dark .did-you-mean-internal-word {
+  border-color: #666;
+  background-color: #3a3a3a;
+  color: #ddd;
+}
+
+.langbro-dark .did-you-mean-internal-word:hover {
   background-color: #4a4a4a;
 }
 

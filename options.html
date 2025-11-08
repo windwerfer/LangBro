@@ -371,14 +371,21 @@
         <small>0 to disable, default 20</small>
       </div>
 
-      <div class="form-group">
-        <label>
-          <input type="checkbox" id="showDidYouMeanSuggestions" checked />
-          Show "did you mean" suggestions (if only 'apple' is selected from the text 'apple pie' an alternative entry suggestion will be shown)
-        </label>
-      </div>
+       <div class="form-group">
+         <label>
+           <input type="checkbox" id="showDidYouMeanSuggestions" checked />
+           Show "did you mean" suggestions (if only 'apple' is selected from the text 'apple pie' an alternative entry suggestion will be shown)
+         </label>
+       </div>
 
-      <!-- Offline Settings -->
+       <div class="form-group">
+         <label>
+           <input type="checkbox" id="showDidYouMeanInternalSuggestions" checked />
+           Show "did you mean (internal)" suggestions (decompose compound words into constituent parts, e.g. 'apfelbaum' → 'apfel', 'baum')
+         </label>
+       </div>
+
+       <!-- Offline Settings -->
       <div id="offlineSettings" class="query-type-settings">
         <p>This group will use the selected StarDict dictionaries.</p>
         <div class="form-group">

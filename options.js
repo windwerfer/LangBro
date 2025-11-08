@@ -60,6 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const showSearchFieldSelect = document.getElementById('showSearchField');
   const displaySuggestionsInput = document.getElementById('displaySuggestions');
   const showDidYouMeanSuggestionsCheckbox = document.getElementById('showDidYouMeanSuggestions');
+  const showDidYouMeanInternalSuggestionsCheckbox = document.getElementById('showDidYouMeanInternalSuggestions');
   const saveGroupBtn = document.getElementById('saveGroupBtn');
   const cancelGroupBtn = document.getElementById('cancelGroupBtn');
 
@@ -429,6 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const showSearchField = showSearchFieldSelect.value;
     const displaySuggestionsRow = displaySuggestionsInput.closest('.form-group');
     const didYouMeanRow = showDidYouMeanSuggestionsCheckbox.closest('.form-group');
+    const didYouMeanInternalRow = showDidYouMeanInternalSuggestionsCheckbox.closest('.form-group');
 
     // Show suggestions input only if search field is enabled AND it's an offline dictionary
     const shouldShow = showSearchField !== 'none' && queryType === 'offline';
@@ -436,9 +438,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (shouldShow) {
       displaySuggestionsRow.style.display = 'block';
       didYouMeanRow.style.display = 'block';
+      didYouMeanInternalRow.style.display = 'block';
     } else {
       displaySuggestionsRow.style.display = 'none';
       didYouMeanRow.style.display = 'none';
+      didYouMeanInternalRow.style.display = 'none';
     }
   }
 
@@ -642,6 +646,7 @@ document.addEventListener('DOMContentLoaded', () => {
       showSearchFieldSelect.value = group.showSearchField || 'none';
       displaySuggestionsInput.value = group.displaySuggestions !== undefined ? group.displaySuggestions : 20;
       showDidYouMeanSuggestionsCheckbox.checked = group.showDidYouMeanSuggestions !== false; // Default to true
+      showDidYouMeanInternalSuggestionsCheckbox.checked = group.showDidYouMeanInternalSuggestions !== false; // Default to true
       showQueryTypeSettings(group.queryType);
       showDisplayMethodSettings(group.displayMethod || 'popup');
 
@@ -890,6 +895,7 @@ document.addEventListener('DOMContentLoaded', () => {
       showSearchField: showSearchFieldSelect.value,
       displaySuggestions: displaySuggestionsInput.value.trim() === '' ? 20 : (parseInt(displaySuggestionsInput.value) || 0),
       showDidYouMeanSuggestions: showDidYouMeanSuggestionsCheckbox.checked,
+      showDidYouMeanInternalSuggestions: showDidYouMeanInternalSuggestionsCheckbox.checked,
       popupSettings,
       inlineSettings,
       bottomSettings,

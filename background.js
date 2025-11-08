@@ -354,7 +354,34 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
     })();
     return true; // Keep message channel open for async response
-   } else if (request.action === 'reloadParser') {
+    } else if (request.action === 'didYouMeanInternal') {
+    (async () => {
+      try {
+        const word = request.word || '';
+        const maxResults = request.maxResults || 10;
+        const selectedDictionaries = request.selectedDictionaries || [];
+
+        console.log('BACKGROUND: Received didYouMeanInternal request for word:', word, 'maxResults:', maxResults, 'dictionaries:', selectedDictionaries);
+
+        if (!word.trim() || word.length < 4) {
+          console.log('BACKGROUND: Word is empty or too short, returning empty did-you-mean-internal suggestions');
+          sendResponse({ suggestions: [] });
+          return;
+        }
+
+        const db = await getStructuredDB();
+        console.log('BACKGROUND: Calling db.getDidYouMeanInternalSuggestions with word:', word, 'maxResults:', maxResults, 'dictionaries:', selectedDictionaries);
+        const suggestions = await db.getDidYouMeanInternalSuggestions(word, maxResults, selectedDictionaries);
+        console.log('BACKGROUND: Database returned did-you-mean-internal suggestions:', suggestions);
+        console.log('BACKGROUND: Sending response with did-you-mean-internal suggestions:', suggestions);
+        sendResponse({ suggestions: suggestions });
+      } catch (error) {
+        console.error('BACKGROUND: Error getting did-you-mean-internal suggestions:', error);
+        sendResponse({ suggestions: [] });
+      }
+    })();
+    return true; // Keep message channel open for async response
+    } else if (request.action === 'reloadParser') {
      // No longer needed with structured DB, but keep for compatibility
      sendResponse({ success: true });
    } else if (request.action === 'getFavoritesData') {
