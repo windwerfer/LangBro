@@ -1252,6 +1252,20 @@ function createSearchField(group, resultDiv, boxId, initialWord = '') {
 
   searchContainer.appendChild(searchInput);
 
+  // Add clear button
+  const clearButton = document.createElement('button');
+  clearButton.type = 'button';
+  clearButton.className = 'langbro-search-clear-btn';
+  clearButton.textContent = '×';
+  clearButton.title = 'Clear search';
+  clearButton.onclick = () => {
+    searchInput.value = '';
+    searchInput.focus();
+    // Trigger input event to update suggestions/live results
+    searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  searchContainer.appendChild(clearButton);
+
   // Check if suggestions should be enabled (only for offline groups with displaySuggestions > 0)
   const suggestionsEnabled = group.queryType === 'offline' && group.displaySuggestions !== 0;
   console.log(`CONTENT: Suggestions enabled for group ${group.name}: ${suggestionsEnabled} (displaySuggestions: ${group.displaySuggestions})`);
