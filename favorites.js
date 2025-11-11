@@ -2,6 +2,9 @@
 
 let currentFavoritesData = null;
 let currentListId = null;
+let hideTranslations = false;
+let isRandomized = false;
+let originalOrder = [];
 
 document.addEventListener('DOMContentLoaded', () => {
   initializePage();
@@ -41,6 +44,11 @@ async function loadFavoritesData() {
     }
 
     updateListSelector();
+    // Reset randomization when loading new data
+    isRandomized = false;
+    originalOrder = [];
+    document.getElementById('randomizeBtn').textContent = '🔀 Randomize';
+    document.getElementById('randomizeBtn').title = 'Randomize list order';
     displayFavorites();
 
   } catch (error) {
@@ -78,10 +86,18 @@ function displayFavorites() {
     return;
   }
 
-  // Sort items by timestamp (newest first)
-  const sortedItems = [...currentList.items].sort((a, b) => b.timestamp - a.timestamp);
+  // Get items in the correct order
+  let itemsToDisplay = [...currentList.items];
 
-  const html = sortedItems.map(item => `
+  if (isRandomized && originalOrder.length > 0) {
+    // Use the randomized order
+    itemsToDisplay = originalOrder.map(id => itemsToDisplay.find(item => item.id === id)).filter(Boolean);
+  } else {
+    // Sort items by timestamp (newest first)
+    itemsToDisplay.sort((a, b) => b.timestamp - a.timestamp);
+  }
+
+  const html = itemsToDisplay.map(item => `
     <div class="favorite-item" data-id="${item.id}">
       <div class="favorite-header">
         <div>
@@ -90,7 +106,7 @@ function displayFavorites() {
         </div>
         <button class="remove-btn" data-id="${item.id}" title="Remove from favorites">×</button>
       </div>
-      <div class="favorite-content">${item.data}</div>
+      ${hideTranslations ? '' : `<div class="favorite-content">${item.data}</div>`}
       <div class="favorite-timestamp">${formatTimestamp(item.timestamp)}</div>
     </div>
   `).join('');
@@ -201,6 +217,11 @@ function setupEventListeners() {
   // List selector change
   document.getElementById('listSelect').addEventListener('change', (e) => {
     currentListId = e.target.value;
+    // Reset randomization when switching lists
+    isRandomized = false;
+    originalOrder = [];
+    document.getElementById('randomizeBtn').textContent = '🔀 Randomize';
+    document.getElementById('randomizeBtn').title = 'Randomize list order';
     displayFavorites();
   });
 
@@ -217,6 +238,17 @@ function setupEventListeners() {
   // Delete list button
   document.getElementById('deleteBtn').addEventListener('click', () => {
     deleteCurrentList();
+  });
+
+  // Hide translation checkbox
+  document.getElementById('hideTranslationCheckbox').addEventListener('change', (e) => {
+    hideTranslations = e.target.checked;
+    displayFavorites();
+  });
+
+  // Randomize button
+  document.getElementById('randomizeBtn').addEventListener('click', () => {
+    randomizeFavorites();
   });
 }
 
@@ -292,6 +324,30 @@ async function deleteCurrentList() {
     console.error('Error deleting list:', error);
     showError('Failed to delete list');
   }
+}
+
+function randomizeFavorites() {
+  const currentList = currentFavoritesData.lists.find(list => list.id === currentListId);
+  if (!currentList || currentList.items.length === 0) return;
+
+  if (!isRandomized) {
+    // Store original order
+    originalOrder = currentList.items.map(item => item.id);
+    // Shuffle the array
+    const shuffled = [...originalOrder].sort(() => Math.random() - 0.5);
+    originalOrder = shuffled;
+    isRandomized = true;
+    document.getElementById('randomizeBtn').textContent = '🔄 Reset Order';
+    document.getElementById('randomizeBtn').title = 'Reset to chronological order';
+  } else {
+    // Reset to original order
+    isRandomized = false;
+    originalOrder = [];
+    document.getElementById('randomizeBtn').textContent = '🔀 Randomize';
+    document.getElementById('randomizeBtn').title = 'Randomize list order';
+  }
+
+  displayFavorites();
 }
 
 function checkDarkMode() {

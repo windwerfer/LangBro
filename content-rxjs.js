@@ -1975,19 +1975,8 @@ function showDidYouMeanSuggestions(suggestions, locationInfo, originalWord) {
     didYouMeanContainer.appendChild(suggestionSpan);
   });
 
-  // Insert after the search container
-  const searchContainer = headerDiv.querySelector('.langbro-search-container');
-  if (searchContainer) {
-    searchContainer.insertAdjacentElement('afterend', didYouMeanContainer);
-  } else {
-    // Fallback: insert after close button if no search container
-    const closeBtn = headerDiv.querySelector('.langbro-close-btn');
-    if (closeBtn) {
-      closeBtn.insertAdjacentElement('afterend', didYouMeanContainer);
-    } else {
-      headerDiv.appendChild(didYouMeanContainer);
-    }
-  }
+  // Insert inside the header div (below the main controls)
+  headerDiv.appendChild(didYouMeanContainer);
 
   console.log('CONTENT: Did-you-mean suggestions displayed:', suggestions.length, 'words');
 }
@@ -2116,24 +2105,8 @@ function showDidYouMeanInternalSuggestions(suggestions, locationInfo, originalWo
     didYouMeanInternalContainer.appendChild(suggestionSpan);
   });
 
-  // Insert after existing did-you-mean container, or after search container
-  const existingDidYouMean = headerDiv.querySelector('.did-you-mean-container');
-  if (existingDidYouMean) {
-    existingDidYouMean.insertAdjacentElement('afterend', didYouMeanInternalContainer);
-  } else {
-    const searchContainer = headerDiv.querySelector('.langbro-search-container');
-    if (searchContainer) {
-      searchContainer.insertAdjacentElement('afterend', didYouMeanInternalContainer);
-    } else {
-      // Fallback: insert after close button if no search container
-      const closeBtn = headerDiv.querySelector('.langbro-close-btn');
-      if (closeBtn) {
-        closeBtn.insertAdjacentElement('afterend', didYouMeanInternalContainer);
-      } else {
-        headerDiv.appendChild(didYouMeanInternalContainer);
-      }
-    }
-  }
+  // Insert inside the header div (below the main controls)
+  headerDiv.appendChild(didYouMeanInternalContainer);
 
   console.log('CONTENT: Did-you-mean-internal suggestions displayed:', suggestions.length, 'words');
 }

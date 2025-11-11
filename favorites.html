@@ -14,19 +14,58 @@
     }
 
     .header {
+      margin-bottom: 20px;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .header-main {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 20px;
-      background: white;
-      padding: 15px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 15px;
     }
 
     .header h1 {
       margin: 0;
       color: #333;
+      font-size: 24px;
+    }
+
+    .header-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 15px;
+      border-top: 1px solid #eee;
+    }
+
+    .review-options {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .option-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: #555;
+      cursor: pointer;
+    }
+
+    .option-label input[type="checkbox"] {
+      margin: 0;
+      width: 16px;
+      height: 16px;
+    }
+
+    .review-actions {
+      display: flex;
+      gap: 10px;
     }
 
     .list-selector {
@@ -291,6 +330,18 @@
       color: #ccc;
     }
 
+    body.dark .header-controls {
+      border-top-color: #555;
+    }
+
+    body.dark .option-label {
+      color: #ccc;
+    }
+
+    body.dark .option-label input[type="checkbox"] {
+      accent-color: #007bff;
+    }
+
     /* Mobile responsive styles */
     @media (max-width: 768px) {
       body {
@@ -300,14 +351,25 @@
       }
 
       .header {
+        padding: 15px;
+      }
+
+      .header-main {
         flex-direction: column;
         align-items: flex-start;
-        gap: 20px;
-        padding: 15px;
+        gap: 15px;
+        margin-bottom: 15px;
       }
 
       .header h1 {
         font-size: 24px;
+      }
+
+      .header-controls {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+        padding-top: 15px;
       }
 
       .list-selector {
@@ -315,6 +377,14 @@
         align-items: flex-start;
         width: 100%;
         gap: 15px;
+      }
+
+      .review-options {
+        width: 100%;
+      }
+
+      .review-actions {
+        width: 100%;
       }
 
       .list-actions {
@@ -409,15 +479,28 @@
 </head>
 <body>
   <div class="header">
-    <h1>LangBro Favorites</h1>
-    <div class="list-selector">
-      <select class="list-dropdown" id="listSelect">
-        <option value="">Loading...</option>
-      </select>
-      <div class="list-actions">
-        <button class="action-btn" id="createBtn" title="Create new list">Create</button>
-        <button class="action-btn" id="renameBtn" title="Rename list">Rename</button>
-        <button class="action-btn danger" id="deleteBtn" title="Delete list">Delete</button>
+    <div class="header-main">
+      <h1>LangBro Favorites</h1>
+      <div class="list-selector">
+        <select class="list-dropdown" id="listSelect">
+          <option value="">Loading...</option>
+        </select>
+        <div class="list-actions">
+          <button class="action-btn" id="createBtn" title="Create new list">Create</button>
+          <button class="action-btn" id="renameBtn" title="Rename list">Rename</button>
+          <button class="action-btn danger" id="deleteBtn" title="Delete list">Delete</button>
+        </div>
+      </div>
+    </div>
+    <div class="header-controls">
+      <div class="review-options">
+        <label class="option-label">
+          <input type="checkbox" id="hideTranslationCheckbox">
+          <span>Hide translations (review mode)</span>
+        </label>
+      </div>
+      <div class="review-actions">
+        <button class="action-btn" id="randomizeBtn" title="Randomize list order">🔀 Randomize</button>
       </div>
     </div>
   </div>

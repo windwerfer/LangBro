@@ -17,8 +17,8 @@
   position: relative;
   flex-shrink: 0;
   padding: 5px 10px;
-  /* display: flex; */
-  align-items: center;
+  display: flex;
+  flex-direction: column;
   gap: 5px;
 }
 
@@ -95,11 +95,12 @@
 
 .langbro-search-input {
   flex: 1;
-  padding: 2px 25px 2px 5px;
+  padding: 2px 5px 2px 25px;
   border: 1px solid #ccc;
   border-radius: 3px;
   font-size: 12px;
-  min-width: 0;
+  min-width: 100px;
+  max-width: 250px;
 }
 
 .langbro-search-button {
@@ -113,11 +114,11 @@
 
 .langbro-search-clear-btn {
   position: absolute;
-  right: 5px;
+  left: 5px;
   top: 50%;
   transform: translateY(-50%);
-  background: none;
-  border: none;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid #ccc;
   cursor: pointer;
   font-size: 14px;
   color: #666;
@@ -128,6 +129,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 2px;
+  z-index: 1;
 }
 
 .langbro-search-clear-btn:hover {
@@ -361,6 +363,8 @@
 }
 
 .langbro-dark .langbro-search-clear-btn {
+  background: rgba(26, 26, 26, 0.8);
+  border-color: #555;
   color: #ccc;
 }
 
