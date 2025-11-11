@@ -34,13 +34,16 @@
       color: #ccc;
     }
 
-    .langbro-result-header {
-      display: flex;
-      align-items: center;
-      padding: 8px;
-      border-bottom: 1px solid #ddd;
-      background: #f8f8f8;
-    }
+     .langbro-result-header {
+       position: relative;
+       flex-shrink: 0;
+       padding: 5px 10px;
+       display: flex;
+       flex-direction: column;
+       gap: 5px;
+       border-bottom: 1px solid #ddd;
+       background: #f8f8f8;
+     }
 
     .langbro-result.langbro-dark .langbro-result-header {
       background: #444;
@@ -49,25 +52,66 @@
 
 
 
-    .langbro-search-container {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+      .langbro-search-container {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin-right: 25px;
+        flex: 1;
+      }
 
-    .langbro-search-input {
-      flex: 1;
-      padding: 6px;
-      border: 1px solid #ddd;
-      border-radius: 3px;
-    }
+      .langbro-search-input {
+        flex: 1;
+        padding: 2px 5px 2px 25px;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        font-size: 12px;
+        min-width: 100px;
+        max-width: 250px;
+      }
 
-    .langbro-result.langbro-dark .langbro-search-input {
-      background: #555;
-      color: #ccc;
-      border-color: #666;
-    }
+     .langbro-result.langbro-dark .langbro-search-input {
+       background: #555;
+       color: #ccc;
+       border-color: #666;
+     }
+
+      .langbro-search-clear-btn {
+        position: absolute;
+        left: 5px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(255, 255, 255, 0.8);
+        border: 1px solid #ccc;
+        cursor: pointer;
+        font-size: 14px;
+        color: #666;
+        padding: 0;
+        width: 16px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 2px;
+        z-index: 1;
+      }
+
+     .langbro-search-clear-btn:hover {
+       background: #f0f0f0;
+       color: #333;
+     }
+
+      .langbro-result.langbro-dark .langbro-search-clear-btn {
+        background: rgba(26, 26, 26, 0.8);
+        border-color: #555;
+        color: #ccc;
+      }
+
+     .langbro-result.langbro-dark .langbro-search-clear-btn:hover {
+       background: #666;
+       color: #fff;
+     }
 
     .langbro-result-content {
       flex: 1;
@@ -113,10 +157,17 @@
         padding: 12px;
       }
 
-      .langbro-search-input {
-        padding: 10px;
-        font-size: 16px;
-      }
+        .langbro-search-input {
+          padding: 10px 10px 10px 29px;
+          font-size: 16px;
+        }
+
+       .langbro-search-clear-btn {
+         left: 10px;
+         font-size: 16px;
+         width: 18px;
+         height: 18px;
+       }
 
       .langbro-result-content {
         padding: 15px;
@@ -126,11 +177,12 @@
 </head>
 <body>
   <div id="resultDiv" class="langbro-result">
-     <div class="langbro-result-header">
-       <div class="langbro-search-container">
-         <input type="text" class="langbro-search-input" placeholder="Enter word to search...">
-       </div>
-     </div>
+      <div class="langbro-result-header">
+        <button class="langbro-close-btn">×</button>
+        <div class="langbro-search-container">
+          <input type="text" class="langbro-search-input" placeholder="Enter word to search...">
+        </div>
+      </div>
     <div class="langbro-result-content">
       <div style="text-align: center; padding: 40px; color: #666;">
         Select a dictionary group in settings and enter a word to search.

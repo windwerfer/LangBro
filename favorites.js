@@ -100,10 +100,8 @@ function displayFavorites() {
   const html = itemsToDisplay.map(item => `
     <div class="favorite-item" data-id="${item.id}">
       <div class="favorite-header">
-        <div>
-          <span class="favorite-name">${escapeHtml(item.name)}</span>
-          <span class="favorite-type">${item.type}</span>
-        </div>
+        <span class="favorite-name">${escapeHtml(item.name)}</span>
+        <span class="favorite-type">${item.type}</span>
         <button class="remove-btn" data-id="${item.id}" title="Remove from favorites">×</button>
       </div>
       ${hideTranslations ? '' : `<div class="favorite-content">${item.data}</div>`}
@@ -118,15 +116,19 @@ function displayFavorites() {
     favoritesList.appendChild(doc.body.firstChild);
   }
 
-  // Add event listeners for items
-  document.querySelectorAll('.favorite-item').forEach(item => {
-    item.addEventListener('click', (e) => {
-      if (!e.target.classList.contains('remove-btn')) {
-        const itemId = item.dataset.id;
-        const favoriteItem = sortedItems.find(i => i.id === itemId);
-        if (favoriteItem) {
-          showFavoriteDetails(favoriteItem);
-        }
+  // Add event listeners for favorite names
+  document.querySelectorAll('.favorite-name').forEach(nameEl => {
+    nameEl.addEventListener('click', (e) => {
+      console.log('Favorite name clicked:', nameEl.textContent);
+      const item = nameEl.closest('.favorite-item');
+      const itemId = item.dataset.id;
+      console.log('Item ID:', itemId);
+      const favoriteItem = itemsToDisplay.find(i => i.id === itemId);
+      console.log('Found favorite item:', favoriteItem);
+      if (favoriteItem) {
+        showFavoriteDetails(favoriteItem);
+      } else {
+        console.error('Favorite item not found for ID:', itemId);
       }
     });
   });
@@ -142,6 +144,7 @@ function displayFavorites() {
 }
 
 function showFavoriteDetails(item) {
+  console.log('Showing details for item:', item);
   // Create modal for full content
   const modal = document.createElement('div');
   modal.className = 'modal';
@@ -177,6 +180,7 @@ function showFavoriteDetails(item) {
   modal.appendChild(modalContent);
 
   document.body.appendChild(modal);
+  console.log('Modal appended to body');
 
   // Add close button event listener
   closeBtn.addEventListener('click', (e) => {

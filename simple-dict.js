@@ -37,6 +37,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  // Add clear button
+  const searchContainer = document.querySelector('.langbro-search-container');
+  const clearButton = document.createElement('button');
+  clearButton.type = 'button';
+  clearButton.className = 'langbro-search-clear-btn';
+  clearButton.textContent = '×';
+  clearButton.title = 'Clear search';
+  clearButton.onclick = () => {
+    searchInput.value = '';
+    searchInput.focus();
+    // Trigger input event to update results
+    searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  searchContainer.appendChild(clearButton);
+
   // Set up search input
   let searchTimeout;
   searchInput.addEventListener('input', () => {
