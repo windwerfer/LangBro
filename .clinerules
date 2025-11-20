@@ -32,5 +32,5 @@ As a principled software engineer using Cline, follow these core tenets:
   - Suppress manifest restart warning when updating version
 - **Building**: Run Firefox extension build (`node build-ff-ext.js`) after code changes requiring compilation or whenever version changes
   - Skip for planning, questions, or informational responses
-- **Post-Change Actions**: After every completed prompt that modifies extension files, bump version and build Firefox extension
+- **Post-Change Actions**: ⚠️ CRITICAL: After EVERY completed prompt that modifies extension files, you MUST bump the version in z_version_nr.txt by 0.0.1 and run `node build-ff-ext.js` to build the Firefox extension. This is mandatory for all code changes.
 - **Sequential Thinking**: Use available sequential thinking tool for complex planning and execution

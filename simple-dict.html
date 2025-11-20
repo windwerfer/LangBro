@@ -52,18 +52,19 @@
 
 
 
-      .langbro-search-container {
-        position: relative;
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        margin-right: 25px;
-        flex: 1;
-      }
+       .langbro-search-container {
+         position: relative;
+         display: flex;
+         align-items: center;
+         gap: 5px;
+         margin-right: 25px;
+         flex: 1;
+         padding-left: 5px;
+       }
 
       .langbro-search-input {
         flex: 1;
-        padding: 2px 5px 2px 25px;
+        padding: 2px 5px 7px 20px;
         border: 1px solid #ccc;
         border-radius: 3px;
         font-size: 12px;
@@ -77,41 +78,36 @@
        border-color: #666;
      }
 
-      .langbro-search-clear-btn {
-        position: absolute;
-        left: 5px;
-        top: 50%;
-        transform: translateY(-50%);
-        background: rgba(255, 255, 255, 0.8);
-        border: 1px solid #ccc;
-        cursor: pointer;
-        font-size: 14px;
-        color: #666;
-        padding: 0;
-        width: 16px;
-        height: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 2px;
-        z-index: 1;
+        .langbro-search-clear-btn {
+          background: #007bff;
+          border: 1px solid #007bff;
+          cursor: pointer;
+          font-size: 16px;
+          color: #fff;
+          padding: 0;
+          width: 18px;
+          height: 18px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 2px;
+        }
+
+      .langbro-search-clear-btn:hover {
+        background: #0056b3;
+        color: #fff;
       }
 
-     .langbro-search-clear-btn:hover {
-       background: #f0f0f0;
-       color: #333;
-     }
+       .langbro-result.langbro-dark .langbro-search-clear-btn {
+         background: #0d6efd;
+         border-color: #0d6efd;
+         color: #fff;
+       }
 
-      .langbro-result.langbro-dark .langbro-search-clear-btn {
-        background: rgba(26, 26, 26, 0.8);
-        border-color: #555;
-        color: #ccc;
+      .langbro-result.langbro-dark .langbro-search-clear-btn:hover {
+        background: #0b5ed7;
+        color: #fff;
       }
-
-     .langbro-result.langbro-dark .langbro-search-clear-btn:hover {
-       background: #666;
-       color: #fff;
-     }
 
     .langbro-result-content {
       flex: 1;
@@ -158,16 +154,15 @@
       }
 
         .langbro-search-input {
-          padding: 10px 10px 10px 29px;
+          padding: 10px 10px 10px 24px;
           font-size: 16px;
         }
 
-       .langbro-search-clear-btn {
-         left: 10px;
-         font-size: 16px;
-         width: 18px;
-         height: 18px;
-       }
+        .langbro-search-clear-btn {
+          font-size: 18px;
+          width: 20px;
+          height: 20px;
+        }
 
       .langbro-result-content {
         padding: 15px;

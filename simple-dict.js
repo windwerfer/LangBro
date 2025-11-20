@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Trigger input event to update results
     searchInput.dispatchEvent(new Event('input', { bubbles: true }));
   };
-  searchContainer.appendChild(clearButton);
+  searchContainer.insertBefore(clearButton, searchInput);
 
   // Set up search input
   let searchTimeout;
