@@ -224,12 +224,28 @@
         <input type="password" id="aiServiceApiKey" placeholder="Enter your API key" required>
       </div>
 
-      <div class="form-group">
-        <label for="aiServiceModel">Model:</label>
-        <input type="text" id="aiServiceModel" placeholder="gemini-2.5-flash" required>
-      </div>
+       <div class="form-group">
+         <label for="aiServiceModel">Model:</label>
+         <input type="text" id="aiServiceModel" placeholder="gemini-2.5-flash" required>
+       </div>
 
-       <div style="margin-top: 20px;">
+       <div class="form-group" id="openrouterReasoningSettings" style="display: none;">
+         <label>
+           <input type="checkbox" id="aiServiceReasoningEnabled" />
+           Enable Reasoning
+         </label>
+         <div id="reasoningEffortContainer" style="margin-top: 10px; display: none;">
+           <label for="aiServiceReasoningEffort">Reasoning Effort:</label>
+           <select id="aiServiceReasoningEffort">
+             <option value="minimal">Minimal</option>
+             <option value="low">Low</option>
+             <option value="medium">Medium</option>
+             <option value="high">High</option>
+           </select>
+         </div>
+       </div>
+
+        <div style="margin-top: 20px;">
          <button id="saveAiServiceBtn">Save Service</button>
          <button id="testAiServiceBtn" style="background-color: #28a745; color: white; border: 1px solid #28a745;">Test Service</button>
          <button id="cancelAiServiceBtn">Cancel</button>

@@ -36,18 +36,36 @@
     const aiProviderElement = document.getElementById('aiServiceProvider');
     const aiModelElement = document.getElementById('aiServiceModel');
 
-    if (aiProviderElement && aiModelElement) {
-      aiProviderElement.addEventListener('change', () => {
-        const provider = aiProviderElement.value;
-        if (provider === 'google' && !aiModelElement.value) {
-          aiModelElement.value = 'gemini-2.5-flash';
-        } else if (provider === 'openrouter' && !aiModelElement.value) {
-          aiModelElement.value = 'x-ai/grok-4.1-fast';
-        }
-      });
-    }
+     if (aiProviderElement && aiModelElement) {
+       aiProviderElement.addEventListener('change', () => {
+         const provider = aiProviderElement.value;
+         if (provider === 'google' && !aiModelElement.value) {
+           aiModelElement.value = 'gemini-2.5-flash';
+         } else if (provider === 'openrouter' && !aiModelElement.value) {
+           aiModelElement.value = 'x-ai/grok-4.1-fast';
+         }
 
-    // Save AI service button
+         // Show/hide reasoning settings for OpenRouter
+         const reasoningSettings = document.getElementById('openrouterReasoningSettings');
+         if (reasoningSettings) {
+           reasoningSettings.style.display = provider === 'openrouter' ? 'block' : 'none';
+         }
+       });
+     }
+
+     // Reasoning enabled checkbox
+     const reasoningEnabledCheckbox = document.getElementById('aiServiceReasoningEnabled');
+     if (reasoningEnabledCheckbox) {
+       reasoningEnabledCheckbox.addEventListener('change', () => {
+         const enabled = reasoningEnabledCheckbox.checked;
+         const effortContainer = document.getElementById('reasoningEffortContainer');
+         if (effortContainer) {
+           effortContainer.style.display = enabled ? 'block' : 'none';
+         }
+       });
+     }
+
+     // Save AI service button
     saveAiServiceBtn.addEventListener('click', () => {
       saveAiService();
     });
@@ -225,23 +243,33 @@
 
   // Show AI service form
   function showAiServiceForm(service = null) {
-    if (service) {
-      aiServiceFormTitle.textContent = 'Edit AI Service';
-      aiServiceNameInput.value = service.name || '';
-      aiServiceProviderSelect.value = service.provider || 'google';
-      aiServiceModelSelect.value = service.model || '';
-      aiServiceApiKeyInput.value = service.apiKey || '';
-    } else {
-      aiServiceFormTitle.textContent = 'Add AI Service';
-      aiServiceNameInput.value = '';
-      aiServiceProviderSelect.value = 'google';
-      aiServiceModelSelect.value = 'gemini-2.5-flash';
-      aiServiceApiKeyInput.value = '';
-    }
+     if (service) {
+       aiServiceFormTitle.textContent = 'Edit AI Service';
+       aiServiceNameInput.value = service.name || '';
+       aiServiceProviderSelect.value = service.provider || 'google';
+       aiServiceModelSelect.value = service.model || '';
+       aiServiceApiKeyInput.value = service.apiKey || '';
+       document.getElementById('aiServiceReasoningEnabled').checked = service.reasoningEnabled || false;
+       document.getElementById('aiServiceReasoningEffort').value = service.reasoningEffort || 'medium';
+     } else {
+       aiServiceFormTitle.textContent = 'Add AI Service';
+       aiServiceNameInput.value = '';
+       aiServiceProviderSelect.value = 'google';
+       aiServiceModelSelect.value = 'gemini-2.5-flash';
+       aiServiceApiKeyInput.value = '';
+       document.getElementById('aiServiceReasoningEnabled').checked = false;
+       document.getElementById('aiServiceReasoningEffort').value = 'medium';
+     }
 
-    aiServiceForm.style.display = 'block';
-    aiServiceNameInput.focus();
-  }
+     // Trigger provider change to show/hide reasoning settings
+     aiServiceProviderSelect.dispatchEvent(new Event('change'));
+
+     // Trigger reasoning checkbox change
+     document.getElementById('aiServiceReasoningEnabled').dispatchEvent(new Event('change'));
+
+     aiServiceForm.style.display = 'block';
+     aiServiceNameInput.focus();
+   }
 
   // Hide AI service form
   function hideAiServiceForm() {
@@ -275,12 +303,14 @@
     }
 
     const service = {
-      id: currentEditingAiService !== null ? currentEditingAiService.id : Date.now().toString(),
-      name,
-      provider: normalizedProvider,
-      apiKey,
-      model
-    };
+       id: currentEditingAiService !== null ? currentEditingAiService.id : Date.now().toString(),
+       name,
+       provider: normalizedProvider,
+       apiKey,
+       model,
+       reasoningEnabled: normalizedProvider === 'openrouter' ? document.getElementById('aiServiceReasoningEnabled').checked : false,
+       reasoningEffort: normalizedProvider === 'openrouter' ? document.getElementById('aiServiceReasoningEffort').value : 'medium'
+     };
 
     try {
       const result = await chrome.storage.local.get(['aiServices']);
@@ -332,13 +362,15 @@
     }
 
     // Create temporary service object
-    const tempService = {
-      id: 'temp_test_' + Date.now(),
-      name,
-      provider: normalizedProvider,
-      apiKey,
-      model
-    };
+     const tempService = {
+       id: 'temp_test_' + Date.now(),
+       name,
+       provider: normalizedProvider,
+       apiKey,
+       model,
+       reasoningEnabled: normalizedProvider === 'openrouter' ? document.getElementById('aiServiceReasoningEnabled').checked : false,
+       reasoningEffort: normalizedProvider === 'openrouter' ? document.getElementById('aiServiceReasoningEffort').value : 'medium'
+     };
 
     // Show modal
     showTestModal();

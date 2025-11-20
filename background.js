@@ -494,16 +494,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
            const service = request.service;
            const query = request.query;
 
-           // Create a temporary group-like settings object
-           const settings = {
-             serviceId: service.id,
-             apiKey: service.apiKey,
-             model: service.model,
-             provider: service.provider,
-             maxTokens: 2048,
-             prompt: 'You are a helpful assistant. Answer the following question: {text}',
-             sendContext: false
-           };
+            // Create a temporary group-like settings object
+            const settings = {
+              serviceId: service.id,
+              apiKey: service.apiKey,
+              model: service.model,
+              provider: service.provider,
+              maxTokens: 2048,
+              prompt: 'You are a helpful assistant. Answer the following question: {text}',
+              sendContext: false,
+              reasoningEnabled: service.reasoningEnabled || false,
+              reasoningEffort: service.reasoningEffort || 'medium'
+            };
 
            const result = await performAILookup(query, '', settings);
            sendResponse({ success: true, result: result });
@@ -1115,10 +1117,18 @@ async function performAILookup(word, context, settings, groupId = null) {
     }
 
     // Merge query group settings (maxTokens, prompt) with service config
-    serviceSettings = {
-      ...aiService,  // Base service config (apiKey, model, provider)
-      ...settings,   // Override with query group settings (maxTokens, prompt)
-    };
+     serviceSettings = {
+       ...aiService,  // Base service config (apiKey, model, provider)
+       ...settings,   // Override with query group settings (maxTokens, prompt)
+     };
+
+     // Ensure reasoning fields are present
+     if (!serviceSettings.hasOwnProperty('reasoningEnabled')) {
+       serviceSettings.reasoningEnabled = aiService.reasoningEnabled || false;
+     }
+     if (!serviceSettings.hasOwnProperty('reasoningEffort')) {
+       serviceSettings.reasoningEffort = aiService.reasoningEffort || 'medium';
+     }
   }
 
   if (!serviceSettings || !serviceSettings.apiKey || !serviceSettings.model) {
@@ -1164,18 +1174,31 @@ async function performAILookup(word, context, settings, groupId = null) {
       };
       break;
 
-    case 'openrouter':
-      apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
-      requestBody = {
-        model: serviceSettings.model,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: maxTokens
-      };
-      headers = {
-        'Authorization': `Bearer ${serviceSettings.apiKey}`,
-        'Content-Type': 'application/json'
-      };
-      break;
+     case 'openrouter':
+       // Use responses API if reasoning is enabled
+       if (serviceSettings.reasoningEnabled) {
+         apiUrl = 'https://openrouter.ai/api/v1/responses';
+         requestBody = {
+           model: serviceSettings.model,
+           input: prompt,
+           reasoning: {
+             effort: serviceSettings.reasoningEffort || 'medium'
+           },
+           max_output_tokens: maxTokens
+         };
+       } else {
+         apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
+         requestBody = {
+           model: serviceSettings.model,
+           messages: [{ role: 'user', content: prompt }],
+           max_tokens: maxTokens
+         };
+       }
+       headers = {
+         'Authorization': `Bearer ${serviceSettings.apiKey}`,
+         'Content-Type': 'application/json'
+       };
+       break;
 
     case 'anthropic':
       apiUrl = 'https://api.anthropic.com/v1/messages';
@@ -1218,24 +1241,45 @@ async function performAILookup(word, context, settings, groupId = null) {
 
   const data = await response.json();
 
-  // Extract response based on provider
-  let rawResponse;
-  switch (serviceSettings.provider) {
-    case 'openai':
-      rawResponse = data.choices?.[0]?.message?.content || 'No response from OpenAI';
-      break;
-    case 'openrouter':
-      rawResponse = data.choices?.[0]?.message?.content || 'No response from OpenRouter';
-      break;
-    case 'anthropic':
-      rawResponse = data.content?.[0]?.text || 'No response from Anthropic';
-      break;
-    case 'google':
-      rawResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response from Google AI';
-      break;
-    default:
-      rawResponse = JSON.stringify(data, null, 2);
-  }
+   // Extract response based on provider
+   let rawResponse;
+   switch (serviceSettings.provider) {
+     case 'openai':
+       rawResponse = data.choices?.[0]?.message?.content || 'No response from OpenAI';
+       break;
+     case 'openrouter':
+       if (serviceSettings.reasoningEnabled) {
+         // Responses API format
+         const output = data.output || [];
+         let reasoningSummary = '';
+         let content = '';
+
+         for (const item of output) {
+           if (item.type === 'reasoning' && item.summary) {
+             reasoningSummary = item.summary.join(' ') + '\n\n';
+           } else if (item.type === 'message' && item.content) {
+             for (const contentItem of item.content) {
+               if (contentItem.type === 'output_text') {
+                 content += contentItem.text;
+               }
+             }
+           }
+         }
+
+         rawResponse = reasoningSummary + content || 'No response from OpenRouter';
+       } else {
+         rawResponse = data.choices?.[0]?.message?.content || 'No response from OpenRouter';
+       }
+       break;
+     case 'anthropic':
+       rawResponse = data.content?.[0]?.text || 'No response from Anthropic';
+       break;
+     case 'google':
+       rawResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response from Google AI';
+       break;
+     default:
+       rawResponse = JSON.stringify(data, null, 2);
+   }
 
   // Parse markup in AI response
   const result = parseAIMarkup(rawResponse);
