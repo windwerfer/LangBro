@@ -2549,19 +2549,19 @@ function lookupWord(word, group, locationInfo) {
         }
       };
 
-      if (response && response.error) {
-        const groupLabel = createGroupLabel(group);
-        showResult(`Lookup error (${groupLabel}): ${response.error}`, group, locationInfo);
-      } else if (response && response.definition) {
-        const groupLabel = createGroupLabel(group);
-        showResult(`${groupLabel}\n\n${response.definition}`, group, locationInfo);
+       if (response && response.error) {
+         const groupLabel = createGroupLabel(group);
+         showResult(`Lookup error (${groupLabel}): ${response.error}`, group, locationInfo);
+       } else if (response && response.definition) {
+         const groupLabel = createGroupLabel(group);
+         showResult(`${groupLabel}\n\n${response.definition}`, group, locationInfo);
 
         // For offline queries, also check for did-you-mean suggestions
         await fetchAndShowDidYouMeanSuggestions(word, group, locationInfo);
         await fetchAndShowDidYouMeanInternalSuggestions(word, group, locationInfo);
-      } else {
-        const groupLabel = createGroupLabel(group);
-        showResult(`No definition found for "${word}" in ${groupLabel}.`, group, locationInfo);
+       } else {
+         const groupLabel = createGroupLabel(group);
+         showResult(`No definition found for "${word}" in ${groupLabel}.`, group, locationInfo);
 
         // For offline queries with no definition found, still check for did-you-mean suggestions
         await fetchAndShowDidYouMeanSuggestions(word, group, locationInfo);

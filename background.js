@@ -488,11 +488,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
          }
        })();
        return true;
-     } else if (request.action === 'testAiService') {
-       (async () => {
-         try {
-           const service = request.service;
-           const query = request.query;
+      } else if (request.action === 'testAiService') {
+        (async () => {
+          try {
+            const service = request.service;
+            const query = request.query;
 
             // Create a temporary group-like settings object
             const settings = {
@@ -507,15 +507,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               reasoningEffort: service.reasoningEffort || 'medium'
             };
 
-           const result = await performAILookup(query, '', settings);
-           sendResponse({ success: true, result: result });
-         } catch (error) {
-           console.error('Error testing AI service:', error);
-           sendResponse({ success: false, error: error.message });
-         }
-       })();
-       return true;
-     }
+            const result = await performAILookup(query, '', settings);
+            sendResponse({ success: true, result: result });
+          } catch (error) {
+            console.error('Error testing AI service:', error);
+            sendResponse({ success: false, error: error.message });
+          }
+        })();
+        return true;
+      }
    return false;
 });
 
@@ -1241,10 +1241,10 @@ async function performAILookup(word, context, settings, groupId = null) {
 
   const data = await response.json();
 
-   // Extract response based on provider
-   let rawResponse;
-   switch (serviceSettings.provider) {
-     case 'openai':
+  // Extract response based on provider
+  let rawResponse;
+  switch (serviceSettings.provider) {
+    case 'openai':
        rawResponse = data.choices?.[0]?.message?.content || 'No response from OpenAI';
        break;
      case 'openrouter':
@@ -1298,10 +1298,10 @@ async function performAILookup(word, context, settings, groupId = null) {
          await setCachedResult(groupId, cacheKey, result);
          console.log('AI lookup - cached result for:', word);
        }
-     }
-   }
+      }
+    }
 
-   return result;
+    return result;
 }
 
 // ===== FAVORITES MANAGEMENT =====
