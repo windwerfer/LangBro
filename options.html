@@ -210,12 +210,13 @@
 
       <div class="form-group">
         <label for="aiServiceProvider">AI Provider:</label>
-        <select id="aiServiceProvider" required>
-          <option value="google">Google AI</option>
-          <option value="openai">OpenAI</option>
-          <option value="anthropic">Anthropic Claude</option>
-          <option value="xai">xAI</option>
-        </select>
+         <select id="aiServiceProvider" required>
+           <option value="google">Google AI</option>
+           <option value="openai">OpenAI</option>
+           <option value="anthropic">Anthropic Claude</option>
+           <option value="xai">xAI</option>
+           <option value="openrouter">OpenRouter</option>
+         </select>
       </div>
 
       <div class="form-group">
@@ -228,10 +229,11 @@
         <input type="text" id="aiServiceModel" placeholder="gemini-2.5-flash" required>
       </div>
 
-      <div style="margin-top: 20px;">
-        <button id="saveAiServiceBtn">Save Service</button>
-        <button id="cancelAiServiceBtn">Cancel</button>
-      </div>
+       <div style="margin-top: 20px;">
+         <button id="saveAiServiceBtn">Save Service</button>
+         <button id="testAiServiceBtn" style="background-color: #28a745; color: white; border: 1px solid #28a745;">Test Service</button>
+         <button id="cancelAiServiceBtn">Cancel</button>
+       </div>
     </div>
 
     <div id="aiServicesList">
@@ -497,13 +499,48 @@
      <div id="clearStatus"></div>
   </div>
 
+  <!-- Test Results Modal -->
+  <div id="testModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="testModalTitle">AI Service Test Results</h3>
+        <span class="modal-close">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div id="testStatus" class="test-status">
+          <div id="testStatusIcon"></div>
+          <div id="testStatusText">Testing...</div>
+        </div>
+        <div class="test-details">
+          <div class="test-query">
+            <strong>Test Query:</strong>
+            <div id="testQueryText">What is 2+2? Explain your answer in one sentence.</div>
+          </div>
+          <div class="test-response" id="testResponseSection" style="display: none;">
+            <strong>AI Response:</strong>
+            <div id="testResponseText"></div>
+          </div>
+          <div class="test-error" id="testErrorSection" style="display: none;">
+            <strong>Error:</strong>
+            <div id="testErrorText"></div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="copyTestResultsBtn">Copy Results</button>
+          <button id="closeTestModalBtn">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="dist/options-bundle.bundle.js"></script>
   <script src="pako.min.js"></script>
   <script src="dompurify.min.js"></script>
   <script src="structured-db.js"></script>
   <script src="parser.js"></script>
-   <script src="yomitan-importer.js"></script>
-   <script src="dictionary-import.js"></script>
-   <script src="options.js"></script>
+    <script src="yomitan-importer.js"></script>
+    <script src="dictionary-import.js"></script>
+    <script src="ai-services.js"></script>
+    <script src="options.js"></script>
 </body>
 </html>

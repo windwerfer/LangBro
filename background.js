@@ -477,18 +477,43 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
       })();
       return true;
-    } else if (request.action === 'getHistoryEntry') {
-      (async () => {
-        try {
-          const entry = await getHistoryEntry(request.groupId, request.index);
-          sendResponse({ success: true, entry: entry });
-        } catch (error) {
-          console.error('Error getting history entry:', error);
-          sendResponse({ success: false, error: error.message });
-        }
-      })();
-      return true;
-    }
+     } else if (request.action === 'getHistoryEntry') {
+       (async () => {
+         try {
+           const entry = await getHistoryEntry(request.groupId, request.index);
+           sendResponse({ success: true, entry: entry });
+         } catch (error) {
+           console.error('Error getting history entry:', error);
+           sendResponse({ success: false, error: error.message });
+         }
+       })();
+       return true;
+     } else if (request.action === 'testAiService') {
+       (async () => {
+         try {
+           const service = request.service;
+           const query = request.query;
+
+           // Create a temporary group-like settings object
+           const settings = {
+             serviceId: service.id,
+             apiKey: service.apiKey,
+             model: service.model,
+             provider: service.provider,
+             maxTokens: 2048,
+             prompt: 'You are a helpful assistant. Answer the following question: {text}',
+             sendContext: false
+           };
+
+           const result = await performAILookup(query, '', settings);
+           sendResponse({ success: true, result: result });
+         } catch (error) {
+           console.error('Error testing AI service:', error);
+           sendResponse({ success: false, error: error.message });
+         }
+       })();
+       return true;
+     }
    return false;
 });
 
@@ -1139,6 +1164,19 @@ async function performAILookup(word, context, settings, groupId = null) {
       };
       break;
 
+    case 'openrouter':
+      apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
+      requestBody = {
+        model: serviceSettings.model,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: maxTokens
+      };
+      headers = {
+        'Authorization': `Bearer ${serviceSettings.apiKey}`,
+        'Content-Type': 'application/json'
+      };
+      break;
+
     case 'anthropic':
       apiUrl = 'https://api.anthropic.com/v1/messages';
       requestBody = {
@@ -1185,6 +1223,9 @@ async function performAILookup(word, context, settings, groupId = null) {
   switch (serviceSettings.provider) {
     case 'openai':
       rawResponse = data.choices?.[0]?.message?.content || 'No response from OpenAI';
+      break;
+    case 'openrouter':
+      rawResponse = data.choices?.[0]?.message?.content || 'No response from OpenRouter';
       break;
     case 'anthropic':
       rawResponse = data.content?.[0]?.text || 'No response from Anthropic';

@@ -75,17 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveWebServiceBtn = document.getElementById('saveWebServiceBtn');
   const cancelWebServiceBtn = document.getElementById('cancelWebServiceBtn');
 
-  // AI services elements
-  const addAiServiceBtn = document.getElementById('addAiServiceBtn');
-  const aiServicesList = document.getElementById('aiServicesList');
-  const aiServiceForm = document.getElementById('aiServiceForm');
-  const aiServiceFormTitle = document.getElementById('aiServiceFormTitle');
-  const aiServiceNameInput = document.getElementById('aiServiceName');
-  const aiServiceProviderSelect = document.getElementById('aiServiceProvider');
-  const aiServiceApiKeyInput = document.getElementById('aiServiceApiKey');
-  const aiServiceModelSelect = document.getElementById('aiServiceModel');
-  const saveAiServiceBtn = document.getElementById('saveAiServiceBtn');
-  const cancelAiServiceBtn = document.getElementById('cancelAiServiceBtn');
+
 
   // Query type settings
   const offlineSettings = document.getElementById('offlineSettings');
@@ -98,8 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const bottomHeightInput = document.getElementById('bottomHeight');
 
   let currentEditingGroup = null;
-  let currentEditingWebService = null;
-  let currentEditingAiService = null;
+   let currentEditingWebService = null;
 
   // Navigation setup
   navButtons.forEach(button => {
@@ -353,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadWebServices();
 
   // AI Services functionality
-  loadAiServices();
+  window.AiServices.loadAiServices();
 
   // Add web service button
   addWebServiceBtn.addEventListener('click', () => {
@@ -371,34 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
     hideWebServiceForm();
   });
 
-  // Add AI service button
-  addAiServiceBtn.addEventListener('click', () => {
-    currentEditingAiService = null;
-    showAiServiceForm();
-  });
 
-  // AI provider change - always set default model
-  const aiProviderElement = document.getElementById('aiServiceProvider');
-  const aiModelElement = document.getElementById('aiServiceModel');
-
-  if (aiProviderElement && aiModelElement) {
-    aiProviderElement.addEventListener('change', () => {
-      const provider = aiProviderElement.value;
-      if (provider === 'google' && !aiModelElement.value) {
-        aiModelElement.value = 'gemini-2.5-flash';
-      }
-    });
-  }
-
-  // Save AI service button
-  saveAiServiceBtn.addEventListener('click', () => {
-    saveAiService();
-  });
-
-  // Cancel AI service button
-  cancelAiServiceBtn.addEventListener('click', () => {
-    hideAiServiceForm();
-  });
 
   // Add group button
   addGroupBtn.addEventListener('click', () => {
@@ -1542,7 +1504,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Reload query groups, web services, and AI services
       await loadQueryGroups();
       await loadWebServices();
-      await loadAiServices();
+      await window.AiServices.loadAiServices();
 
       showBackupStatus('Settings imported successfully!', 'success', 'settingsStatus');
     } catch (error) {
@@ -1829,7 +1791,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       await loadQueryGroups();
       await loadWebServices(); // Reload web services from backup
-      await loadAiServices(); // Reload AI services from backup
+      await window.AiServices.loadAiServices(); // Reload AI services from backup
       await loadCurrentDict();
 
       // Notify background script to reload parser
@@ -2051,209 +2013,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // AI Services functionality
-  async function loadAiServices() {
-    try {
-      const result = await chrome.storage.local.get(['aiServices']);
-      const services = result.aiServices || [];
-      renderAiServices(services);
-    } catch (error) {
-      console.error('Error loading AI services:', error);
-    }
-  }
 
-  function renderAiServices(services) {
-    aiServicesList.innerHTML = '';
-
-    if (services.length === 0) {
-      aiServicesList.innerHTML = '<p style="color: #666; font-style: italic;">No AI services configured. Click "Add New AI Service" to create one.</p>';
-      return;
-    }
-
-    services.forEach((service, index) => {
-      const serviceDiv = document.createElement('div');
-      serviceDiv.className = 'query-group'; // Reuse the same styling
-
-      const headerDiv = document.createElement('div');
-      headerDiv.style.display = 'flex';
-      headerDiv.style.alignItems = 'center';
-      headerDiv.style.justifyContent = 'space-between';
-
-      const infoDiv = document.createElement('div');
-      infoDiv.style.display = 'flex';
-      infoDiv.style.alignItems = 'center';
-      infoDiv.style.gap = '10px';
-
-      const nameSpan = document.createElement('span');
-      nameSpan.textContent = service.name;
-      nameSpan.style.fontWeight = 'bold';
-
-      const providerSpan = document.createElement('span');
-      providerSpan.textContent = service.provider;
-      providerSpan.style.fontSize = '12px';
-      providerSpan.style.color = '#666';
-      providerSpan.style.textTransform = 'capitalize';
-
-      const modelSpan = document.createElement('span');
-      modelSpan.textContent = service.model;
-      modelSpan.style.fontSize = '11px';
-      modelSpan.style.color = '#888';
-
-      infoDiv.appendChild(nameSpan);
-      infoDiv.appendChild(providerSpan);
-      infoDiv.appendChild(modelSpan);
-
-      const buttonsDiv = document.createElement('div');
-
-      const editBtn = document.createElement('button');
-      editBtn.textContent = 'Edit';
-      editBtn.onclick = () => editAiService(index);
-
-      const duplicateBtn = document.createElement('button');
-      duplicateBtn.textContent = 'Duplicate';
-      duplicateBtn.style.marginLeft = '5px';
-      duplicateBtn.onclick = () => duplicateAiService(index);
-
-      const deleteBtn = document.createElement('button');
-      deleteBtn.textContent = 'Delete';
-      deleteBtn.style.marginLeft = '5px';
-      deleteBtn.onclick = () => deleteAiService(index);
-
-      buttonsDiv.appendChild(editBtn);
-      buttonsDiv.appendChild(duplicateBtn);
-      buttonsDiv.appendChild(deleteBtn);
-
-      headerDiv.appendChild(infoDiv);
-      headerDiv.appendChild(buttonsDiv);
-
-      serviceDiv.appendChild(headerDiv);
-      aiServicesList.appendChild(serviceDiv);
-    });
-  }
-
-  function showAiServiceForm(service = null) {
-    if (service) {
-      aiServiceFormTitle.textContent = 'Edit AI Service';
-      aiServiceNameInput.value = service.name || '';
-      aiServiceProviderSelect.value = service.provider || 'google';
-      aiServiceModelSelect.value = service.model || '';
-      aiServiceApiKeyInput.value = service.apiKey || '';
-    } else {
-      aiServiceFormTitle.textContent = 'Add AI Service';
-      aiServiceNameInput.value = '';
-      aiServiceProviderSelect.value = 'google';
-      aiServiceModelSelect.value = 'gemini-2.5-flash';
-      aiServiceApiKeyInput.value = '';
-    }
-
-    aiServiceForm.style.display = 'block';
-    aiServiceNameInput.focus();
-  }
-
-  function hideAiServiceForm() {
-    aiServiceForm.style.display = 'none';
-    currentEditingAiService = null;
-  }
-
-
-
-  async function saveAiService() {
-    const name = aiServiceNameInput.value.trim();
-    const provider = aiServiceProviderSelect.value;
-    const apiKey = aiServiceApiKeyInput.value.trim();
-    const model = aiServiceModelSelect.value.trim();
-
-    if (!name) {
-      alert('Please enter a service name.');
-      return;
-    }
-
-    if (!apiKey) {
-      alert('Please enter an API key.');
-      return;
-    }
-
-    if (!model) {
-      alert('Please enter a model name.');
-      return;
-    }
-
-    const service = {
-      id: currentEditingAiService !== null ? currentEditingAiService.id : Date.now().toString(),
-      name,
-      provider,
-      apiKey,
-      model
-    };
-
-    try {
-      const result = await chrome.storage.local.get(['aiServices']);
-      const services = result.aiServices || [];
-
-      if (currentEditingAiService !== null) {
-        // Update existing service
-        const index = services.findIndex(s => s.id === currentEditingAiService.id);
-        if (index !== -1) {
-          services[index] = service;
-        }
-      } else {
-        // Add new service
-        services.push(service);
-      }
-
-      await chrome.storage.local.set({ aiServices: services });
-      renderAiServices(services);
-      hideAiServiceForm();
-    } catch (error) {
-      console.error('Error saving AI service:', error);
-      alert('Error saving AI service.');
-    }
-  }
-
-  function editAiService(index) {
-    chrome.storage.local.get(['aiServices'], (result) => {
-      const services = result.aiServices || [];
-      currentEditingAiService = services[index];
-      showAiServiceForm(currentEditingAiService);
-    });
-  }
-
-  async function duplicateAiService(index) {
-    try {
-      const result = await chrome.storage.local.get(['aiServices']);
-      const services = result.aiServices || [];
-      const originalService = services[index];
-
-      const duplicatedService = {
-        ...originalService,
-        id: Date.now().toString(),
-        name: `${originalService.name} (Copy)`
-      };
-
-      services.push(duplicatedService);
-      await chrome.storage.local.set({ aiServices: services });
-      renderAiServices(services);
-    } catch (error) {
-      console.error('Error duplicating AI service:', error);
-      alert('Error duplicating AI service.');
-    }
-  }
-
-  async function deleteAiService(index) {
-    if (!confirm('Are you sure you want to delete this AI service?')) {
-      return;
-    }
-
-    try {
-      const result = await chrome.storage.local.get(['aiServices']);
-      const services = result.aiServices || [];
-      services.splice(index, 1);
-      await chrome.storage.local.set({ aiServices: services });
-      renderAiServices(services);
-    } catch (error) {
-      console.error('Error deleting AI service:', error);
-    }
-  }
 
   // Initialize dictionary importer
   const importer = new DictionaryImporter({
