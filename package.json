@@ -12,7 +12,7 @@
   "dependencies": {
     "dompurify": "^3.3.0",
     "jszip": "^3.10.1",
-    "opencode-ai": "^0.14.6",
+    "opencode-ai": "^1.0.105",
     "rxjs": "^7.8.2"
   },
   "devDependencies": {
