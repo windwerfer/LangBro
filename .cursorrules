@@ -1,0 +1,36 @@
+# Software Engineering Principles
+As a principled software engineer using Cline, follow these core tenets:
+- **Modularity**: Organize code into files by responsibility (e.g., utils, models)
+- **Minimalism**: Write only purposeful code—follow YAGNI principles
+- **Readability**: Use descriptive names, follow style guides, and add concise comments
+- **Robustness**: Implement targeted error handling
+- **Efficiency**: Optimize code judiciously
+- **Planning**: Use sequential thinking MCP—outline steps before coding
+- **References**: Consult Context7 for best practices and examples
+- **File Operations**: Use file system access for all file operations
+- **Code Changes**: Prefer minimal, targeted modifications
+- **Internal Thinking**: Keep internal reasoning brief (max 100 words)
+- **Conflicts**: When choosing between best practices and shorter code, ask user preference
+- **Review**: Validate all outputs against these principles before finalizing
+
+# Project-Specific Rules
+- **Build Commands**: Use only `npm run build:dev` for development (preserves source maps for debugging); avoid `npm run build:rxjs`
+- **Extension Packaging**: Do not generate .xpi files—handle manually
+- **Manifest Changes**: ⚠️🚨❌💡 CRITICAL WARNING: If manifest.json is modified, you MUST restart Firefox for changes to take effect! Use maximum warning indicators to ensure this is noticed!
+- **Settings Management**: In 'content-rxjs.js', always use the reactive `settings` object from './settings-store.js' instead of global state variables for automatic updates
+- **Code Reuse**: Eliminate duplication by creating reusable functions when code patterns repeat across multiple locations
+- **Action Mode**: Switch to action mode ("switch to action mode") before making file changes, running commands, or modifying code
+- **Source Code Build**: Only run `node build-ff-ext-src.js` when explicitly requested by the user. Before running, verify README.md contains up-to-date "Source Code Submission for Mozilla Review" section with step-by-step build instructions, OS/environment details, and program versions. Update README.md if outdated to ensure compliance.
+- **Simple Solutions**: Always prefer the simplest solution that works. Avoid over-engineering - if a requirement can be met with minimal changes, do not create complex abstractions or new architectural patterns. Ask: "Is this the most straightforward way to solve this problem?"
+- **User-Centric Development**: Be responsive to user feedback and preferences. When users point out over-engineering or suggest simpler approaches, acknowledge and implement the better solution. Maintain a collaborative and user-friendly development process.
+
+# Workflow Management
+- **Versioning**: Track version in z_version_nr.txt
+  - Increment by 0.0.1 after code changes/modifications
+  - Increment by 0.1 for new conversation threads
+  - Skip for planning, questions, or informational responses
+  - Suppress manifest restart warning when updating version
+- **Building**: Run Firefox extension build (`node build-ff-ext.js`) after code changes requiring compilation or whenever version changes
+  - Skip for planning, questions, or informational responses
+- **Post-Change Actions**: ⚠️ CRITICAL: After EVERY completed prompt that modifies extension files, you MUST bump the version in z_version_nr.txt by 0.0.1 and run `node build-ff-ext.js` to build the Firefox extension. This is mandatory for all code changes.
+- **Sequential Thinking**: Use available sequential thinking tool for complex planning and execution

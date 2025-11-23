@@ -507,20 +507,11 @@ class StructuredDictionaryDatabase {
     const mediaStore = transaction.objectStore('media');
     await deleteWithCursor(mediaStore, null, null, 'media');
 
-    // Delete tag metadata for this dictionary (scan all since tags are less common)
-    console.log(`Starting deletion of tag metadata for dictionary: ${dictName}`);
-    const tagStore = transaction.objectStore('tagMeta');
-    await deleteWithCursor(tagStore, null, null, 'tag');
+    // Bulk delete tag metadata using range query\n    console.log(`Bulk deleting tag metadata for dictionary: ${dictName}`);\n    const tagStore = transaction.objectStore('tagMeta');\n    await bulkDeleteRange(tagStore, dictName, 'tagMeta');
 
-    // Delete term metadata for this dictionary (scan all since meta is less common)
-    console.log(`Starting deletion of term metadata for dictionary: ${dictName}`);
-    const termMetaStore = transaction.objectStore('termMeta');
-    await deleteWithCursor(termMetaStore, null, null, 'termMeta');
+    // Bulk delete term metadata using range query\n    console.log(`Bulk deleting term metadata for dictionary: ${dictName}`);\n    const termMetaStore = transaction.objectStore('termMeta');\n    await bulkDeleteRange(termMetaStore, dictName, 'termMeta');
 
-    // Delete kanji metadata for this dictionary (scan all since meta is less common)
-    console.log(`Starting deletion of kanji metadata for dictionary: ${dictName}`);
-    const kanjiMetaStore = transaction.objectStore('kanjiMeta');
-    await deleteWithCursor(kanjiMetaStore, null, null, 'kanjiMeta');
+    // Bulk delete kanji metadata using range query\n    console.log(`Bulk deleting kanji metadata for dictionary: ${dictName}`);\n    const kanjiMetaStore = transaction.objectStore('kanjiMeta');\n    await bulkDeleteRange(kanjiMetaStore, dictName, 'kanjiMeta');
 
     return new Promise((resolve, reject) => {
       transaction.oncomplete = () => {

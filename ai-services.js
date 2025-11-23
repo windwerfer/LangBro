@@ -379,7 +379,7 @@
     updateTestStatus('testing', 'Testing AI service...');
 
     // Test query
-    const testQuery = 'What is 2+2? Explain your answer in one sentence.';
+    const testQuery = 'What is quantum entanglement? Explain its implications for quantum computing in simple terms.';
 
     // Send test request to background script
     chrome.runtime.sendMessage({
@@ -475,7 +475,7 @@
       updateTestStatus('testing', 'Testing AI service...');
 
       // Test query
-      const testQuery = 'What is 2+2? Explain your answer in one sentence.';
+      const testQuery = 'What is quantum entanglement? Explain its implications for quantum computing in simple terms.';
 
       // Send test request to background script
       chrome.runtime.sendMessage({
