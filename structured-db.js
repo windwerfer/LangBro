@@ -56,7 +56,7 @@ class StructuredDictionaryDatabase {
     });
   }
 
-  // Store structured dictionary data
+  // Store structured dictionary data with optimized batching
   async storeDictionary(structuredData, progressCallback = null) {
     if (!this.db) await this.open();
 
@@ -76,54 +76,52 @@ class StructuredDictionaryDatabase {
     metadata.displayName = metadata.title; // Set display name to title initially
     await this._put(dictStore, metadata);
 
-    // Store terms in batches
-    const termStore = transaction.objectStore('terms');
-    const termsStored = await this._storeBatch(termStore, terms, 100, progressCallback);
-    console.log(`Terms storage: sent ${terms.length}, stored ${termsStored}`);
+    // Use optimized batch storage with larger batches and parallel processing
+    const batchPromises = [];
+
+    // Store terms with optimized batching
+    if (terms.length > 0) {
+      const termStore = transaction.objectStore('terms');
+      batchPromises.push(this._storeBatchOptimized(termStore, terms, 1000, progressCallback, 'terms'));
+    }
 
     // Store termMeta if any
-    let termMetaStored = 0;
     if (termMeta && termMeta.length > 0) {
       const termMetaStore = transaction.objectStore('termMeta');
-      termMetaStored = await this._storeBatch(termMetaStore, termMeta, 100, progressCallback);
-      console.log(`TermMeta storage: sent ${termMeta.length}, stored ${termMetaStored}`);
+      batchPromises.push(this._storeBatchOptimized(termMetaStore, termMeta, 1000, progressCallback, 'termMeta'));
     }
 
     // Store kanji if any
-    let kanjiStored = 0;
     if (kanji.length > 0) {
       const kanjiStore = transaction.objectStore('kanji');
-      kanjiStored = await this._storeBatch(kanjiStore, kanji, 100, progressCallback);
-      console.log(`Kanji storage: sent ${kanji.length}, stored ${kanjiStored}`);
+      batchPromises.push(this._storeBatchOptimized(kanjiStore, kanji, 500, progressCallback, 'kanji'));
     }
 
     // Store kanjiMeta if any
-    let kanjiMetaStored = 0;
     if (kanjiMeta && kanjiMeta.length > 0) {
       const kanjiMetaStore = transaction.objectStore('kanjiMeta');
-      kanjiMetaStored = await this._storeBatch(kanjiMetaStore, kanjiMeta, 100, progressCallback);
-      console.log(`KanjiMeta storage: sent ${kanjiMeta.length}, stored ${kanjiMetaStored}`);
+      batchPromises.push(this._storeBatchOptimized(kanjiMetaStore, kanjiMeta, 1000, progressCallback, 'kanjiMeta'));
     }
 
     // Store tags if any
-    let tagsStored = 0;
     if (tags && tags.length > 0) {
       const tagStore = transaction.objectStore('tagMeta');
-      tagsStored = await this._storeBatch(tagStore, tags, 100, progressCallback);
-      console.log(`Tags storage: sent ${tags.length}, stored ${tagsStored}`);
+      batchPromises.push(this._storeBatchOptimized(tagStore, tags, 500, progressCallback, 'tags'));
     }
 
     // Store media if any
-    let mediaStored = 0;
     if (media.length > 0) {
       const mediaStore = transaction.objectStore('media');
-      mediaStored = await this._storeBatch(mediaStore, media, 100, progressCallback);
-      console.log(`Media storage: sent ${media.length}, stored ${mediaStored}`);
+      batchPromises.push(this._storeBatchOptimized(mediaStore, media, 100, progressCallback, 'media'));
     }
+
+    // Wait for all batch operations to complete
+    const results = await Promise.all(batchPromises);
+    const totalStored = results.reduce((sum, count) => sum + count, 0);
 
     return new Promise((resolve, reject) => {
       transaction.oncomplete = () => {
-        console.log('Dictionary stored successfully');
+        console.log(`Dictionary stored successfully: ${totalStored} total entries`);
         resolve();
       };
       transaction.onerror = () => {
@@ -131,6 +129,47 @@ class StructuredDictionaryDatabase {
         reject(transaction.error);
       };
     });
+  }
+
+  // Store batch with optimized chunking and memory management
+  async _storeBatchOptimized(store, items, batchSize, progressCallback, type) {
+    let storedCount = 0;
+    let lastProgressTime = Date.now();
+    const totalItems = items.length;
+
+    console.log(`Starting optimized batch storage for ${type}: ${totalItems} items in batches of ${batchSize}`);
+
+    // Process in optimized chunks
+    for (let i = 0; i < totalItems; i += batchSize) {
+      const batch = items.slice(i, Math.min(i + batchSize, totalItems));
+      const batchStartTime = performance.now();
+
+      // Use request pooling to avoid overwhelming IndexedDB
+      const putPromises = batch.map(item => this._put(store, item));
+      await Promise.all(putPromises);
+
+      storedCount += batch.length;
+      const batchTime = performance.now() - batchStartTime;
+
+      // Progress reporting with rate calculation
+      if (progressCallback) {
+        const currentTime = Date.now();
+        if (currentTime - lastProgressTime >= 1000) { // Update every second
+          const progress = Math.round((storedCount / totalItems) * 100);
+          const rate = Math.round(storedCount / ((currentTime - lastProgressTime) / 1000));
+          progressCallback(`${type}: ${storedCount}/${totalItems} (${progress}%) - ${rate} items/sec`);
+          lastProgressTime = currentTime;
+        }
+      }
+
+      // Yield control to prevent blocking and allow GC
+      if (i % (batchSize * 10) === 0) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+
+    console.log(`Completed ${type} storage: ${storedCount} items`);
+    return storedCount;
   }
 
   // Lookup term in structured database
@@ -362,6 +401,74 @@ class StructuredDictionaryDatabase {
       const request = store.put(item);
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
+    });
+  }
+
+  // Store dictionary metadata separately (for streaming imports)
+  async storeDictionaryMetadata(metadata) {
+    if (!this.db) await this.open();
+
+    const transaction = this.db.transaction(['dictionaries'], 'readwrite');
+    const store = transaction.objectStore('dictionaries');
+
+    metadata.displayName = metadata.title;
+
+    return new Promise((resolve, reject) => {
+      const request = store.put(metadata);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => resolve();
+    });
+  }
+
+  // Store batch of items for a specific type (streaming support)
+  async storeBatch(type, items, dictionary, progressCallback = null) {
+    if (!this.db) await this.open();
+
+    const transaction = this.db.transaction([type], 'readwrite');
+    const store = transaction.objectStore(type);
+
+    let stored = 0;
+    const batchSize = 500; // Smaller batches for streaming
+
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, Math.min(i + batchSize, items.length));
+
+      // Add dictionary reference if not present
+      batch.forEach(item => {
+        if (!item.dictionary) item.dictionary = dictionary;
+      });
+
+      const putPromises = batch.map(item => this._put(store, item));
+      await Promise.all(putPromises);
+
+      stored += batch.length;
+
+      if (progressCallback && stored % 1000 === 0) {
+        progressCallback(`${type}: ${stored}/${items.length}`);
+      }
+
+      // Yield control
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    return new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve(stored);
+      transaction.onerror = () => reject(transaction.error);
+    });
+  }
+
+  // Check if dictionary exists
+  async dictionaryExists(title) {
+    if (!this.db) await this.open();
+
+    const transaction = this.db.transaction(['dictionaries'], 'readonly');
+    const store = transaction.objectStore('dictionaries');
+
+    return new Promise((resolve) => {
+      const request = store.get(title);
+      request.onsuccess = () => resolve(!!request.result);
+      request.onerror = () => resolve(false);
     });
   }
 

@@ -32,6 +32,14 @@ self.onmessage = async function(event) {
         result = await processChunk(data);
         break;
 
+      case 'STARDICT_PARSE_CHUNK':
+        result = await processStarDictChunk(data);
+        break;
+
+      case 'PARSE_YOMITAN_TERMS':
+        result = await processYomitanTerms(data);
+        break;
+
       default:
         throw new Error(`Unknown message type: ${type}`);
     }
@@ -292,6 +300,174 @@ async function processChunk({ items, processor, chunkSize = 1000 }) {
     duration: parseFloat(duration),
     processed: processed
   };
+}
+
+/**
+ * Process a chunk of StarDict data with streaming
+ */
+async function processStarDictChunk({ metadata, idxReader, dictReader, synData, chunkIndex, wordStart, wordCount }) {
+  const startTime = performance.now();
+  const terms = [];
+
+  try {
+    // Create streaming readers for this chunk
+    const idxStream = {
+      data: idxReader.data,
+      position: idxReader.startPos,
+      getPosition: () => this.position,
+      isEOF: () => this.position >= idxReader.endPos,
+      readNext: function() {
+        if (this.isEOF()) return null;
+        const remaining = idxReader.endPos - this.position;
+        const size = Math.min(1024, remaining);
+        const chunk = this.data.subarray(this.position, this.position + size);
+        this.position += size;
+        return chunk;
+      }
+    };
+
+    // Process words in this chunk
+    let currentWordIndex = wordStart;
+    let pos = idxReader.startPos;
+
+    while (currentWordIndex < wordStart + wordCount && pos < idxReader.endPos) {
+      if (pos >= idxReader.data.length) break;
+
+      // Find null terminator
+      const wordEnd = idxReader.data.indexOf(0, pos);
+      if (wordEnd === -1 || wordEnd >= idxReader.endPos) break;
+
+      const wordBytes = idxReader.data.subarray(pos, wordEnd);
+      const word = ImportUtils.decodeUTF8(wordBytes);
+      const offsetPos = wordEnd + 1;
+
+      if (offsetPos + 8 > idxReader.data.length) break;
+
+      const dictOffset = readUint32(idxReader.data, offsetPos);
+      const dictSize = readUint32(idxReader.data, offsetPos + 4);
+
+      // Extract definition from dict data
+      if (dictOffset + dictSize <= dictReader.data.length) {
+        const definitionBytes = dictReader.data.subarray(dictOffset, dictOffset + dictSize);
+        const definition = ImportUtils.decodeUTF8(definitionBytes);
+
+        terms.push({
+          expression: word,
+          reading: word, // StarDict doesn't separate reading
+          definitionTags: [],
+          rules: '',
+          score: 0,
+          glossary: [definition],
+          sequence: currentWordIndex + 1,
+          termTags: []
+        });
+      }
+
+      pos = wordEnd + 9; // Move to next entry
+      currentWordIndex++;
+
+      // Yield control periodically
+      if (terms.length % 100 === 0) {
+        await ImportUtils.yieldToEventLoop();
+      }
+    }
+
+    // Send chunk results
+    self.postMessage({
+      type: 'CHUNK',
+      requestId: self.currentRequestId,
+      chunk: terms
+    });
+
+  } catch (error) {
+    console.error('Error processing StarDict chunk:', error);
+    throw error;
+  }
+
+  const duration = performance.now() - startTime;
+  console.log(`Worker: Processed StarDict chunk ${chunkIndex} with ${terms.length} terms in ${duration.toFixed(2)}ms`);
+
+  return { processed: terms.length, duration };
+}
+
+/**
+ * Process Yomitan terms with streaming JSON parsing
+ */
+async function processYomitanTerms({ content, version, dictionary, filename, fileIndex }) {
+  const startTime = performance.now();
+  const terms = [];
+
+  try {
+    // Use streaming JSON parser for large files
+    const stream = DictImportUtils.streamJsonArray(content);
+
+    for await (const item of stream) {
+      // Convert Yomitan format to LangBro format
+      let [expression, reading, definitionTags, rules, score, glossary, sequence, termTags] = item;
+
+      // Handle different versions
+      if (version === 1) {
+        [expression, reading, definitionTags, rules, score, ...glossary] = item;
+        sequence = 1;
+        termTags = [];
+      }
+
+      // Ensure reading is not empty
+      reading = reading || expression;
+
+      // Process glossary - handle structured content
+      const processedGlossary = glossary.map(item => {
+        if (typeof item === 'string') {
+          return item;
+        } else if (typeof item === 'object' && item.type === 'text') {
+          return item.text;
+        } else {
+          // For structured content, convert to HTML (simplified)
+          return typeof item === 'object' ? JSON.stringify(item) : String(item);
+        }
+      });
+
+      terms.push({
+        expression,
+        reading,
+        definitionTags: definitionTags || [],
+        rules: rules || '',
+        score: score || 0,
+        glossary: processedGlossary,
+        sequence: sequence || terms.length + 1,
+        termTags: termTags || [],
+        dictionary
+      });
+
+      // Send chunks periodically to avoid memory buildup
+      if (terms.length % 1000 === 0) {
+        self.postMessage({
+          type: 'CHUNK',
+          requestId: self.currentRequestId,
+          chunk: terms.splice(0) // Send and clear
+        });
+        await ImportUtils.yieldToEventLoop();
+      }
+    }
+
+    // Send remaining terms
+    if (terms.length > 0) {
+      self.postMessage({
+        type: 'CHUNK',
+        requestId: self.currentRequestId,
+        chunk: terms
+      });
+    }
+
+  } catch (error) {
+    console.error('Error processing Yomitan terms:', error);
+    throw error;
+  }
+
+  const duration = performance.now() - startTime;
+  console.log(`Worker: Processed ${filename} with ${terms.length} terms in ${duration.toFixed(2)}ms`);
+
+  return { processed: terms.length, duration };
 }
 
 /**

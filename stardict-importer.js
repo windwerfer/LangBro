@@ -24,15 +24,11 @@ class StarDictImporter {
     const validation = DictImportUtils.validateSize(required.dict.length / 1e6, required.metadata.wordcount);
     if (validation.warnings.length) this.showStatus(validation.warnings.join('; '), 'warning');
 
-    // Decompress
-    const idxData = DictImportUtils.decompressIfNeeded(required.idx, required.idxName);
-    const dictData = DictImportUtils.decompressIfNeeded(required.dict, required.dictName);
-
-    // Parse metadata
+    // Parse metadata first
     const metadata = this.parseMetadata(required.ifo);
 
-    // Progressive import via worker
-    await this.runWorkerPipeline(dictName, metadata, idxData, dictData, required.syn);
+    // Use streaming import for better memory efficiency
+    await this.runStreamingImport(dictName, metadata, required);
   }
 
   extractRequiredFiles(files) {
@@ -65,34 +61,109 @@ class StarDictImporter {
     return meta;
   }
 
-  async runWorkerPipeline(dictName, metadata, idxData, dictData, synData) {
-    const worker = await DictImportUtils.createWorker();
+  async runStreamingImport(dictName, metadata, required) {
     const db = await this.getDB();
+    const workerPool = await DictImportUtils.createWorkerPool(3); // Use 3 workers for parallel processing
+    const batchProcessor = DictImportUtils.createBatchProcessor(2000, async (batch) => {
+      await db.storeBatch('terms', batch, dictName);
+    });
+
     let totalProcessed = 0;
+    const startTime = performance.now();
 
-    // Metadata first
-    const summary = {
-      title: dictName,
-      revision: '1.0',
-      counts: { terms: { total: metadata.wordcount } },
-      // ...
-    };
-    await db.storeDictionaryMetadata(summary); // Assume new method
+    try {
+      // Store metadata first
+      const summary = {
+        title: dictName,
+        revision: '1.0',
+        counts: { terms: { total: metadata.wordcount } },
+        importDate: Date.now(),
+        version: 3,
+        sequenced: true
+      };
+      await db.storeDictionaryMetadata(summary);
 
-    // Pipeline: post data, receive chunks
-    await DictImportUtils.runWorkerTask(
-      worker,
-      'STARDICT_PARSE',
-      { metadata, idxData, dictData, synData, chunkSize: 5000 },
-      async (chunk) => {
-        // Receive term chunk, store
-        await db.storeChunk('terms', chunk, dictName);
-        totalProcessed += chunk.length;
-        this.showStatus(DictImportUtils.formatProgress(totalProcessed, metadata.wordcount));
-      },
-      progress => this.showStatus(`Parsing: ${progress}%`),
-      () => worker.terminate()
-    );
+      // Create streaming readers for large files
+      const idxReader = DictImportUtils.createStreamingReader(
+        DictImportUtils.decompressIfNeeded(required.idx, required.idxName)
+      );
+      const dictReader = DictImportUtils.createStreamingReader(
+        DictImportUtils.decompressIfNeeded(required.dict, required.dictName)
+      );
+
+      // Process in parallel chunks
+      const chunkSize = Math.min(10000, Math.max(1000, Math.floor(metadata.wordcount / 10)));
+      const chunks = this.createProcessingChunks(metadata.wordcount, chunkSize);
+
+      const processingPromises = chunks.map(async (chunk, index) => {
+        return workerPool.execute(
+          'STARDICT_PARSE_CHUNK',
+          {
+            metadata,
+            idxReader: { data: idxReader.data, startPos: chunk.startPos, endPos: chunk.endPos },
+            dictReader: { data: dictReader.data },
+            synData: required.syn,
+            chunkIndex: index,
+            wordStart: chunk.wordStart,
+            wordCount: chunk.wordCount
+          },
+          {
+            onChunk: async (terms) => {
+              for (const term of terms) {
+                await batchProcessor.add(term);
+              }
+              totalProcessed += terms.length;
+
+              const elapsed = (performance.now() - startTime) / 1000;
+              const rate = totalProcessed / elapsed;
+              this.showStatus(
+                `Processed ${DictImportUtils.formatProgress(totalProcessed, metadata.wordcount)} ` +
+                `(${Math.round(rate)} terms/sec)`
+              );
+            },
+            onProgress: (progress) => {
+              this.showStatus(`Chunk ${index + 1}/${chunks.length}: ${progress}%`);
+            },
+            onError: (error) => {
+              console.error(`Chunk ${index} failed:`, error);
+            }
+          }
+        );
+      });
+
+      // Wait for all chunks to complete
+      await Promise.all(processingPromises);
+
+      // Flush remaining batch
+      await batchProcessor.flush();
+
+      const totalTime = (performance.now() - startTime) / 1000;
+      this.showStatus(
+        `Import complete: ${totalProcessed} terms in ${totalTime.toFixed(1)}s ` +
+        `(${Math.round(totalProcessed / totalTime)} terms/sec)`
+      );
+
+    } finally {
+      workerPool.terminate();
+    }
+  }
+
+  createProcessingChunks(totalWords, chunkSize) {
+    const chunks = [];
+    let currentPos = 0;
+
+    for (let wordStart = 0; wordStart < totalWords; wordStart += chunkSize) {
+      const wordCount = Math.min(chunkSize, totalWords - wordStart);
+      chunks.push({
+        wordStart,
+        wordCount,
+        startPos: currentPos,
+        endPos: currentPos + (wordCount * 10) // Rough estimate: 10 bytes per word entry
+      });
+      currentPos += wordCount * 10;
+    }
+
+    return chunks;
   }
 
   extractStylesFromRes(resZipData) {

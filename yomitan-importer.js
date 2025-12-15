@@ -115,7 +115,7 @@ class YomitanDictionaryImporter {
     }
 
     /**
-     * Parse all data files according to Yomitan format
+     * Parse all data files according to Yomitan format with optimized parallel processing
      * @param {Map} files
      * @param {Object} index
      * @returns {Promise<Object>} Parsed data
@@ -131,54 +131,88 @@ class YomitanDictionaryImporter {
             media: []
         };
 
-        // Parse term banks and group by expression/reading
+        const startTime = performance.now();
+
+        // Create batch processor for terms
+        const batchProcessor = DictImportUtils.createBatchProcessor(5000, async (batch) => {
+            data.terms.push(...batch);
+        });
+
+        // Parse term banks - use simple parallel processing without workers for reliability
         const termFiles = this._findFiles(files, /^term_bank_\d+\.json$/);
-        const allRawTerms = [];
-        for (const [filename, content] of termFiles) {
-            const terms = this._parseJsonFile(content);
-            allRawTerms.push(...terms);
-        }
+        this.showStatus(`Processing ${termFiles.length} term banks...`);
+
+        // Process term files in parallel batches
+        const termPromises = termFiles.map(async ([filename, content], fileIndex) => {
+            try {
+                const terms = this._parseJsonFile(content);
+                // Convert terms immediately to avoid memory buildup
+                const converted = terms.map(term => this._convertTerm(term, index.title, version));
+                return converted;
+            } catch (error) {
+                console.error(`Error processing ${filename}:`, error);
+                return [];
+            }
+        });
+
+        const termResults = await Promise.all(termPromises);
+        const allRawTerms = termResults.flat();
+
+        // Group terms efficiently
         data.terms = this._groupAndConvertTerms(allRawTerms, index.title, version);
 
-        // Parse term meta banks
-        const termMetaFiles = this._findFiles(files, /^term_meta_bank_\d+\.json$/);
-        for (const [filename, content] of termMetaFiles) {
-            const termMeta = this._parseJsonFile(content);
-            const logMsg1 = `Processing termMeta file: ${filename} with ${termMeta.length} raw entries`;
-            console.log(logMsg1);
-            if (this.showStatus) this.showStatus(logMsg1);
-            const converted = this._convertTermMeta(termMeta, index.title);
-            const logMsg2 = `Converted termMeta to ${converted.length} entries`;
-            console.log(logMsg2);
-            if (this.showStatus) this.showStatus(logMsg2);
-            data.termMeta.push(...converted);
-        }
-        const logMsg3 = `Total termMeta loaded: ${data.termMeta.length}`;
-        console.log(logMsg3);
-        if (this.showStatus) this.showStatus(logMsg3);
+        this.showStatus(`Processed ${data.terms.length} terms in ${(performance.now() - startTime) / 1000}s`);
 
-        // Parse kanji banks
-        const kanjiFiles = this._findFiles(files, /^kanji_bank_\d+\.json$/);
-        for (const [filename, content] of kanjiFiles) {
-            const kanji = this._parseJsonFile(content);
-            const converted = this._convertKanji(kanji, index.title, version);
-            data.kanji.push(...converted);
+        // Parse other data types in parallel
+        const [termMetaFiles, kanjiFiles, kanjiMetaFiles, tagFiles] = await Promise.all([
+            this._findFiles(files, /^term_meta_bank_\d+\.json$/),
+            this._findFiles(files, /^kanji_bank_\d+\.json$/),
+            this._findFiles(files, /^kanji_meta_bank_\d+\.json$/),
+            this._findFiles(files, /^tag_bank_\d+\.json$/)
+        ]);
+
+        // Process term meta in parallel
+        if (termMetaFiles.length > 0) {
+            const termMetaPromises = termMetaFiles.map(async ([filename, content]) => {
+                const termMeta = this._parseJsonFile(content);
+                return this._convertTermMeta(termMeta, index.title);
+            });
+            const termMetaResults = await Promise.all(termMetaPromises);
+            data.termMeta = termMetaResults.flat();
+            this.showStatus(`Processed ${data.termMeta.length} term meta entries`);
         }
 
-        // Parse kanji meta banks
-        const kanjiMetaFiles = this._findFiles(files, /^kanji_meta_bank_\d+\.json$/);
-        for (const [filename, content] of kanjiMetaFiles) {
-            const kanjiMeta = this._parseJsonFile(content);
-            const converted = this._convertKanjiMeta(kanjiMeta, index.title);
-            data.kanjiMeta.push(...converted);
+        // Process kanji in parallel
+        if (kanjiFiles.length > 0) {
+            const kanjiPromises = kanjiFiles.map(async ([filename, content]) => {
+                const kanji = this._parseJsonFile(content);
+                return this._convertKanji(kanji, index.title, version);
+            });
+            const kanjiResults = await Promise.all(kanjiPromises);
+            data.kanji = kanjiResults.flat();
+            this.showStatus(`Processed ${data.kanji.length} kanji entries`);
         }
 
-        // Parse tag banks
-        const tagFiles = this._findFiles(files, /^tag_bank_\d+\.json$/);
-        for (const [filename, content] of tagFiles) {
-            const tags = this._parseJsonFile(content);
-            const converted = this._convertTags(tags, index.title);
-            data.tags.push(...converted);
+        // Process kanji meta in parallel
+        if (kanjiMetaFiles.length > 0) {
+            const kanjiMetaPromises = kanjiMetaFiles.map(async ([filename, content]) => {
+                const kanjiMeta = this._parseJsonFile(content);
+                return this._convertKanjiMeta(kanjiMeta, index.title);
+            });
+            const kanjiMetaResults = await Promise.all(kanjiMetaPromises);
+            data.kanjiMeta = kanjiMetaResults.flat();
+            this.showStatus(`Processed ${data.kanjiMeta.length} kanji meta entries`);
+        }
+
+        // Process tags in parallel
+        if (tagFiles.length > 0) {
+            const tagPromises = tagFiles.map(async ([filename, content]) => {
+                const tags = this._parseJsonFile(content);
+                return this._convertTags(tags, index.title);
+            });
+            const tagResults = await Promise.all(tagPromises);
+            data.tags = tagResults.flat();
+            this.showStatus(`Processed ${data.tags.length} tag entries`);
         }
 
         // Handle media files and structured content
