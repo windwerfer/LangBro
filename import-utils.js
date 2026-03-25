@@ -229,6 +229,6 @@ class ImportUtils {
 // Export for use in other modules
 if (typeof module !== 'undefined') {
   module.exports = ImportUtils;
-} else if (typeof window !== 'undefined') {
-  window.ImportUtils = ImportUtils;
+} else {
+  (typeof self !== 'undefined' ? self : window).ImportUtils = ImportUtils;
 }

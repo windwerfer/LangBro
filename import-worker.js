@@ -2,11 +2,12 @@
 // Handles CPU-intensive parsing in background thread to prevent UI blocking
 
 // Import utilities (worker context)
-importScripts('import-utils.js');
+importScripts('import-utils.js', 'dict-import-utils.js');
 
 // Worker message handler
 self.onmessage = async function(event) {
   const { type, data, requestId } = event.data;
+  self.currentRequestId = requestId;
 
   try {
     let result;
@@ -114,6 +115,7 @@ async function buildStarDictIndex({ idxData, wordCount, chunkSize = 10000 }) {
     const progress = Math.round((processed / wordCount) * 100);
     self.postMessage({
       type: 'PROGRESS',
+      requestId: self.currentRequestId,
       operation: 'index_build',
       progress,
       current: processed,
@@ -186,6 +188,7 @@ async function extractStarDictData({ wordOffsets, dictData, dictionaryName, chun
     const progress = Math.round((processed / totalEntries) * 100);
     self.postMessage({
       type: 'PROGRESS',
+      requestId: self.currentRequestId,
       operation: 'data_extraction',
       progress,
       current: processed,
@@ -241,6 +244,7 @@ async function parseYomitanData({ data, chunkSize = 1000 }) {
     const progress = Math.round((processed / totalItems) * 100);
     self.postMessage({
       type: 'PROGRESS',
+      requestId: self.currentRequestId,
       operation: 'yomitan_parse',
       progress,
       current: processed,
@@ -283,6 +287,7 @@ async function processChunk({ items, processor, chunkSize = 1000 }) {
     const progress = Math.round((processed / totalItems) * 100);
     self.postMessage({
       type: 'PROGRESS',
+      requestId: self.currentRequestId,
       operation: 'chunk_process',
       progress,
       current: processed,
@@ -314,8 +319,8 @@ async function processStarDictChunk({ metadata, idxReader, dictReader, synData, 
     const idxStream = {
       data: idxReader.data,
       position: idxReader.startPos,
-      getPosition: () => this.position,
-      isEOF: () => this.position >= idxReader.endPos,
+      getPosition: function() { return this.position; },
+      isEOF: function() { return this.position >= idxReader.endPos; },
       readNext: function() {
         if (this.isEOF()) return null;
         const remaining = idxReader.endPos - this.position;

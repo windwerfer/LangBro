@@ -415,4 +415,4 @@ class DictImportUtils {
 
 // Export
 if (typeof module !== 'undefined') module.exports = DictImportUtils;
-else window.DictImportUtils = DictImportUtils;
+else (typeof self !== 'undefined' ? self : window).DictImportUtils = DictImportUtils;

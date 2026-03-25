@@ -10,6 +10,26 @@ class YomitanDictionaryImporter {
     }
 
     /**
+     * Display status message
+     * @param {string} message 
+     * @param {string} type 
+     */
+    showStatus(message, type = 'info') {
+        console.log(`[YomitanImporter] ${message}`);
+        if (this.onStatusUpdate) {
+            this.onStatusUpdate(message, type);
+        }
+    }
+
+    /**
+     * Set status update callback
+     * @param {Function} callback 
+     */
+    setStatusCallback(callback) {
+        this.onStatusUpdate = callback;
+    }
+
+    /**
      * Import a Yomitan dictionary from a ZIP archive
      * @param {StructuredDictionaryDatabase} database - The database to store data in
      * @param {ArrayBuffer} archiveContent - The ZIP archive content
