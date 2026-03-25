@@ -1,88 +1,105 @@
-  const fs = require('fs');
-  const path = require('path');
-  const JSZip = require('jszip');
+// this is to build the extention for firefox extention marketplace
+// it is slightly differnt from the build-ff-ext.js because:
+//  - packs *all* source files & files from /dist
 
-  (async () => {
-    // Read version from z_version_nr.txt
-    const version = fs.readFileSync('z_version_nr.txt', 'utf8').trim();
+const fs = require("fs");
+const path = require("path");
+const JSZip = require("jszip");
 
-    // Check if README.md has the required section
-    const readmeContent = fs.readFileSync('README.md', 'utf8');
-    if (!readmeContent.includes('Source Code Submission for Mozilla Review')) {
-      console.error('❌ ERROR: README.md does not contain "Source Code Submission for Mozilla Review" section. Please update it before building source.');
-      process.exit(1);
-    }
+(async () => {
+  // Read version from z_version_nr.txt
+  const version = fs.readFileSync("z_version_nr.txt", "utf8").trim();
 
-    const name = 'LangBro_src_' + version;
+  // Check if README.md has the required section
+  const readmeContent = fs.readFileSync("README.md", "utf8");
+  if (!readmeContent.includes("Source Code Submission for Mozilla Review")) {
+    console.error(
+      '❌ ERROR: README.md does not contain "Source Code Submission for Mozilla Review" section. Please update it before building source.',
+    );
+    process.exit(1);
+  }
 
-    // Create ff-ext directory
-    if (!fs.existsSync('ff-ext')) {
-      fs.mkdirSync('ff-ext');
-    }
+  const name = "LangBro_src_" + version;
 
-    // Read .gitignore and create exclude patterns (include dist/ in exclusions for source)
-    const gitignoreContent = fs.readFileSync('.gitignore', 'utf8');
-    const gitignorePatterns = gitignoreContent
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line && !line.startsWith('#'));
+  // Create ff-ext directory
+  if (!fs.existsSync("ff-ext")) {
+    fs.mkdirSync("ff-ext");
+  }
 
-    // Do not filter out dist patterns - keep dist/ excluded for source compliance
-    const filteredPatterns = gitignorePatterns;
+  // Read .gitignore and create exclude patterns (include dist/ in exclusions for source)
+  const gitignoreContent = fs.readFileSync(".gitignore", "utf8");
+  const gitignorePatterns = gitignoreContent
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"));
 
-    // Function to check if path matches any pattern
-    function shouldExclude(filePath) {
-      for (const pattern of filteredPatterns) {
-        if (pattern.endsWith('/')) {
-          // Directory pattern
-          const dir = pattern.slice(0, -1);
-          if (filePath.startsWith(dir + path.sep) || filePath === dir) return true;
-        } else if (pattern.includes('*')) {
-          // Simple glob, e.g., *.zip
-          const regex = new RegExp(pattern.replace(/\*/g, '.*').replace(/\//g, path.sep));
-          if (regex.test(filePath)) return true;
-        } else {
-          // Exact match
-          if (filePath === pattern) return true;
-        }
+  // Do not filter out dist patterns - keep dist/ excluded for source compliance
+  const filteredPatterns = gitignorePatterns;
+
+  // Function to check if path matches any pattern
+  function shouldExclude(filePath) {
+    for (const pattern of filteredPatterns) {
+      if (pattern.endsWith("/")) {
+        // Directory pattern
+        const dir = pattern.slice(0, -1);
+        if (filePath.startsWith(dir + path.sep) || filePath === dir)
+          return true;
+      } else if (pattern.includes("*")) {
+        // Simple glob, e.g., *.zip
+        const regex = new RegExp(
+          pattern.replace(/\*/g, ".*").replace(/\//g, path.sep),
+        );
+        if (regex.test(filePath)) return true;
+      } else {
+        // Exact match
+        if (filePath === pattern) return true;
       }
-      return false;
     }
+    return false;
+  }
 
-    // Get all files recursively
-    function getAllFiles(dirPath, relativeTo = '') {
-      const files = [];
-      const items = fs.readdirSync(dirPath);
-      for (const item of items) {
-        const fullPath = path.join(dirPath, item);
-        const relPath = path.join(relativeTo, item).replace(/\\/g, '/'); // Normalize to forward slashes for zip
-        if (fs.statSync(fullPath).isDirectory()) {
-          files.push(...getAllFiles(fullPath, relPath));
-        } else {
-          files.push(relPath);
-        }
+  // Get all files recursively
+  function getAllFiles(dirPath, relativeTo = "") {
+    const files = [];
+    const items = fs.readdirSync(dirPath);
+    for (const item of items) {
+      const fullPath = path.join(dirPath, item);
+      const relPath = path.join(relativeTo, item).replace(/\\/g, "/"); // Normalize to forward slashes for zip
+      if (fs.statSync(fullPath).isDirectory()) {
+        files.push(...getAllFiles(fullPath, relPath));
+      } else {
+        files.push(relPath);
       }
-      return files;
     }
+    return files;
+  }
 
-    const allFiles = getAllFiles('.');
-    const filesToInclude = allFiles.filter(file => !shouldExclude(file.replace(/\//g, path.sep)));
+  const allFiles = getAllFiles(".");
+  const filesToInclude = allFiles.filter(
+    (file) => !shouldExclude(file.replace(/\//g, path.sep)),
+  );
 
-    // Create zip
-    const zip = new JSZip();
-    for (const file of filesToInclude) {
-      const content = fs.readFileSync(file);
-      zip.file(file, content);
-    }
+  // Create zip
+  const zip = new JSZip();
+  for (const file of filesToInclude) {
+    const content = fs.readFileSync(file);
+    zip.file(file, content);
+  }
 
-    const zipPath = `ff-ext/ff_${name}.zip`;
-    console.log(`Creating source code ZIP: ${zipPath}`);
-    console.log(`Excluding patterns: ${filteredPatterns.join(', ')}`);
-    console.log(`Included files: ${filesToInclude.length}`);
-    await new Promise((resolve) => {
-      zip.generateNodeStream({type:'nodebuffer', streamFiles:true, compression: 'DEFLATE', compressionOptions: {level: 6}})
-        .pipe(fs.createWriteStream(zipPath))
-        .on('finish', resolve);
-    });
-    console.log('✅ Firefox extension source code package created successfully!');
-  })();
+  const zipPath = `ff-ext/ff_${name}.zip`;
+  console.log(`Creating source code ZIP: ${zipPath}`);
+  console.log(`Excluding patterns: ${filteredPatterns.join(", ")}`);
+  console.log(`Included files: ${filesToInclude.length}`);
+  await new Promise((resolve) => {
+    zip
+      .generateNodeStream({
+        type: "nodebuffer",
+        streamFiles: true,
+        compression: "DEFLATE",
+        compressionOptions: { level: 6 },
+      })
+      .pipe(fs.createWriteStream(zipPath))
+      .on("finish", resolve);
+  });
+  console.log("✅ Firefox extension source code package created successfully!");
+})();
