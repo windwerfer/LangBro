@@ -4,7 +4,7 @@
 class StructuredDictionaryDatabase {
   constructor() {
     this.db = null;
-    this.dbVersion = 8; // Incremented for new import queue and registry stores
+    this.dbVersion = 9; // Incremented to add dictionary indexes for faster deletion
   }
 
   // Initialize database with structured schema
@@ -15,38 +15,53 @@ class StructuredDictionaryDatabase {
 
       request.onupgradeneeded = (event) => {
         const db = event.target.result;
-        console.log('Upgrading structured database to version', this.dbVersion);
+        const oldVersion = event.oldVersion;
+        console.log(`Upgrading structured database from version ${oldVersion} to ${this.dbVersion}`);
 
         // Create object stores if they don't exist
         if (!db.objectStoreNames.contains('dictionaries')) {
           db.createObjectStore('dictionaries', { keyPath: 'title' });
         }
+        
         if (!db.objectStoreNames.contains('terms')) {
-          // Changed to auto-increment for better performance with StarDict imports
           const termsStore = db.createObjectStore('terms', { autoIncrement: true });
           termsStore.createIndex('expression', 'expression', { unique: false });
+          termsStore.createIndex('reading', 'reading', { unique: false });
           termsStore.createIndex('dictionary', 'dictionary', { unique: false });
           termsStore.createIndex('dict_expr', ['dictionary', 'expression'], { unique: false });
+        } else {
+          // Add missing reading index if it's an old schema
+          const termsStore = event.target.transaction.objectStore('terms');
+          if (!termsStore.indexNames.contains('reading')) {
+            termsStore.createIndex('reading', 'reading', { unique: false });
+          }
         }
+
         if (!db.objectStoreNames.contains('kanji')) {
           const kanjiStore = db.createObjectStore('kanji', { autoIncrement: true });
           kanjiStore.createIndex('character', 'character', { unique: false });
           kanjiStore.createIndex('dictionary', 'dictionary', { unique: false });
         }
+
         if (!db.objectStoreNames.contains('media')) {
           const mediaStore = db.createObjectStore('media', { autoIncrement: true });
           mediaStore.createIndex('path', 'path', { unique: false });
           mediaStore.createIndex('dictionary', 'dictionary', { unique: false });
         }
-        if (!db.objectStoreNames.contains('tagMeta')) {
-          db.createObjectStore('tagMeta', { autoIncrement: true });
-        }
-        if (!db.objectStoreNames.contains('termMeta')) {
-          db.createObjectStore('termMeta', { autoIncrement: true });
-        }
-        if (!db.objectStoreNames.contains('kanjiMeta')) {
-          db.createObjectStore('kanjiMeta', { autoIncrement: true });
-        }
+
+        // TagMeta, TermMeta, KanjiMeta with dictionary indexes
+        const metaStores = ['tagMeta', 'termMeta', 'kanjiMeta'];
+        metaStores.forEach(name => {
+          if (!db.objectStoreNames.contains(name)) {
+            const store = db.createObjectStore(name, { autoIncrement: true });
+            store.createIndex('dictionary', 'dictionary', { unique: false });
+          } else {
+            const store = event.target.transaction.objectStore(name);
+            if (!store.indexNames.contains('dictionary')) {
+              store.createIndex('dictionary', 'dictionary', { unique: false });
+            }
+          }
+        });
 
         // NEW: Import Queue Store
         if (!db.objectStoreNames.contains('import_queue')) {
@@ -696,26 +711,37 @@ class StructuredDictionaryDatabase {
       });
     };
 
-    // Delete all terms for this dictionary using efficient range query
+    const dictRange = IDBKeyRange.only(dictName);
+
+    // Delete all terms for this dictionary using efficient dictionary index
     console.log(`Starting deletion of terms for dictionary: ${dictName}`);
     const termStore = transaction.objectStore('terms');
-    await deleteWithCursor(termStore, 'expression', IDBKeyRange.bound([dictName, ''], [dictName, '\uffff']), 'term');
+    await deleteWithCursor(termStore, 'dictionary', dictRange, 'term');
 
-    // Delete kanji for this dictionary (scan all since kanji is less common)
+    // Delete kanji for this dictionary
     console.log(`Starting deletion of kanji for dictionary: ${dictName}`);
     const kanjiStore = transaction.objectStore('kanji');
-    await deleteWithCursor(kanjiStore, null, null, 'kanji');
+    await deleteWithCursor(kanjiStore, 'dictionary', dictRange, 'kanji');
 
-    // Delete media for this dictionary (scan all since media is less common)
+    // Delete media for this dictionary
     console.log(`Starting deletion of media for dictionary: ${dictName}`);
     const mediaStore = transaction.objectStore('media');
-    await deleteWithCursor(mediaStore, null, null, 'media');
+    await deleteWithCursor(mediaStore, 'dictionary', dictRange, 'media');
 
-    // Bulk delete tag metadata using range query\n    console.log(`Bulk deleting tag metadata for dictionary: ${dictName}`);\n    const tagStore = transaction.objectStore('tagMeta');\n    await bulkDeleteRange(tagStore, dictName, 'tagMeta');
+    // Bulk delete tag metadata
+    console.log(`Bulk deleting tag metadata for dictionary: ${dictName}`);
+    const tagStore = transaction.objectStore('tagMeta');
+    await deleteWithCursor(tagStore, 'dictionary', dictRange, 'tagMeta');
 
-    // Bulk delete term metadata using range query\n    console.log(`Bulk deleting term metadata for dictionary: ${dictName}`);\n    const termMetaStore = transaction.objectStore('termMeta');\n    await bulkDeleteRange(termMetaStore, dictName, 'termMeta');
+    // Bulk delete term metadata
+    console.log(`Bulk deleting term metadata for dictionary: ${dictName}`);
+    const termMetaStore = transaction.objectStore('termMeta');
+    await deleteWithCursor(termMetaStore, 'dictionary', dictRange, 'termMeta');
 
-    // Bulk delete kanji metadata using range query\n    console.log(`Bulk deleting kanji metadata for dictionary: ${dictName}`);\n    const kanjiMetaStore = transaction.objectStore('kanjiMeta');\n    await bulkDeleteRange(kanjiMetaStore, dictName, 'kanjiMeta');
+    // Bulk delete kanji metadata
+    console.log(`Bulk deleting kanji metadata for dictionary: ${dictName}`);
+    const kanjiMetaStore = transaction.objectStore('kanjiMeta');
+    await deleteWithCursor(kanjiMetaStore, 'dictionary', dictRange, 'kanjiMeta');
 
     return new Promise((resolve, reject) => {
       transaction.oncomplete = () => {
@@ -729,24 +755,22 @@ class StructuredDictionaryDatabase {
     });
   }
 
-  // Get all terms for a specific dictionary
+  // Get all terms for a specific dictionary using dictionary index
   async getAllTerms(dictName) {
     if (!this.db) await this.open();
 
     const transaction = this.db.transaction(['terms'], 'readonly');
     const store = transaction.objectStore('terms');
+    const index = store.index('dictionary');
 
     return new Promise((resolve, reject) => {
       const terms = [];
-      const request = store.openCursor();
+      const request = index.openCursor(IDBKeyRange.only(dictName));
 
       request.onsuccess = (event) => {
         const cursor = event.target.result;
         if (cursor) {
-          // Check if this term belongs to our dictionary
-          if (cursor.value.dictionary === dictName) {
-            terms.push(cursor.value);
-          }
+          terms.push(cursor.value);
           cursor.continue();
         } else {
           resolve(terms);
@@ -1129,7 +1153,7 @@ class StructuredDictionaryDatabase {
     return [...new Set(substrings)];
   }
 
-  // Get actual term counts for verification
+  // Get actual term counts for verification using dictionary index
   async getActualTermCounts() {
     if (!this.db) await this.open();
 
@@ -1141,43 +1165,21 @@ class StructuredDictionaryDatabase {
       const termsStore = transaction.objectStore('terms');
       const termMetaStore = transaction.objectStore('termMeta');
 
-      // Count terms for this dictionary
-      const termsCount = await new Promise((resolve, reject) => {
-        let termCount = 0;
-        const request = termsStore.openCursor();
+      const dictRange = IDBKeyRange.only(dict.title);
 
-        request.onsuccess = (event) => {
-          const cursor = event.target.result;
-          if (cursor) {
-            // Check if this term belongs to our dictionary
-            if (cursor.value.dictionary === dict.title) {
-              termCount++;
-            }
-            cursor.continue();
-          } else {
-            resolve(termCount);
-          }
-        };
+      // Count terms for this dictionary using index
+      const termsCount = await new Promise((resolve, reject) => {
+        const index = termsStore.index('dictionary');
+        const request = index.count(dictRange);
+        request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
       });
 
-      // Count termMeta entries for this dictionary
+      // Count termMeta entries for this dictionary using index
       const termMetaCount = await new Promise((resolve, reject) => {
-        let metaCount = 0;
-        const request = termMetaStore.openCursor();
-
-        request.onsuccess = (event) => {
-          const cursor = event.target.result;
-          if (cursor) {
-            // Check if this termMeta belongs to our dictionary
-            if (cursor.value.dictionary === dict.title) {
-              metaCount++;
-            }
-            cursor.continue();
-          } else {
-            resolve(metaCount);
-          }
-        };
+        const index = termMetaStore.index('dictionary');
+        const request = index.count(dictRange);
+        request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
       });
 

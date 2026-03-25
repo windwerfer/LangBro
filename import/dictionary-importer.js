@@ -210,7 +210,7 @@ class DictionaryImporter {
           }
         });
         
-        await importer.importDictionary(await db.open(), job.fileBlob, { job });
+        await importer.importDictionary(db, job.fileBlob, { job });
       }
 
       // Finalize job
