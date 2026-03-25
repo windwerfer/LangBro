@@ -529,7 +529,7 @@ class StructuredDictionaryDatabase {
 
     return new Promise((resolve, reject) => {
       const request = store.put(metadata);
-      request.onsuccess = () => resolve();
+      request.onsuccess = () => {}; // Handled by oncomplete
       request.onerror = () => reject(request.error);
       transaction.oncomplete = () => resolve();
     });
@@ -542,32 +542,15 @@ class StructuredDictionaryDatabase {
     const transaction = this.db.transaction([type], 'readwrite');
     const store = transaction.objectStore(type);
 
-    let stored = 0;
-    const batchSize = 500; // Smaller batches for streaming
-
-    for (let i = 0; i < items.length; i += batchSize) {
-      const batch = items.slice(i, Math.min(i + batchSize, items.length));
-
-      // Add dictionary reference if not present
-      batch.forEach(item => {
-        if (!item.dictionary) item.dictionary = dictionary;
-      });
-
-      const putPromises = batch.map(item => this._put(store, item));
-      await Promise.all(putPromises);
-
-      stored += batch.length;
-
-      if (progressCallback && stored % 1000 === 0) {
-        progressCallback(`${type}: ${stored}/${items.length}`);
-      }
-
-      // Yield control
-      await new Promise(resolve => setTimeout(resolve, 0));
-    }
+    // Process everything in a single transaction to avoid auto-commit issues.
+    // The caller (importer) is responsible for chunking to keep transactions manageable.
+    items.forEach(item => {
+      if (!item.dictionary) item.dictionary = dictionary;
+      store.put(item);
+    });
 
     return new Promise((resolve, reject) => {
-      transaction.oncomplete = () => resolve(stored);
+      transaction.oncomplete = () => resolve(items.length);
       transaction.onerror = () => reject(transaction.error);
     });
   }
