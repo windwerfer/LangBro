@@ -1,234 +1,423 @@
 // import-utils.js - Shared utilities for efficient dictionary imports
-// Provides Web Worker management, chunked processing, and memory-efficient operations
+// Provides Web Worker management, chunked processing, streaming, and memory-efficient operations
 
 class ImportUtils {
   /**
-   * Creates and manages a Web Worker for import operations
-   * @param {string} workerScript - Path to the worker script
-   * @returns {Promise<Worker>} Configured worker instance
+   * Generates a fast fingerprint for a large file without reading the whole thing.
+   * Uses file size, last modified, and small samples from start, middle, and end.
+   * @param {File} file - The file to fingerprint
+   * @returns {Promise<string>} A unique fingerprint string
    */
-  static async createImportWorker(workerScript) {
+  static async generateSmartHash(file) {
+    const size = file.size;
+    const lastModified = file.lastModified;
+    const sampleSize = 1024; // Bytes to sample per chunk
+    const chunkSize = 2 * 1024 * 1024; // 2MB to read for sampling
+
+    const chunks = [];
+    
+    // Start chunk
+    chunks.push(await file.slice(0, chunkSize).arrayBuffer());
+    
+    // Middle chunk
+    if (size > chunkSize * 3) {
+      const mid = Math.floor(size / 2) - Math.floor(chunkSize / 2);
+      chunks.push(await file.slice(mid, mid + chunkSize).arrayBuffer());
+    }
+    
+    // End chunk
+    if (size > chunkSize) {
+      chunks.push(await file.slice(size - chunkSize, size).arrayBuffer());
+    }
+
+    // Combine metadata and samples into a string for hashing
+    const samples = chunks.map(c => {
+      const u8 = new Uint8Array(c).slice(0, sampleSize);
+      let hex = '';
+      for (let i = 0; i < u8.length; i++) {
+        hex += u8[i].toString(16).padStart(2, '0');
+      }
+      return hex;
+    });
+
+    const dataString = `${size}_${lastModified}_${samples.join('_')}`;
+    
+    // Simple but effective string hash
+    let hash = 0;
+    for (let i = 0; i < dataString.length; i++) {
+      const char = dataString.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    
+    return `f_${size}_${(hash >>> 0).toString(36)}`;
+  }
+
+  /**
+   * Checks if enough disk space is available (approximate)
+   * @param {number} requiredBytes - Bytes needed
+   * @returns {Promise<Object|null>} Space estimate or null if unavailable
+   */
+  static async checkDiskSpace(requiredBytes) {
+    if (navigator.storage && navigator.storage.estimate) {
+      const estimate = await navigator.storage.estimate();
+      const available = estimate.quota - estimate.usage;
+      return {
+        available,
+        isLow: available < requiredBytes * 2, // Require 2x for safety during import
+        quota: estimate.quota,
+        usage: estimate.usage
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Detect dictionary format from ZIP files
+   * @param {JSZip} zip - Loaded JSZip instance
+   * @returns {string} 'stardict' or 'yomitan'
+   * @throws {Error} if format unrecognized
+   */
+  static detectFormat(zip) {
+    const files = Object.keys(zip.files);
+    const hasIfo = files.some(f => f.endsWith('.ifo'));
+    const hasIdx = files.some(f => f.endsWith('.idx') || f.endsWith('.idx.gz'));
+    const hasDict = files.some(f => f.endsWith('.dict') || f.endsWith('.dict.gz') || f.endsWith('.dict.dz'));
+    const hasYomitanIndex = files.some(f => f === 'index.json');
+    const hasYomitanTerms = files.some(f => f === 'term_bank_1.json' || f === 'term_bank_2.json');
+
+    if (hasIfo && hasIdx && hasDict) return 'stardict';
+    if (hasYomitanIndex || hasYomitanTerms) return 'yomitan';
+    throw new Error('Unrecognized dictionary format');
+  }
+
+  /**
+   * Extract all non-directory files from ZIP as Map<filename, Uint8Array>
+   * @param {JSZip} zip - Loaded JSZip instance
+   * @returns {Promise<Map<string, Uint8Array>>}
+   */
+  static async extractZipFiles(zip) {
+    const files = new Map();
+    for (const [fname, entry] of Object.entries(zip.files)) {
+      if (!entry.dir) {
+        files.set(fname, await entry.async('uint8array'));
+      }
+    }
+    return files;
+  }
+
+  /**
+   * Creates and initializes a Web Worker
+   * @param {string} scriptPath - Path to worker script (defaults to import-worker.js)
+   * @returns {Promise<Worker>}
+   */
+  static async createWorker(scriptPath = 'import-worker.js') {
     return new Promise((resolve, reject) => {
       try {
-        const worker = new Worker(chrome.runtime.getURL(workerScript));
-
-        // Set up error handling
-        worker.onerror = (error) => {
-          console.error('Import worker error:', error);
-          reject(new Error(`Worker error: ${error.message}`));
-        };
-
-        // Wait for worker ready signal
-        const readyHandler = (event) => {
-          if (event.data.type === 'WORKER_READY') {
-            worker.removeEventListener('message', readyHandler);
+        const worker = new Worker(chrome.runtime.getURL(scriptPath));
+        
+        worker.onerror = e => reject(new Error(`Worker error: ${e.message}`));
+        
+        const onMsg = e => {
+          if (e.data.type === 'WORKER_READY') {
+            worker.removeEventListener('message', onMsg);
             resolve(worker);
           }
         };
-
-        worker.addEventListener('message', readyHandler);
-
-        // Initialize worker
-        worker.postMessage({ type: 'INIT' });
-
-      } catch (error) {
-        reject(new Error(`Failed to create worker: ${error.message}`));
+        
+        worker.addEventListener('message', onMsg);
+        worker.postMessage({type: 'INIT'});
+      } catch (err) {
+        reject(new Error(`Failed to initialize worker: ${err.message}`));
       }
     });
   }
 
   /**
-   * Processes data in chunks with progress callbacks
-   * @param {Array} data - Data to process
-   * @param {number} chunkSize - Size of each chunk
-   * @param {Function} processor - Function to process each chunk
-   * @param {Function} progressCallback - Called with progress updates
-   * @param {Function} shouldCancel - Function that returns true if operation should cancel
+   * Send a task to a worker and handle its lifecycle
+   * @param {Worker} worker - The worker instance
+   * @param {string} taskType - Name of the task
+   * @param {Object} data - Data to send
+   * @param {Object} options - Callbacks and transferables
+   * @returns {Promise<any>} Resolves when task completes
    */
-  static async processInChunks(data, chunkSize, processor, progressCallback = null, shouldCancel = () => false) {
-    const totalItems = data.length;
-    let processedItems = 0;
+  static async runWorkerTask(worker, taskType, data, { onChunk, onProgress, transfer = [] } = {}) {
+    const requestId = Date.now() + Math.random();
+    
+    return new Promise((resolve, reject) => {
+      const onMsg = e => {
+        if (e.data.requestId !== requestId) return;
+        
+        const { type, chunk, progress, error, result } = e.data;
+        
+        if (type === 'CHUNK') onChunk?.(chunk);
+        if (type === 'PROGRESS') onProgress?.(progress);
+        if (type === 'SUCCESS') {
+          worker.removeEventListener('message', onMsg);
+          resolve(result);
+        }
+        if (type === 'ERROR') {
+          worker.removeEventListener('message', onMsg);
+          reject(new Error(error.message || 'Worker task failed'));
+        }
+      };
+      
+      worker.addEventListener('message', onMsg);
+      worker.postMessage({ type: taskType, data, requestId }, transfer);
+    });
+  }
 
-    for (let i = 0; i < totalItems; i += chunkSize) {
-      if (shouldCancel()) {
-        throw new Error('Operation cancelled');
-      }
+  /**
+   * Create a pool of workers for parallel processing
+   * @param {number} size - Number of workers
+   * @returns {Promise<Object>} Worker pool interface
+   */
+  static async createWorkerPool(size = navigator.hardwareConcurrency || 4) {
+    const workers = [];
+    const queue = [];
 
-      const chunk = data.slice(i, i + chunkSize);
-      await processor(chunk, i, totalItems);
-
-      processedItems += chunk.length;
-
-      if (progressCallback) {
-        const progress = Math.round((processedItems / totalItems) * 100);
-        progressCallback(progress, processedItems, totalItems);
-      }
-
-      // Yield control to prevent blocking
-      await this.yieldToEventLoop();
+    for (let i = 0; i < size; i++) {
+      const worker = await this.createWorker();
+      workers.push({
+        instance: worker,
+        id: i,
+        busy: false
+      });
     }
+
+    const getAvailableWorker = () => workers.find(w => !w.busy);
+
+    const processQueue = async () => {
+      if (queue.length === 0) return;
+      
+      const worker = getAvailableWorker();
+      if (!worker) return;
+
+      const { taskType, data, options, resolve, reject } = queue.shift();
+      worker.busy = true;
+
+      try {
+        const result = await this.runWorkerTask(worker.instance, taskType, data, options);
+        resolve(result);
+      } catch (err) {
+        reject(err);
+      } finally {
+        worker.busy = false;
+        processQueue();
+      }
+    };
+
+    return {
+      execute: (taskType, data, options = {}) => {
+        return new Promise((resolve, reject) => {
+          queue.push({ taskType, data, options, resolve, reject });
+          processQueue();
+        });
+      },
+      terminate: () => {
+        workers.forEach(w => w.instance.terminate());
+        queue.length = 0;
+      },
+      getStats: () => ({
+        total: workers.length,
+        busy: workers.filter(w => w.busy).length,
+        queued: queue.length
+      })
+    };
   }
 
   /**
-   * Yields control to the event loop to prevent blocking
-   */
-  static yieldToEventLoop() {
-    return new Promise(resolve => setTimeout(resolve, 0));
-  }
-
-  /**
-   * Efficiently decodes UTF-8 strings from Uint8Array with caching
-   * @param {Uint8Array} buffer - Buffer to decode
-   * @param {number} start - Start offset
-   * @param {number} length - Length to decode
-   * @returns {string} Decoded string
+   * Decodes UTF-8 strings from Uint8Array efficiently
    */
   static decodeUTF8(buffer, start = 0, length = buffer.length - start) {
-    // Use TextDecoder for better performance
     const slice = buffer.subarray(start, start + length);
     return new TextDecoder('utf-8').decode(slice);
   }
 
   /**
-   * Memory-efficient buffer slicing that reuses memory when possible
-   * @param {Uint8Array} buffer - Source buffer
-   * @param {number} start - Start offset
-   * @param {number} end - End offset
-   * @returns {Uint8Array} Sliced buffer
+   * Reads a big-endian uint32 from buffer correctly (unsigned)
    */
-  static sliceBuffer(buffer, start, end) {
-    return buffer.subarray(start, end);
+  static readUint32(buffer, offset) {
+    return ((buffer[offset] << 24) | (buffer[offset + 1] << 16) | (buffer[offset + 2] << 8) | buffer[offset + 3]) >>> 0;
   }
 
   /**
-   * Creates a cancellable operation wrapper
-   * @param {Function} operation - The operation to wrap
-   * @returns {Object} Object with operation promise and cancel function
+   * Yields control to the event loop
    */
-  static createCancellableOperation(operation) {
-    let cancelled = false;
-
-    const cancel = () => {
-      cancelled = true;
-    };
-
-    const promise = (async () => {
-      try {
-        const result = await operation(() => cancelled);
-        if (cancelled) {
-          throw new Error('Operation cancelled');
-        }
-        return result;
-      } catch (error) {
-        if (cancelled) {
-          throw new Error('Operation cancelled');
-        }
-        throw error;
+  static yieldToEventLoop() {
+    return new Promise(resolve => {
+      if (typeof setImmediate !== 'undefined') {
+        setImmediate(resolve);
+      } else {
+        setTimeout(resolve, 0);
       }
-    })();
+    });
+  }
 
-    return { promise, cancel };
+  /**
+   * Decompress if gz/dz using pako
+   */
+  static decompressIfNeeded(buffer, ext) {
+    if (typeof pako === 'undefined') {
+      throw new Error('pako library not loaded');
+    }
+    const u8 = new Uint8Array(buffer);
+    if (ext.endsWith('.gz') || ext.endsWith('.dz')) {
+      return pako.inflate(u8, { to: 'uint8array' });
+    }
+    return u8;
   }
 
   /**
    * Formats progress messages consistently
-   * @param {string} operation - Current operation name
-   * @param {number} current - Current progress
-   * @param {number} total - Total items
-   * @param {string} unit - Unit name (e.g., 'entries', 'bytes')
-   * @returns {string} Formatted progress message
    */
   static formatProgress(operation, current, total, unit = 'entries') {
-    const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
-    return `${operation}: ${current}/${total} ${unit} (${percentage}%)`;
+    const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+    return `${operation}: ${current.toLocaleString()}/${total.toLocaleString()} ${unit} (${pct}%)`;
   }
 
   /**
-   * Validates file size and provides memory usage estimates
-   * @param {number} fileSize - File size in bytes
-   * @param {number} estimatedEntries - Estimated number of entries
-   * @returns {Object} Validation result with warnings
+   * Validates file size and provides memory usage warnings
    */
   static validateImportSize(fileSize, estimatedEntries) {
     const warnings = [];
-    const recommendations = [];
-
-    // Memory usage estimates (rough)
-    const estimatedMemoryMB = Math.ceil((fileSize * 2 + estimatedEntries * 200) / (1024 * 1024));
-
-    if (estimatedMemoryMB > 500) {
-      warnings.push(`Large import detected: ~${estimatedMemoryMB}MB memory usage expected`);
-      recommendations.push('Consider importing smaller dictionaries or in batches');
+    const fileSizeMB = Math.round(fileSize / (1024 * 1024));
+    
+    if (fileSizeMB > 500) {
+      warnings.push(`Large file: ${fileSizeMB}MB (high memory usage expected)`);
     }
-
-    if (estimatedEntries > 100000) {
-      warnings.push(`Large dictionary: ${estimatedEntries.toLocaleString()} entries`);
-      recommendations.push('Import may take several minutes');
+    if (estimatedEntries > 1000000) {
+      warnings.push(`Huge dictionary: ${estimatedEntries.toLocaleString()} entries`);
     }
-
+    
     return {
       valid: warnings.length === 0,
       warnings,
-      recommendations,
-      estimatedMemoryMB,
+      fileSizeMB,
       estimatedEntries
     };
   }
 
   /**
-   * Safely terminates a Web Worker
-   * @param {Worker} worker - Worker to terminate
+   * Memory-efficient JSON streaming parser for large Yomitan files
+   * @param {Uint8Array} data - Raw UTF-8 bytes of a JSON array
+   * @param {number} chunkSize - Read buffer size
    */
-  static terminateWorker(worker) {
-    if (worker && typeof worker.terminate === 'function') {
-      try {
-        worker.terminate();
-      } catch (error) {
-        console.warn('Error terminating worker:', error);
-      }
-    }
-  }
+  static async *streamJsonArray(data, chunkSize = 1024 * 1024) {
+    let position = 0;
+    let buffer = '';
+    const decoder = new TextDecoder('utf-8');
+    
+    let inString = false;
+    let escapeNext = false;
+    let braceDepth = 0;
+    let bracketDepth = 0;
+    let objectStart = -1;
 
-  /**
-   * Creates a timeout promise that rejects after specified time
-   * @param {number} timeoutMs - Timeout in milliseconds
-   * @returns {Promise} Promise that rejects on timeout
-   */
-  static createTimeout(timeoutMs) {
-    return new Promise((_, reject) => {
-      setTimeout(() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)), timeoutMs);
-    });
-  }
+    while (position < data.length) {
+      const size = Math.min(chunkSize, data.length - position);
+      const chunk = data.subarray(position, position + size);
+      position += size;
 
-  /**
-   * Combines multiple promises with timeout and cancellation
-   * @param {Promise[]} promises - Promises to combine
-   * @param {number} timeoutMs - Timeout in milliseconds
-   * @param {Function} shouldCancel - Cancellation check function
-   * @returns {Promise} Combined promise
-   */
-  static async withTimeoutAndCancellation(promises, timeoutMs, shouldCancel = () => false) {
-    const timeoutPromise = this.createTimeout(timeoutMs);
+      buffer += decoder.decode(chunk, { stream: true });
 
-    while (!shouldCancel()) {
-      try {
-        return await Promise.race([...promises, timeoutPromise]);
-      } catch (error) {
-        if (error.message.includes('timed out')) {
-          throw error;
+      let i = 0;
+      while (i < buffer.length) {
+        const char = buffer[i];
+
+        if (escapeNext) {
+          escapeNext = false;
+          i++;
+          continue;
         }
-        // Retry on other errors unless cancelled
-        await this.yieldToEventLoop();
-      }
-    }
 
-    throw new Error('Operation cancelled');
+        if (char === '\\') {
+          escapeNext = true;
+          i++;
+          continue;
+        }
+
+        if (inString) {
+          if (char === '"') inString = false;
+          i++;
+          continue;
+        }
+
+        if (char === '"') {
+          inString = true;
+          i++;
+          continue;
+        }
+
+        if (char === '{') {
+          if (braceDepth === 0 && bracketDepth === 1) objectStart = i;
+          braceDepth++;
+        } else if (char === '}') {
+          braceDepth--;
+          if (braceDepth === 0 && bracketDepth === 1 && objectStart !== -1) {
+            const objectStr = buffer.substring(objectStart, i + 1);
+            try {
+              yield JSON.parse(objectStr);
+            } catch (e) {
+              console.warn('JSON stream parse error:', e.message);
+            }
+            objectStart = -1;
+          }
+        } else if (char === '[') {
+          bracketDepth++;
+        } else if (char === ']') {
+          bracketDepth--;
+        }
+
+        i++;
+      }
+
+      // Keep only the part of the buffer from objectStart onwards
+      if (objectStart !== -1) {
+        buffer = buffer.substring(objectStart);
+        objectStart = 0;
+      } else {
+        buffer = '';
+      }
+
+      await this.yieldToEventLoop();
+    }
+  }
+
+  /**
+   * Memory-efficient batch processor
+   */
+  static createBatchProcessor(batchSize = 1000, processFn) {
+    let batch = [];
+    let total = 0;
+
+    return {
+      add: async (item) => {
+        batch.push(item);
+        if (batch.length >= batchSize) {
+          await processFn(batch);
+          total += batch.length;
+          batch = [];
+          await ImportUtils.yieldToEventLoop();
+        }
+      },
+      flush: async () => {
+        if (batch.length > 0) {
+          await processFn(batch);
+          total += batch.length;
+          batch = [];
+        }
+        return total;
+      }
+    };
   }
 }
 
-// Export for use in other modules
+// Export
 if (typeof module !== 'undefined') {
   module.exports = ImportUtils;
 } else {
   (typeof self !== 'undefined' ? self : window).ImportUtils = ImportUtils;
+  // Alias for compatibility during migration
+  (typeof self !== 'undefined' ? self : window).DictImportUtils = ImportUtils;
 }
