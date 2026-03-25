@@ -74,8 +74,8 @@ class StarDictImporter {
     console.log(`StarDict: Starting streaming import for ${dictName}`, metadata);
     const db = await this.getDB();
     
-    console.log('StarDict: Creating worker pool...');
-    const workerPool = await this.utils.createWorkerPool(3);
+    console.log('StarDict: Creating worker pool (size: 1)...');
+    const workerPool = await this.utils.createWorkerPool(1);
     console.log('StarDict: Worker pool created successfully');
     
     // Chunk size 1000 for stability and crash recovery
