@@ -110,15 +110,24 @@ class ImportUtils {
    * @param {string} scriptPath - Path to worker script (defaults to import-worker.js)
    * @returns {Promise<Worker>}
    */
-  static async createWorker(scriptPath = 'import-worker.js') {
+  static async createWorker(scriptPath = 'import/import-worker.js') {
     return new Promise((resolve, reject) => {
       try {
         const worker = new Worker(chrome.runtime.getURL(scriptPath));
         
-        worker.onerror = e => reject(new Error(`Worker error: ${e.message}`));
+        worker.onerror = e => {
+          console.error('Worker error event:', e);
+          reject(new Error(`Worker error: ${e.message || 'Unknown error (could be load failure or CSP violation)'}`));
+        };
         
         const onMsg = e => {
-          if (e.data.type === 'WORKER_READY') {
+          // The worker wraps the response in a SUCCESS type
+          const data = e.data;
+          if (data.type === 'SUCCESS' && data.result && data.result.type === 'WORKER_READY') {
+            worker.removeEventListener('message', onMsg);
+            resolve(worker);
+          } else if (data.type === 'WORKER_READY') {
+            // Support direct response just in case
             worker.removeEventListener('message', onMsg);
             resolve(worker);
           }
@@ -213,16 +222,16 @@ class ImportUtils {
           processQueue();
         });
       },
-      broadcast: (taskType, data, transfer = []) => {
-        const promises = workers.map((w, index) => {
-          // If we have transferables, we can only transfer them to the LAST worker.
-          // For previous workers, we must not transfer, which causes cloning.
-          // Note: In some environments, we might need to manually clone data if transfer is used.
-          const isLast = index === workers.length - 1;
+      broadcast: async (taskType, data, transfer = []) => {
+        const results = [];
+        for (let i = 0; i < workers.length; i++) {
+          const w = workers[i];
+          const isLast = i === workers.length - 1;
+          // Only transfer on the last one, otherwise it clones
           const currentTransfer = isLast ? transfer : [];
-          return ImportUtils.runWorkerTask(w.instance, taskType, data, { transfer: currentTransfer });
-        });
-        return Promise.all(promises);
+          results.push(await ImportUtils.runWorkerTask(w.instance, taskType, data, { transfer: currentTransfer }));
+        }
+        return results;
       },
       terminate: () => {
         workers.forEach(w => w.instance.terminate());

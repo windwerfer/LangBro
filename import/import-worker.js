@@ -1,8 +1,16 @@
 // import-worker.js - Web Worker for heavy dictionary import operations
 // Handles CPU-intensive parsing in background thread to prevent UI blocking
 
+console.log('Worker: Starting initialization...');
+
 // Import utilities (worker context)
-importScripts('../pako.min.js', './import-utils.js');
+try {
+  importScripts('../pako.min.js', 'import-utils.js');
+  console.log('Worker: Dependencies loaded successfully');
+} catch (e) {
+  console.error('Worker: Failed to load dependencies', e);
+  throw e;
+}
 
 self.cachedData = new Map();
 

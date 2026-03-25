@@ -121,30 +121,39 @@ class DictionaryImporter {
    * Main processing loop
    */
   async processQueue() {
-    if (this.isProcessing) return;
+    if (this.isProcessing) {
+      console.log('Importer: Queue processing already active, skipping.');
+      return;
+    }
+    
     this.isProcessing = true;
+    console.log('Importer: Starting queue processing...');
 
     try {
       const db = await this.getStructuredDB();
       const queue = await db.getImportQueue();
       
-      const pendingJobs = queue.filter(j => j.status === 'pending' || j.status === 'importing' || j.status === 'interrupted');
+      const pendingJobs = queue.filter(j => j.status === 'pending' || j.status === 'importing');
+      console.log(`Importer: Found ${pendingJobs.length} pending jobs.`);
       
       if (pendingJobs.length === 0) {
+        console.log('Importer: No more pending jobs.');
         this.isProcessing = false;
         return;
       }
 
       // Process only one job (the first pending one)
       const job = pendingJobs[0];
+      console.log('Importer: Running job:', job.id, job.title);
       await this.runJob(job);
       
       // Recursively continue until empty
+      console.log('Importer: Job finished, checking for next job...');
       this.isProcessing = false;
       this.processQueue();
       
     } catch (error) {
-      console.error('Queue processing error:', error);
+      console.error('Importer: Queue processing error:', error);
       this.isProcessing = false;
     }
   }
@@ -157,13 +166,17 @@ class DictionaryImporter {
     
     try {
       this.showStatus(`Starting import: ${job.title}`, 'info');
+      console.log(`Importer: Marking job ${job.id} as importing...`);
       await db.updateImportJob(job.id, { status: 'importing' });
       this.checkAndDisplayQueue();
 
       // Load ZIP from the Blob stored in IndexedDB
+      console.log(`Importer: Loading ZIP for ${job.title} (${job.fileBlob.size} bytes)...`);
       const zip = await JSZip.loadAsync(job.fileBlob);
+      console.log('Importer: ZIP loaded successfully');
       
       if (job.format === 'stardict') {
+        console.log('Importer: Starting StarDict importer...');
         const importer = new StarDictImporter({
           showStatus: (msg, type) => {
             this.showStatus(`[${job.title}] ${msg}`, type);
@@ -179,7 +192,9 @@ class DictionaryImporter {
         await importer.importFromZip(zip, job);
         
       } else if (job.format === 'yomitan') {
+        console.log('Importer: Starting Yomitan importer...');
         const importer = new YomitanDictionaryImporter();
+        // ... (rest of yomitan logic remains same)
         importer.setStatusCallback((msg) => this.showStatus(`[${job.title}] ${msg}`, 'info'));
         importer.setProgressCallback((progress) => {
           const p = Math.round((progress.index / progress.count) * 100);
@@ -199,13 +214,15 @@ class DictionaryImporter {
       }
 
       // Finalize job
+      console.log(`Importer: Finalizing job ${job.id}...`);
       await db.registerImport(job.id, job.title);
       await db.deleteImportJob(job.id);
       this.showStatus(`Successfully imported: ${job.title}`, 'success');
+      console.log(`Importer: Job ${job.id} finalized.`);
       this.loadCurrentDict();
       
     } catch (error) {
-      console.error(`Import job ${job.id} failed:`, error);
+      console.error(`Importer: Import job ${job.id} failed:`, error);
       await db.updateImportJob(job.id, { status: 'interrupted', lastError: error.message });
       this.showStatus(`Job failed: ${job.title}. ${error.message}`, 'error');
     } finally {
