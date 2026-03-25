@@ -588,17 +588,33 @@ class StructuredDictionaryDatabase {
   async clearAll() {
     if (!this.db) await this.open();
 
-    const stores = ['dictionaries', 'terms', 'kanji', 'media', 'tagMeta', 'termMeta', 'kanjiMeta'];
-    const transaction = this.db.transaction(stores, 'readwrite');
+    const allStores = [
+      'dictionaries', 'terms', 'kanji', 'media', 
+      'tagMeta', 'termMeta', 'kanjiMeta',
+      'import_queue', 'import_registry'
+    ];
+    
+    // Only include stores that actually exist in the database
+    const availableStores = allStores.filter(name => this.db.objectStoreNames.contains(name));
+    
+    if (availableStores.length === 0) return;
 
-    for (const storeName of stores) {
+    const transaction = this.db.transaction(availableStores, 'readwrite');
+
+    for (const storeName of availableStores) {
       const store = transaction.objectStore(storeName);
       store.clear();
     }
 
     return new Promise((resolve, reject) => {
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
+      transaction.oncomplete = () => {
+        console.log(`All data cleared from ${availableStores.length} stores`);
+        resolve();
+      };
+      transaction.onerror = () => {
+        console.error('Failed to clear database:', transaction.error);
+        reject(transaction.error);
+      };
     });
   }
 
@@ -663,8 +679,10 @@ class StructuredDictionaryDatabase {
   async deleteDictionary(dictName, progressCallback = null) {
     if (!this.db) await this.open();
 
-    const stores = ['dictionaries', 'terms', 'kanji', 'media', 'tagMeta', 'termMeta', 'kanjiMeta'];
-    const transaction = this.db.transaction(stores, 'readwrite');
+    const allStores = ['dictionaries', 'terms', 'kanji', 'media', 'tagMeta', 'termMeta', 'kanjiMeta', 'import_registry', 'import_queue'];
+    const availableStores = allStores.filter(name => this.db.objectStoreNames.contains(name));
+    
+    const transaction = this.db.transaction(availableStores, 'readwrite');
 
     let totalDeleted = 0;
     let lastProgressTime = Date.now();
@@ -672,6 +690,46 @@ class StructuredDictionaryDatabase {
     // Delete dictionary metadata
     const dictStore = transaction.objectStore('dictionaries');
     dictStore.delete(dictName);
+
+    // Also remove from import registry if it exists
+    if (availableStores.includes('import_registry')) {
+      const registryStore = transaction.objectStore('import_registry');
+      await new Promise((resolve) => {
+        const registryReq = registryStore.openCursor();
+        registryReq.onsuccess = (event) => {
+          const cursor = event.target.result;
+          if (cursor) {
+            if (cursor.value.title === dictName) {
+              cursor.delete();
+            }
+            cursor.continue();
+          } else {
+            resolve();
+          }
+        };
+        registryReq.onerror = () => resolve();
+      });
+    }
+
+    // Also remove from import queue if it exists
+    if (availableStores.includes('import_queue')) {
+      const queueStore = transaction.objectStore('import_queue');
+      await new Promise((resolve) => {
+        const queueReq = queueStore.openCursor();
+        queueReq.onsuccess = (event) => {
+          const cursor = event.target.result;
+          if (cursor) {
+            if (cursor.value.title === dictName) {
+              cursor.delete();
+            }
+            cursor.continue();
+          } else {
+            resolve();
+          }
+        };
+        queueReq.onerror = () => resolve();
+      });
+    }
 
     // Helper function to delete with range queries where possible
     const deleteWithCursor = (store, indexName, keyRange, description) => {
