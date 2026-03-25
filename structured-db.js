@@ -4,11 +4,12 @@
 class StructuredDictionaryDatabase {
   constructor() {
     this.db = null;
-    this.dbVersion = 7; // Force upgrade to ensure termMeta and kanjiMeta object stores exist
+    this.dbVersion = 8; // Incremented for new import queue and registry stores
   }
 
   // Initialize database with structured schema
   async open() {
+    if (this.db) return this.db;
     return new Promise((resolve, reject) => {
       const request = indexedDB.open('YomitanDictionaryDB', this.dbVersion);
 
@@ -21,25 +22,42 @@ class StructuredDictionaryDatabase {
           db.createObjectStore('dictionaries', { keyPath: 'title' });
         }
         if (!db.objectStoreNames.contains('terms')) {
-          const termsStore = db.createObjectStore('terms', { keyPath: ['dictionary', 'expression', 'reading'] });
-          termsStore.createIndex('expression', ['dictionary', 'expression']);
-          termsStore.createIndex('expressionOnly', 'expression');
-          termsStore.createIndex('reading', ['dictionary', 'reading']);
+          // Changed to auto-increment for better performance with StarDict imports
+          const termsStore = db.createObjectStore('terms', { autoIncrement: true });
+          termsStore.createIndex('expression', 'expression', { unique: false });
+          termsStore.createIndex('dictionary', 'dictionary', { unique: false });
+          termsStore.createIndex('dict_expr', ['dictionary', 'expression'], { unique: false });
         }
         if (!db.objectStoreNames.contains('kanji')) {
-          db.createObjectStore('kanji', { keyPath: ['dictionary', 'character'] });
+          const kanjiStore = db.createObjectStore('kanji', { autoIncrement: true });
+          kanjiStore.createIndex('character', 'character', { unique: false });
+          kanjiStore.createIndex('dictionary', 'dictionary', { unique: false });
         }
         if (!db.objectStoreNames.contains('media')) {
-          db.createObjectStore('media', { keyPath: ['dictionary', 'path'] });
+          const mediaStore = db.createObjectStore('media', { autoIncrement: true });
+          mediaStore.createIndex('path', 'path', { unique: false });
+          mediaStore.createIndex('dictionary', 'dictionary', { unique: false });
         }
         if (!db.objectStoreNames.contains('tagMeta')) {
-          db.createObjectStore('tagMeta', { keyPath: ['dictionary', 'name'] });
+          db.createObjectStore('tagMeta', { autoIncrement: true });
         }
         if (!db.objectStoreNames.contains('termMeta')) {
-          db.createObjectStore('termMeta', { keyPath: ['dictionary', 'expression', 'mode'] });
+          db.createObjectStore('termMeta', { autoIncrement: true });
         }
         if (!db.objectStoreNames.contains('kanjiMeta')) {
-          db.createObjectStore('kanjiMeta', { keyPath: ['dictionary', 'character', 'mode'] });
+          db.createObjectStore('kanjiMeta', { autoIncrement: true });
+        }
+
+        // NEW: Import Queue Store
+        if (!db.objectStoreNames.contains('import_queue')) {
+          const queueStore = db.createObjectStore('import_queue', { keyPath: 'id' });
+          queueStore.createIndex('status', 'status', { unique: false });
+          queueStore.createIndex('addedDate', 'addedDate', { unique: false });
+        }
+
+        // NEW: Import Registry Store (Hashes of completed imports)
+        if (!db.objectStoreNames.contains('import_registry')) {
+          db.createObjectStore('import_registry', { keyPath: 'hash' });
         }
       };
 
@@ -52,6 +70,102 @@ class StructuredDictionaryDatabase {
       request.onerror = (event) => {
         console.error('Failed to open structured database:', event.target.error);
         reject(event.target.error);
+      };
+    });
+  }
+
+  // --- Import Queue Methods ---
+
+  async addToImportQueue(job) {
+    if (!this.db) await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction('import_queue', 'readwrite');
+      const store = tx.objectStore('import_queue');
+      const request = store.put({
+        ...job,
+        addedDate: Date.now(),
+        processedEntries: 0,
+        status: 'pending'
+      });
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async getImportQueue() {
+    if (!this.db) await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction('import_queue', 'readonly');
+      const store = tx.objectStore('import_queue');
+      const request = store.getAll();
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async updateImportJob(id, updates) {
+    if (!this.db) await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction('import_queue', 'readwrite');
+      const store = tx.objectStore('import_queue');
+      const getReq = store.get(id);
+      getReq.onsuccess = () => {
+        const data = getReq.result;
+        if (!data) return resolve();
+        Object.assign(data, updates);
+        store.put(data).onsuccess = () => resolve();
+      };
+      getReq.onerror = () => reject(getReq.error);
+    });
+  }
+
+  async deleteImportJob(id) {
+    if (!this.db) await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction('import_queue', 'readwrite');
+      const store = tx.objectStore('import_queue');
+      store.delete(id).onsuccess = () => resolve();
+    });
+  }
+
+  // --- Import Registry Methods ---
+
+  async registerImport(hash, title) {
+    if (!this.db) await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction('import_registry', 'readwrite');
+      const store = tx.objectStore('import_registry');
+      store.put({ hash, title, importDate: Date.now() }).onsuccess = () => resolve();
+    });
+  }
+
+  async checkImportHash(hash) {
+    if (!this.db) await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction('import_registry', 'readonly');
+      const store = tx.objectStore('import_registry');
+      const request = store.get(hash);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async removeImportHashByTitle(title) {
+    if (!this.db) await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction('import_registry', 'readwrite');
+      const store = tx.objectStore('import_registry');
+      const request = store.openCursor();
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (cursor) {
+          if (cursor.value.title === title) {
+            cursor.delete();
+          }
+          cursor.continue();
+        } else {
+          resolve();
+        }
       };
     });
   }
