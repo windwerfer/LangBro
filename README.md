@@ -3,6 +3,11 @@
 A Chrome/Firefox extension for looking up StarDict dictionary definitions by selecting words on web pages.
 Also includes Web dictionarys and AI lookups.
 
+** known bugs:
+ - wrong error message of failing to delet a dict
+ - importing yomitan dict works but the entry is still a json
+ - rich text formating not preserved on import
+
 ## Browser Compatibility
 
 ### For Chrome/Brave/Edge:
