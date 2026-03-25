@@ -55,7 +55,7 @@ class DictionaryImporter {
     for (const file of files) {
       try {
         // 1. Smart Fingerprint
-        const hash = await DictImportUtils.generateSmartHash(file);
+        const hash = await ImportUtils.generateSmartHash(file);
         
         // 2. Check Duplicate Registry
         const existing = await db.checkImportHash(hash);
@@ -70,7 +70,7 @@ class DictionaryImporter {
         }
 
         // 3. Check Disk Space
-        const space = await DictImportUtils.checkDiskSpace(file.size);
+        const space = await ImportUtils.checkDiskSpace(file.size);
         if (space && space.isLow) {
           const proceed = confirm(`Low disk space detected (${Math.round(space.available / (1024*1024))}MB available). Import anyway?`);
           if (!proceed) continue;
@@ -78,7 +78,7 @@ class DictionaryImporter {
 
         // 4. Load ZIP just enough to detect format and name
         const zip = await JSZip.loadAsync(file);
-        const format = DictImportUtils.detectFormat(zip);
+        const format = ImportUtils.detectFormat(zip);
         
         let title = file.name;
         if (format === 'stardict') {

@@ -214,6 +214,14 @@ class ImportUtils {
           processQueue();
         });
       },
+      broadcast: (taskType, data, transfer = []) => {
+        const promises = workers.map(w => {
+          // Clone data for each worker if not transferring, 
+          // or just send if it's the last one
+          return ImportUtils.runWorkerTask(w.instance, taskType, data, { transfer });
+        });
+        return Promise.all(promises);
+      },
       terminate: () => {
         workers.forEach(w => w.instance.terminate());
         queue.length = 0;

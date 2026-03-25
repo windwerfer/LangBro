@@ -2,14 +2,14 @@
 // Extracts .ifo/.idx/.dict → structured term chunks → progressive DB store
 
 class StarDictImporter {
-  constructor({ showStatus, getDB }) {
-    this.showStatus = showStatus;
-    this.getDB = getDB;
-    this.utils = typeof DictImportUtils !== 'undefined' ? DictImportUtils : null;
+  constructor(options = {}) {
+    this.showStatus = options.showStatus;
+    this.getDB = options.getDB;
+    this.utils = typeof ImportUtils !== 'undefined' ? ImportUtils : null;
   }
 
   async importFromZip(zip, job = null) {
-    if (!this.utils) throw new Error('DictImportUtils not loaded');
+    if (!this.utils) throw new Error('ImportUtils not loaded');
     
     // Resume detection
     const startOffset = job ? (job.processedEntries || 0) : 0;
@@ -35,7 +35,6 @@ class StarDictImporter {
 
   extractRequiredFiles(files) {
     const required = {};
-    let stylesCss = null;
     const ignore = ['.xoft', '.oft'];
 
     for (const [path, data] of files) {
@@ -44,9 +43,6 @@ class StarDictImporter {
       else if (path.match(/\.idx(\.gz)?$/)) { required.idx = data; required.idxName = path; }
       else if (path.match(/\.dict(\.gz|\.dz)?$/)) { required.dict = data; required.dictName = path; }
       else if (path.endsWith('.syn')) required.syn = data;
-      else if (path.endsWith('.res.zip')) {
-        // StarDict .res.zip styles extraction (simplified)
-      }
     }
     return required;
   }
@@ -87,37 +83,37 @@ class StarDictImporter {
         });
       }
 
-      this.showStatus('Building/Retrieving word index...', 'info');
+      this.showStatus('Preparing data...', 'info');
       const idxData = this.utils.decompressIfNeeded(required.idx, required.idxName);
-      
+      const dictData = this.utils.decompressIfNeeded(required.dict, required.dictName);
+
+      // Broadcast buffers to all workers ONCE to avoid redundant cloning in every chunk call
+      this.showStatus('Uploading index to workers...', 'info');
+      await workerPool.broadcast('CACHE_DATA', { idxData, dictData });
+
+      this.showStatus('Building index...', 'info');
       const indexResult = await workerPool.execute(
         'BUILD_STARDICT_INDEX',
-        { idxData, wordCount: metadata.wordcount }
+        { wordCount: metadata.wordcount }
       );
 
       const allWordOffsets = indexResult.wordOffsets;
-      const dictData = this.utils.decompressIfNeeded(required.dict, required.dictName);
 
       // Start from the last processed entry
       for (let i = totalProcessed; i < allWordOffsets.length; i += CHUNK_SIZE) {
         const chunkOffsets = allWordOffsets.slice(i, i + CHUNK_SIZE);
         
-        // Process this chunk
+        // Process this chunk using cached data
         const result = await workerPool.execute(
           'EXTRACT_STARDICT_DATA',
           {
             wordOffsets: chunkOffsets,
-            dictData,
             dictionaryName: dictName,
             chunkSize: 1000
           }
         );
 
         const terms = result.terms;
-        
-        // ATOMIC COMMIT: Terms + Progress
-        // In a real IndexedDB transaction, we'd wrap both. 
-        // Here we ensure terms are stored before updating progress.
         await db.storeBatch('terms', terms, dictName);
         
         totalProcessed += terms.length;
@@ -131,7 +127,7 @@ class StarDictImporter {
 
         const elapsed = (performance.now() - startTime) / 1000;
         const progress = Math.round((totalProcessed / metadata.wordcount) * 100);
-        this.showStatus(`Processed ${totalProcessed}/${metadata.wordcount} (${progress}%)`, 'info');
+        this.showStatus(`Importing: ${totalProcessed}/${metadata.wordcount} (${progress}%)`, 'info');
       }
 
       this.showStatus(`Import complete: ${totalProcessed} terms`, 'success');
@@ -146,3 +142,4 @@ class StarDictImporter {
 }
 
 window.StarDictImporter = StarDictImporter;
+

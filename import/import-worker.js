@@ -2,7 +2,9 @@
 // Handles CPU-intensive parsing in background thread to prevent UI blocking
 
 // Import utilities (worker context)
-importScripts('import-utils.js', 'dict-import-utils.js');
+importScripts('../pako.min.js', 'import-utils.js');
+
+self.cachedData = new Map();
 
 // Worker message handler
 self.onmessage = async function(event) {
@@ -17,12 +19,21 @@ self.onmessage = async function(event) {
         result = { type: 'WORKER_READY' };
         break;
 
+      case 'CACHE_DATA':
+        for (const [key, value] of Object.entries(data)) {
+          self.cachedData.set(key, value);
+        }
+        result = { cached: Object.keys(data) };
+        break;
+
       case 'BUILD_STARDICT_INDEX':
-        result = await buildStarDictIndex(data);
+        const buildIdxData = data.idxData || self.cachedData.get('idxData');
+        result = await buildStarDictIndex({ ...data, idxData: buildIdxData });
         break;
 
       case 'EXTRACT_STARDICT_DATA':
-        result = await extractStarDictData(data);
+        const extractDictData = data.dictData || self.cachedData.get('dictData');
+        result = await extractStarDictData({ ...data, dictData: extractDictData });
         break;
 
       case 'PARSE_YOMITAN_DATA':
@@ -100,8 +111,8 @@ async function buildStarDictIndex({ idxData, wordCount, chunkSize = 10000 }) {
         throw new Error(`Worker: Invalid offsets at word ${i + 1}: beyond file end`);
       }
 
-      const dictOffset = readUint32(idxData, offsetPos);
-      const dictSize = readUint32(idxData, offsetPos + 4);
+      const dictOffset = ImportUtils.readUint32(idxData, offsetPos);
+      const dictSize = ImportUtils.readUint32(idxData, offsetPos + 4);
 
       chunkOffsets.push({ word, startByte: pos, dictOffset, dictSize });
 
@@ -158,7 +169,7 @@ async function extractStarDictData({ wordOffsets, dictData, dictionaryName, chun
     const chunk = wordOffsets.slice(chunkStart, chunkEnd);
 
     for (const entry of chunk) {
-      const slice = ImportUtils.sliceBuffer(dictData, entry.dictOffset, entry.dictOffset + entry.dictSize);
+      const slice = dictData.subarray(entry.dictOffset, entry.dictOffset + entry.dictSize);
       const definition = ImportUtils.decodeUTF8(slice);
 
       const key = `${entry.word}|${entry.word}`; // expression|reading (same for StarDict)
@@ -315,22 +326,6 @@ async function processStarDictChunk({ metadata, idxReader, dictReader, synData, 
   const terms = [];
 
   try {
-    // Create streaming readers for this chunk
-    const idxStream = {
-      data: idxReader.data,
-      position: idxReader.startPos,
-      getPosition: function() { return this.position; },
-      isEOF: function() { return this.position >= idxReader.endPos; },
-      readNext: function() {
-        if (this.isEOF()) return null;
-        const remaining = idxReader.endPos - this.position;
-        const size = Math.min(1024, remaining);
-        const chunk = this.data.subarray(this.position, this.position + size);
-        this.position += size;
-        return chunk;
-      }
-    };
-
     // Process words in this chunk
     let currentWordIndex = wordStart;
     let pos = idxReader.startPos;
@@ -348,8 +343,8 @@ async function processStarDictChunk({ metadata, idxReader, dictReader, synData, 
 
       if (offsetPos + 8 > idxReader.data.length) break;
 
-      const dictOffset = readUint32(idxReader.data, offsetPos);
-      const dictSize = readUint32(idxReader.data, offsetPos + 4);
+      const dictOffset = ImportUtils.readUint32(idxReader.data, offsetPos);
+      const dictSize = ImportUtils.readUint32(idxReader.data, offsetPos + 4);
 
       // Extract definition from dict data
       if (dictOffset + dictSize <= dictReader.data.length) {
@@ -400,12 +395,13 @@ async function processStarDictChunk({ metadata, idxReader, dictReader, synData, 
  */
 async function processYomitanTerms({ content, version, dictionary, filename, fileIndex }) {
   const startTime = performance.now();
-  const terms = [];
+  let processedCount = 0;
 
   try {
     // Use streaming JSON parser for large files
-    const stream = DictImportUtils.streamJsonArray(content);
+    const stream = ImportUtils.streamJsonArray(content);
 
+    let batch = [];
     for await (const item of stream) {
       // Convert Yomitan format to LangBro format
       let [expression, reading, definitionTags, rules, score, glossary, sequence, termTags] = item;
@@ -421,10 +417,10 @@ async function processYomitanTerms({ content, version, dictionary, filename, fil
       reading = reading || expression;
 
       // Process glossary - handle structured content
-      const processedGlossary = glossary.map(item => {
+      const processedGlossary = (Array.isArray(glossary) ? glossary : [glossary]).map(item => {
         if (typeof item === 'string') {
           return item;
-        } else if (typeof item === 'object' && item.type === 'text') {
+        } else if (typeof item === 'object' && item !== null && item.type === 'text') {
           return item.text;
         } else {
           // For structured content, convert to HTML (simplified)
@@ -432,36 +428,39 @@ async function processYomitanTerms({ content, version, dictionary, filename, fil
         }
       });
 
-      terms.push({
+      batch.push({
         expression,
         reading,
         definitionTags: definitionTags || [],
         rules: rules || '',
         score: score || 0,
         glossary: processedGlossary,
-        sequence: sequence || terms.length + 1,
+        sequence: sequence || processedCount + batch.length + 1,
         termTags: termTags || [],
         dictionary
       });
 
       // Send chunks periodically to avoid memory buildup
-      if (terms.length % 1000 === 0) {
+      if (batch.length >= 1000) {
         self.postMessage({
           type: 'CHUNK',
           requestId: self.currentRequestId,
-          chunk: terms.splice(0) // Send and clear
+          chunk: batch
         });
+        processedCount += batch.length;
+        batch = [];
         await ImportUtils.yieldToEventLoop();
       }
     }
 
     // Send remaining terms
-    if (terms.length > 0) {
+    if (batch.length > 0) {
       self.postMessage({
         type: 'CHUNK',
         requestId: self.currentRequestId,
-        chunk: terms
+        chunk: batch
       });
+      processedCount += batch.length;
     }
 
   } catch (error) {
@@ -470,14 +469,7 @@ async function processYomitanTerms({ content, version, dictionary, filename, fil
   }
 
   const duration = performance.now() - startTime;
-  console.log(`Worker: Processed ${filename} with ${terms.length} terms in ${duration.toFixed(2)}ms`);
+  console.log(`Worker: Processed ${filename} with ${processedCount} terms in ${duration.toFixed(2)}ms`);
 
-  return { processed: terms.length, duration };
-}
-
-/**
- * Reads a big-endian uint32 from buffer
- */
-function readUint32(buffer, offset) {
-  return (buffer[offset] << 24) | (buffer[offset + 1] << 16) | (buffer[offset + 2] << 8) | buffer[offset + 3];
+  return { processed: processedCount, duration };
 }
