@@ -31,8 +31,18 @@ class YomitanDictionaryImporter {
             this.showStatus('Extracting ZIP archive...');
             const zip = await JSZip.loadAsync(archiveContent);
             
-            // 1. Read Index
-            const indexFile = zip.file('index.json');
+            // 1. Read Index (support subfolders)
+            let indexFile = zip.file('index.json');
+            let rootPath = '';
+            
+            if (!indexFile) {
+                const potentialIndex = Object.keys(zip.files).find(f => f.endsWith('index.json'));
+                if (potentialIndex) {
+                    indexFile = zip.file(potentialIndex);
+                    rootPath = potentialIndex.substring(0, potentialIndex.lastIndexOf('/') + 1);
+                }
+            }
+
             if (!indexFile) throw new Error('No index.json found');
             const index = JSON.parse(await indexFile.async('string'));
             const title = index.title;
@@ -50,13 +60,27 @@ class YomitanDictionaryImporter {
                     sequenced: index.sequenced || false,
                     version: version,
                     importDate: Date.now(),
-                    counts: { terms: { total: 0 } }
+                    counts: { terms: { total: 0 }, kanji: { total: 0 } }
                 };
                 await db.storeDictionaryMetadata(summary);
             }
 
             // 3. Process Banks
-            await this._processAllBanks(zip, title, version, startOffset, db, job);
+            const counts = await this._processAllBanks(zip, rootPath, title, version, startOffset, db, job);
+
+            // 4. Finalize Metadata with actual counts
+            const finalMetadata = {
+                title: title,
+                revision: index.revision || '1.0',
+                sequenced: index.sequenced || false,
+                version: version,
+                importDate: Date.now(),
+                counts: { 
+                    terms: { total: counts.terms },
+                    kanji: { total: counts.kanji }
+                }
+            };
+            await db.storeDictionaryMetadata(finalMetadata);
 
             return { success: true, dictionary: { title } };
 
@@ -69,25 +93,40 @@ class YomitanDictionaryImporter {
     /**
      * Process all JSON banks in the ZIP sequentially
      */
-    async _processAllBanks(zip, title, version, startOffset, db, job) {
+    async _processAllBanks(zip, rootPath, title, version, startOffset, db, job) {
         const files = Object.keys(zip.files);
-        const termBanks = files.filter(f => f.startsWith('term_bank_') && f.endsWith('.json')).sort();
-        const kanjiBanks = files.filter(f => f.startsWith('kanji_bank_') && f.endsWith('.json')).sort();
+        const termBanks = files.filter(f => f.startsWith(rootPath + 'term_bank_') && f.endsWith('.json')).sort();
+        const kanjiBanks = files.filter(f => f.startsWith(rootPath + 'kanji_bank_') && f.endsWith('.json')).sort();
         
-        let globalCounter = 0;
+        let termCounter = 0;
+        let kanjiCounter = 0;
+
+        // Estimate total terms for progress if job doesn't have it
+        // Roughly 500 bytes per term
+        let estimatedTotal = job?.totalEntries || 0;
+        if (!estimatedTotal) {
+            let totalBankSize = 0;
+            termBanks.forEach(f => {
+                const entry = zip.files[f];
+                // JSZip v3 stores uncompressed size in _data or metadata if available
+                const size = entry._data?.uncompressedSize || 0;
+                totalBankSize += size;
+            });
+            estimatedTotal = Math.max(1, Math.round(totalBankSize / 500));
+        }
 
         // --- Process Term Banks ---
         for (const bankFile of termBanks) {
-            this.showStatus(`Processing ${bankFile}...`);
+            this.showStatus(`Processing ${bankFile.split('/').pop()}...`);
             const content = await zip.file(bankFile).async('uint8array');
             
             const batchProcessor = ImportUtils.createBatchProcessor(1000, async (batch) => {
                 await db.storeBatch('terms', batch, title);
                 
-                if (job && this.progressCallback) {
+                if (this.progressCallback) {
                     this.progressCallback({
-                        index: globalCounter,
-                        count: job.totalEntries || globalCounter,
+                        index: termCounter,
+                        count: Math.max(termCounter, estimatedTotal),
                         type: 'terms'
                     });
                 }
@@ -96,12 +135,12 @@ class YomitanDictionaryImporter {
             // Use streaming JSON parser for the bank file
             const stream = ImportUtils.streamJsonArray(content);
             for await (const item of stream) {
-                globalCounter++;
+                termCounter++;
                 
                 // Skip if resuming
-                if (globalCounter <= startOffset) continue;
+                if (termCounter <= startOffset) continue;
 
-                const converted = this._convertTerm(item, title, version, globalCounter);
+                const converted = this._convertTerm(item, title, version, termCounter);
                 await batchProcessor.add(converted);
             }
             
@@ -110,11 +149,14 @@ class YomitanDictionaryImporter {
 
         // --- Process Kanji Banks ---
         for (const bankFile of kanjiBanks) {
-            this.showStatus(`Processing ${bankFile}...`);
+            this.showStatus(`Processing ${bankFile.split('/').pop()}...`);
             const content = JSON.parse(await zip.file(bankFile).async('string'));
             const converted = content.map(item => this._convertKanji(item, title, version));
             await db.storeBatch('kanji', converted, title);
+            kanjiCounter += converted.length;
         }
+
+        return { terms: termCounter, kanji: kanjiCounter };
     }
 
     _convertTerm(term, dictionary, version, globalIndex = 0) {
@@ -175,4 +217,3 @@ class YomitanDictionaryImporter {
 }
 
 window.YomitanDictionaryImporter = YomitanDictionaryImporter;
-

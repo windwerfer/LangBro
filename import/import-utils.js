@@ -82,8 +82,10 @@ class ImportUtils {
     const hasIfo = files.some(f => f.endsWith('.ifo'));
     const hasIdx = files.some(f => f.endsWith('.idx') || f.endsWith('.idx.gz'));
     const hasDict = files.some(f => f.endsWith('.dict') || f.endsWith('.dict.gz') || f.endsWith('.dict.dz'));
-    const hasYomitanIndex = files.some(f => f === 'index.json');
-    const hasYomitanTerms = files.some(f => f === 'term_bank_1.json' || f === 'term_bank_2.json');
+    
+    // Yomitan: look for index.json or term_bank_*.json anywhere (some ZIPs have a subfolder)
+    const hasYomitanIndex = files.some(f => f.endsWith('index.json'));
+    const hasYomitanTerms = files.some(f => f.includes('term_bank_'));
 
     if (hasIfo && hasIdx && hasDict) return 'stardict';
     if (hasYomitanIndex || hasYomitanTerms) return 'yomitan';
@@ -338,33 +340,30 @@ class ImportUtils {
       const chunk = data.subarray(position, position + size);
       position += size;
 
-      buffer += decoder.decode(chunk, { stream: true });
+      const newText = decoder.decode(chunk, { stream: true });
+      const scanStart = buffer.length;
+      buffer += newText;
 
-      let i = 0;
-      while (i < buffer.length) {
+      for (let i = scanStart; i < buffer.length; i++) {
         const char = buffer[i];
 
         if (escapeNext) {
           escapeNext = false;
-          i++;
           continue;
         }
 
         if (char === '\\') {
           escapeNext = true;
-          i++;
           continue;
         }
 
         if (inString) {
           if (char === '"') inString = false;
-          i++;
           continue;
         }
 
         if (char === '"') {
           inString = true;
-          i++;
           continue;
         }
 
@@ -387,11 +386,9 @@ class ImportUtils {
             itemStart = -1;
           }
         }
-
-        i++;
       }
 
-      // Keep only the part of the buffer from itemStart onwards
+      // Memory management: keep only what's needed for the next chunk
       if (itemStart !== -1) {
         buffer = buffer.substring(itemStart);
         itemStart = 0;
