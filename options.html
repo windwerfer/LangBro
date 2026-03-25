@@ -143,7 +143,17 @@
      <p>Select one or more ZIP files containing either StarDict or Yomitan dictionary files:</p>
      <input type="file" id="dictionaryZipInput" accept=".zip" multiple />
      <br>
+     <label style="margin-top: 10px; display: block;">
+       <input type="checkbox" id="skipExistingCheckbox" checked />
+       Skip already installed files
+     </label>
+     <br>
      <button id="importDictionaryBtn">Import Dictionary</button>
+     
+     <div id="importQueueContainer" style="display: none; margin-top: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px; background: #fdfdfd;">
+       <!-- Queued jobs will appear here -->
+     </div>
+
      <div id="importStatus"></div>
 
     <h3>Loaded Dictionaries</h3>

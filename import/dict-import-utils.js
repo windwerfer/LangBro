@@ -1,7 +1,66 @@
 // dict-import-utils.js - Shared utilities for dictionary imports
 // ZIP handling, format detection, worker management, progress, validation, streaming
 
-class DictImportUtils {
+  /**
+   * Generates a fast fingerprint for a large file without reading the whole thing.
+   * Uses file size, last modified, and chunks from start, middle, and end.
+   */
+  static async generateSmartHash(file) {
+    const size = file.size;
+    const lastModified = file.lastModified;
+    const chunkSize = 2 * 1024 * 1024; // 2MB
+
+    const chunks = [];
+    
+    // Start chunk
+    chunks.push(await file.slice(0, chunkSize).arrayBuffer());
+    
+    // Middle chunk
+    if (size > chunkSize * 3) {
+      const mid = Math.floor(size / 2) - Math.floor(chunkSize / 2);
+      chunks.push(await file.slice(mid, mid + chunkSize).arrayBuffer());
+    }
+    
+    // End chunk
+    if (size > chunkSize) {
+      chunks.push(await file.slice(size - chunkSize, size).arrayBuffer());
+    }
+
+    // Combine metadata and chunks into a unique string for hashing
+    const data = {
+      size,
+      lastModified,
+      content: chunks.map(c => new Uint8Array(c).slice(0, 1024)) // Take a small slice of each chunk
+    };
+    
+    // Simple but effective string hash (SubtleCrypto would be better but this is faster for our needs)
+    const str = JSON.stringify(data);
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    
+    return `f_${size}_${hash.toString(36)}`;
+  }
+
+  /**
+   * Checks if enough disk space is available (approximate)
+   */
+  static async checkDiskSpace(requiredBytes) {
+    if (navigator.storage && navigator.storage.estimate) {
+      const estimate = await navigator.storage.estimate();
+      const available = estimate.quota - estimate.usage;
+      return {
+        available,
+        isLow: available < requiredBytes * 2, // Require 2x for safety
+        quota: estimate.quota,
+        usage: estimate.usage
+      };
+    }
+    return null;
+  }
   /**
    * Detect dictionary format from ZIP files
    */

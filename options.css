@@ -494,3 +494,62 @@ button { margin: 10px 0; padding: 8px; cursor: pointer; }
     width: 100%;
   }
 }
+
+/* Import Job Cards */
+.import-job-card {
+  border: 1px solid #eee;
+  padding: 12px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.import-job-card.active-status {
+  border-left: 4px solid #007bff;
+}
+
+.import-job-card.error-status {
+  border-left: 4px solid #dc3545;
+  background: #fff8f8;
+}
+
+.job-info {
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.progress-container {
+  height: 8px;
+  background: #eee;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.progress-bar {
+  height: 100%;
+  background: #28a745;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+.job-actions button {
+  padding: 4px 12px;
+  font-size: 12px;
+  margin-right: 5px;
+  cursor: pointer;
+}
+
+.resume-import-btn {
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 3px;
+}
+
+.abort-import-btn {
+  background: #f8f9fa;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+}
