@@ -101,7 +101,7 @@ class YomitanDictionaryImporter {
                 // Skip if resuming
                 if (globalCounter <= startOffset) continue;
 
-                const converted = this._convertTerm(item, title, version);
+                const converted = this._convertTerm(item, title, version, globalCounter);
                 await batchProcessor.add(converted);
             }
             
@@ -117,22 +117,40 @@ class YomitanDictionaryImporter {
         }
     }
 
-    _convertTerm(term, dictionary, version) {
+    _convertTerm(term, dictionary, version, globalIndex = 0) {
         let [expression, reading, definitionTags, rules, score, glossary, sequence, termTags] = term;
+        
+        // Handle Yomitan version 1 format
         if (version === 1) {
             [expression, reading, definitionTags, rules, score, ...glossary] = term;
             sequence = 1;
             termTags = [];
         }
         
+        // Ensure reading is not empty
+        reading = reading || expression;
+
+        // Process glossary - handle structured content and strings
+        const processedGlossary = (Array.isArray(glossary) ? glossary : [glossary]).map(item => {
+            if (typeof item === 'string') {
+                return item;
+            } else if (typeof item === 'object' && item !== null) {
+                if (item.type === 'text') return item.text;
+                // For other structured content, convert to JSON string (simplified)
+                // In a full implementation, this might convert to HTML
+                return JSON.stringify(item);
+            }
+            return String(item);
+        });
+        
         return {
             expression,
-            reading: reading || expression,
+            reading,
             definitionTags: definitionTags || [],
             rules: rules || '',
             score: score || 0,
-            glossary: Array.isArray(glossary) ? glossary : [glossary],
-            sequence: sequence || 0,
+            glossary: processedGlossary,
+            sequence: sequence || globalIndex,
             termTags: termTags || [],
             dictionary
         };
@@ -140,12 +158,16 @@ class YomitanDictionaryImporter {
 
     _convertKanji(item, dictionary, version) {
         const [character, onyomi, kunyomi, meanings, tags, stats] = item;
+        
+        // Process meanings (kanji meanings are usually strings, but handle arrays just in case)
+        const processedMeanings = Array.isArray(meanings) ? meanings : [meanings];
+        
         return {
             character,
             onyomi: onyomi || '',
             kunyomi: kunyomi || '',
             tags: tags || [],
-            meanings: Array.isArray(meanings) ? meanings : [meanings],
+            meanings: processedMeanings,
             stats: stats || {},
             dictionary
         };

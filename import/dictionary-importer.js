@@ -246,7 +246,7 @@ class DictionaryImporter {
   }
 
   /**
-   * UI Updates
+   * UI Updates - Rebuilds the queue display
    */
   async checkAndDisplayQueue() {
     const db = await this.getStructuredDB();
@@ -269,18 +269,42 @@ class DictionaryImporter {
       
       const jobEl = document.createElement('div');
       jobEl.className = `import-job-card ${statusClass}`;
-      jobEl.innerHTML = `
-        <div class="job-info">
-          <strong>${job.title}</strong> (${job.filename}) - <span>${job.status}</span>
-        </div>
-        <div class="progress-container">
-          <div class="progress-bar" id="pb-${job.id}" style="width: ${progress}%"></div>
-        </div>
-        <div class="job-actions">
-          ${job.status === 'interrupted' ? `<button class="resume-import-btn" data-job-id="${job.id}">Continue</button>` : ''}
-          <button class="abort-import-btn" data-job-id="${job.id}">Discard</button>
-        </div>
-      `;
+      
+      // Use structured approach to avoid XSS for title/filename
+      const infoEl = document.createElement('div');
+      infoEl.className = 'job-info';
+      infoEl.innerHTML = `<strong></strong> (<span class="filename"></span>) - <span class="status"></span>`;
+      infoEl.querySelector('strong').textContent = job.title;
+      infoEl.querySelector('.filename').textContent = job.filename;
+      infoEl.querySelector('.status').textContent = job.status;
+      
+      const progressContainer = document.createElement('div');
+      progressContainer.className = 'progress-container';
+      const progressBar = document.createElement('div');
+      progressBar.className = 'progress-bar';
+      progressBar.id = `pb-${job.id}`;
+      progressBar.style.width = `${progress}%`;
+      progressContainer.appendChild(progressBar);
+      
+      const actionsEl = document.createElement('div');
+      actionsEl.className = 'job-actions';
+      if (job.status === 'interrupted') {
+        const resumeBtn = document.createElement('button');
+        resumeBtn.className = 'resume-import-btn';
+        resumeBtn.dataset.jobId = job.id;
+        resumeBtn.textContent = 'Continue';
+        actionsEl.appendChild(resumeBtn);
+      }
+      const abortBtn = document.createElement('button');
+      abortBtn.className = 'abort-import-btn';
+      abortBtn.dataset.jobId = job.id;
+      abortBtn.textContent = 'Discard';
+      actionsEl.appendChild(abortBtn);
+      
+      jobEl.appendChild(infoEl);
+      jobEl.appendChild(progressContainer);
+      jobEl.appendChild(actionsEl);
+      
       container.appendChild(jobEl);
     });
   }

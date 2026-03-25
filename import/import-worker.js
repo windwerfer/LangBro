@@ -2,7 +2,7 @@
 // Handles CPU-intensive parsing in background thread to prevent UI blocking
 
 // Import utilities (worker context)
-importScripts('../pako.min.js', 'import-utils.js');
+importScripts('../pako.min.js', './import-utils.js');
 
 self.cachedData = new Map();
 

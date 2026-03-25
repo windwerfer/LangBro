@@ -12,27 +12,26 @@ class ImportUtils {
     const size = file.size;
     const lastModified = file.lastModified;
     const sampleSize = 1024; // Bytes to sample per chunk
-    const chunkSize = 2 * 1024 * 1024; // 2MB to read for sampling
 
     const chunks = [];
     
     // Start chunk
-    chunks.push(await file.slice(0, chunkSize).arrayBuffer());
+    chunks.push(await file.slice(0, sampleSize).arrayBuffer());
     
     // Middle chunk
-    if (size > chunkSize * 3) {
-      const mid = Math.floor(size / 2) - Math.floor(chunkSize / 2);
-      chunks.push(await file.slice(mid, mid + chunkSize).arrayBuffer());
+    if (size > sampleSize * 3) {
+      const mid = Math.floor(size / 2) - Math.floor(sampleSize / 2);
+      chunks.push(await file.slice(mid, mid + sampleSize).arrayBuffer());
     }
     
     // End chunk
-    if (size > chunkSize) {
-      chunks.push(await file.slice(size - chunkSize, size).arrayBuffer());
+    if (size > sampleSize) {
+      chunks.push(await file.slice(size - sampleSize, size).arrayBuffer());
     }
 
     // Combine metadata and samples into a string for hashing
     const samples = chunks.map(c => {
-      const u8 = new Uint8Array(c).slice(0, sampleSize);
+      const u8 = new Uint8Array(c);
       let hex = '';
       for (let i = 0; i < u8.length; i++) {
         hex += u8[i].toString(16).padStart(2, '0');
@@ -42,12 +41,12 @@ class ImportUtils {
 
     const dataString = `${size}_${lastModified}_${samples.join('_')}`;
     
-    // Simple but effective string hash
+    // Simple but effective string hash (Java-style hashCode)
     let hash = 0;
     for (let i = 0; i < dataString.length; i++) {
       const char = dataString.charCodeAt(i);
       hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32bit integer
+      hash = hash | 0; // Convert to 32bit integer
     }
     
     return `f_${size}_${(hash >>> 0).toString(36)}`;
@@ -215,10 +214,13 @@ class ImportUtils {
         });
       },
       broadcast: (taskType, data, transfer = []) => {
-        const promises = workers.map(w => {
-          // Clone data for each worker if not transferring, 
-          // or just send if it's the last one
-          return ImportUtils.runWorkerTask(w.instance, taskType, data, { transfer });
+        const promises = workers.map((w, index) => {
+          // If we have transferables, we can only transfer them to the LAST worker.
+          // For previous workers, we must not transfer, which causes cloning.
+          // Note: In some environments, we might need to manually clone data if transfer is used.
+          const isLast = index === workers.length - 1;
+          const currentTransfer = isLast ? transfer : [];
+          return ImportUtils.runWorkerTask(w.instance, taskType, data, { transfer: currentTransfer });
         });
         return Promise.all(promises);
       },
@@ -320,7 +322,7 @@ class ImportUtils {
     let escapeNext = false;
     let braceDepth = 0;
     let bracketDepth = 0;
-    let objectStart = -1;
+    let itemStart = -1;
 
     while (position < data.length) {
       const size = Math.min(chunkSize, data.length - position);
@@ -357,33 +359,33 @@ class ImportUtils {
           continue;
         }
 
-        if (char === '{') {
-          if (braceDepth === 0 && bracketDepth === 1) objectStart = i;
-          braceDepth++;
-        } else if (char === '}') {
-          braceDepth--;
-          if (braceDepth === 0 && bracketDepth === 1 && objectStart !== -1) {
-            const objectStr = buffer.substring(objectStart, i + 1);
+        if (char === '{' || char === '[') {
+          // If we are at depth 1 (inside the top-level array), this is the start of a new item
+          if (braceDepth === 0 && bracketDepth === 1) itemStart = i;
+          
+          if (char === '{') braceDepth++; else bracketDepth++;
+        } else if (char === '}' || char === ']') {
+          if (char === '}') braceDepth--; else bracketDepth--;
+          
+          // If we just finished an item at depth 1, yield it
+          if (braceDepth === 0 && bracketDepth === 1 && itemStart !== -1) {
+            const itemStr = buffer.substring(itemStart, i + 1);
             try {
-              yield JSON.parse(objectStr);
+              yield JSON.parse(itemStr);
             } catch (e) {
               console.warn('JSON stream parse error:', e.message);
             }
-            objectStart = -1;
+            itemStart = -1;
           }
-        } else if (char === '[') {
-          bracketDepth++;
-        } else if (char === ']') {
-          bracketDepth--;
         }
 
         i++;
       }
 
-      // Keep only the part of the buffer from objectStart onwards
-      if (objectStart !== -1) {
-        buffer = buffer.substring(objectStart);
-        objectStart = 0;
+      // Keep only the part of the buffer from itemStart onwards
+      if (itemStart !== -1) {
+        buffer = buffer.substring(itemStart);
+        itemStart = 0;
       } else {
         buffer = '';
       }
@@ -422,10 +424,10 @@ class ImportUtils {
 }
 
 // Export
-if (typeof module !== 'undefined') {
+const exportObj = typeof self !== 'undefined' ? self : window;
+exportObj.ImportUtils = ImportUtils;
+exportObj.DictImportUtils = ImportUtils;
+
+if (typeof module !== 'undefined' && module.exports) {
   module.exports = ImportUtils;
-} else {
-  (typeof self !== 'undefined' ? self : window).ImportUtils = ImportUtils;
-  // Alias for compatibility during migration
-  (typeof self !== 'undefined' ? self : window).DictImportUtils = ImportUtils;
 }
