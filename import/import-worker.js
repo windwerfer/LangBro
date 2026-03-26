@@ -428,12 +428,11 @@ async function processYomitanTerms({ content, version, dictionary, filename, fil
       const processedGlossary = (Array.isArray(glossary) ? glossary : [glossary]).map(item => {
         if (typeof item === 'string') {
           return item;
-        } else if (typeof item === 'object' && item !== null && item.type === 'text') {
-          return item.text;
-        } else {
-          // For structured content, convert to HTML (simplified)
-          return typeof item === 'object' ? JSON.stringify(item) : String(item);
+        } else if (typeof item === 'object' && item !== null) {
+          // For structured content, convert to HTML using shared utility
+          return ImportUtils.renderYomitanStructuredContent(item);
         }
+        return String(item);
       });
 
       batch.push({

@@ -320,6 +320,65 @@ class ImportUtils {
   }
 
   /**
+   * Converts Yomitan structured content format to HTML string
+   * @param {any} content - Yomitan structured content (string, array, or object)
+   * @returns {string} HTML string
+   */
+  static renderYomitanStructuredContent(content) {
+    if (content === null || content === undefined) return '';
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+      return content.map(item => ImportUtils.renderYomitanStructuredContent(item)).join('');
+    }
+    
+    if (typeof content === 'object') {
+      // Handle 'type: text' nodes
+      if (content.type === 'text') {
+        return content.text || '';
+      }
+      
+      // Handle tag nodes
+      if (content.tag) {
+        const tag = content.tag;
+        const children = content.content ? ImportUtils.renderYomitanStructuredContent(content.content) : '';
+        
+        let attrStr = '';
+        const classes = [];
+        
+        // Map Yomitan 'data' properties to classes
+        if (content.data && typeof content.data === 'object') {
+          for (const [key, value] of Object.entries(content.data)) {
+             if (value) classes.push(`yomitan-${key}-${value}`);
+          }
+        }
+        
+        if (content.class) classes.push(content.class);
+        
+        if (classes.length > 0) {
+          attrStr = ` class="${classes.join(' ')}"`;
+        }
+        
+        // Handle href for links
+        if (tag === 'a' && content.href) {
+            attrStr += ` href="${content.href}"`;
+        }
+
+        return `<${tag}${attrStr}>${children}</${tag}>`;
+      }
+
+      // Structured content can also be a single object with 'type' and 'content' (like the root)
+      if (content.type === 'structured-content' && content.content) {
+          return ImportUtils.renderYomitanStructuredContent(content.content);
+      }
+
+      // If it's an object but not a text or tag node, just stringify it
+      return JSON.stringify(content);
+    }
+    
+    return String(content);
+  }
+
+  /**
    * Memory-efficient JSON streaming parser for large Yomitan files
    * @param {Uint8Array} data - Raw UTF-8 bytes of a JSON array
    * @param {number} chunkSize - Read buffer size

@@ -177,10 +177,8 @@ class YomitanDictionaryImporter {
             if (typeof item === 'string') {
                 return item;
             } else if (typeof item === 'object' && item !== null) {
-                if (item.type === 'text') return item.text;
-                // For other structured content, convert to JSON string (simplified)
-                // In a full implementation, this might convert to HTML
-                return JSON.stringify(item);
+                // For structured content, convert to HTML using shared utility
+                return ImportUtils.renderYomitanStructuredContent(item);
             }
             return String(item);
         });

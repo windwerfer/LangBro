@@ -20,8 +20,12 @@ export function sanitizeDictHTML(html) {
 
   // Sanitize with DOMPurify, allowing only safe tags and attributes
   return DOMPurify.sanitize(processed, {
-    ALLOWED_TAGS: ['span', 'b', 'i', 'em', 'strong', 'br', 'hr', 'p', 'div', 'ul', 'li', 'ol', 'details', 'summary', 'style'],
-    ALLOWED_ATTR: ['class'],
+    ALLOWED_TAGS: [
+      'span', 'b', 'i', 'em', 'strong', 'br', 'hr', 'p', 'div', 
+      'ul', 'li', 'ol', 'details', 'summary', 'style', 'a',
+      'ruby', 'rt', 'rp', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th'
+    ],
+    ALLOWED_ATTR: ['class', 'href', 'target', 'title'],
     SAFE_FOR_TEMPLATES: true
   });
 }
