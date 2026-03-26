@@ -297,6 +297,9 @@
 .dict-type { color: green; }
 .dict-pron { color: brown; }
 .dict-level { font-size: 0.7em; }
+.dict-thai { color: #2c3e50; }
+.dict-def { display: block; margin-top: 5px; }
+
 
 /* ===== DARK MODE STYLES ===== */
 
