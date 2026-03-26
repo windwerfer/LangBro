@@ -703,75 +703,73 @@ class StructuredDictionaryDatabase {
     let totalDeleted = 0;
     let lastProgressTime = Date.now();
 
-    // Helper function to delete with range queries where possible
-    const deleteWithCursor = (storeName, indexName, keyRange, description) => {
+    // Helper function to delete using getAllKeys (much faster than cursor.delete)
+    const deleteWithKeys = (storeName, indexName, keyRange, description) => {
       return new Promise((resolve) => {
         if (!availableStores.includes(storeName)) {
-          console.warn(`Store ${storeName} not found, skipping deletion for ${description}`);
           return resolve();
         }
 
         const store = transaction.objectStore(storeName);
-        let request;
         
         try {
           if (indexName) {
             if (!store.indexNames.contains(indexName)) {
               console.warn(`Index ${indexName} not found on store ${storeName}, skipping indexed deletion`);
-              // Fallback to manual scan if index missing? For now just skip to be safe
               return resolve();
             }
-            request = store.index(indexName).openCursor(keyRange);
+            
+            // Fetch all primary keys at once
+            const request = store.index(indexName).getAllKeys(keyRange);
+            request.onsuccess = (event) => {
+              const keys = event.target.result;
+              if (keys && keys.length > 0) {
+                // Fire all delete requests within the same transaction loop
+                for (const key of keys) {
+                  store.delete(key);
+                }
+                totalDeleted += keys.length;
+                
+                if (progressCallback) {
+                  const currentTime = Date.now();
+                  if (currentTime - lastProgressTime >= 1000) {
+                    progressCallback(`Marked ${totalDeleted} entries for deletion...`);
+                    lastProgressTime = currentTime;
+                  }
+                }
+                console.log(`Scheduled deletion of ${keys.length} ${description} entries`);
+              }
+              resolve();
+            };
+            request.onerror = (e) => {
+              console.error(`Error fetching keys for ${description}:`, e);
+              resolve();
+            };
           } else {
-            request = store.openCursor(keyRange);
+            // No index, must use cursor or direct delete if it's the primary key
+            const request = store.delete(keyRange);
+            request.onsuccess = () => resolve();
+            request.onerror = () => resolve();
           }
         } catch (e) {
-          console.error(`Error opening cursor for ${description}:`, e);
+          console.error(`Error in deleteWithKeys for ${description}:`, e);
           return resolve();
         }
-
-        let localDeleted = 0;
-        request.onsuccess = (event) => {
-          const cursor = event.target.result;
-          if (cursor) {
-            cursor.delete();
-            localDeleted++;
-            totalDeleted++;
-
-            // Send progress update periodically
-            if (progressCallback) {
-              const currentTime = Date.now();
-              if (currentTime - lastProgressTime >= 1000) {
-                progressCallback(`Deleted ${totalDeleted} entries so far...`);
-                lastProgressTime = currentTime;
-              }
-            }
-
-            cursor.continue();
-          } else {
-            if (localDeleted > 0) console.log(`Deleted ${localDeleted} ${description} entries`);
-            resolve();
-          }
-        };
-
-        request.onerror = () => {
-          console.error(`Error deleting ${description} entries:`, request.error);
-          resolve(); // Continue with other deletions
-        };
       });
     };
 
     const dictRange = IDBKeyRange.only(dictName);
 
-    // 1. Delete dictionary metadata
+    // 1. Delete dictionary metadata (primary key is dictName)
     if (availableStores.includes('dictionaries')) {
       transaction.objectStore('dictionaries').delete(dictName);
     }
 
-    // 2. Remove from import registry if it exists
-    const registryPromise = availableStores.includes('import_registry') ? 
-      new Promise((resolve) => {
-        const store = transaction.objectStore('import_registry');
+    // 2. Specialized scan for registry/queue (no index on title, but stores are small)
+    const scanAndDelete = (storeName) => {
+      return new Promise((resolve) => {
+        if (!availableStores.includes(storeName)) return resolve();
+        const store = transaction.objectStore(storeName);
         const req = store.openCursor();
         req.onsuccess = (event) => {
           const cursor = event.target.result;
@@ -781,36 +779,27 @@ class StructuredDictionaryDatabase {
           } else resolve();
         };
         req.onerror = () => resolve();
-      }) : Promise.resolve();
+      });
+    };
 
-    // 3. Remove from import queue if it exists
-    const queuePromise = availableStores.includes('import_queue') ?
-      new Promise((resolve) => {
-        const store = transaction.objectStore('import_queue');
-        const req = store.openCursor();
-        req.onsuccess = (event) => {
-          const cursor = event.target.result;
-          if (cursor) {
-            if (cursor.value.title === dictName) cursor.delete();
-            cursor.continue();
-          } else resolve();
-        };
-        req.onerror = () => resolve();
-      }) : Promise.resolve();
-
-    // 4. Delete all linked data using indexes
-    // We execute these sequentially but within the SAME transaction
+    // 4. Delete all linked data in PARALLEL within the SAME transaction
     try {
-      await registryPromise;
-      await queuePromise;
-      await deleteWithCursor('terms', 'dictionary', dictRange, 'term');
-      await deleteWithCursor('kanji', 'dictionary', dictRange, 'kanji');
-      await deleteWithCursor('media', 'dictionary', dictRange, 'media');
-      await deleteWithCursor('tagMeta', 'dictionary', dictRange, 'tagMeta');
-      await deleteWithCursor('termMeta', 'dictionary', dictRange, 'termMeta');
-      await deleteWithCursor('kanjiMeta', 'dictionary', dictRange, 'kanjiMeta');
+      if (progressCallback) progressCallback('Preparing deletion batch...');
+      
+      await Promise.all([
+        scanAndDelete('import_registry'),
+        scanAndDelete('import_queue'),
+        deleteWithKeys('terms', 'dictionary', dictRange, 'term'),
+        deleteWithKeys('kanji', 'dictionary', dictRange, 'kanji'),
+        deleteWithKeys('media', 'dictionary', dictRange, 'media'),
+        deleteWithKeys('tagMeta', 'dictionary', dictRange, 'tagMeta'),
+        deleteWithKeys('termMeta', 'dictionary', dictRange, 'termMeta'),
+        deleteWithKeys('kanjiMeta', 'dictionary', dictRange, 'kanjiMeta')
+      ]);
+      
+      if (progressCallback) progressCallback(`Processing deletion of ${totalDeleted} entries...`);
     } catch (e) {
-      console.error('Error during sequential deletion:', e);
+      console.error('Error during parallel deletion scheduling:', e);
     }
 
     return new Promise((resolve, reject) => {
