@@ -14,41 +14,41 @@ class ImportUtils {
     const sampleSize = 1024; // Bytes to sample per chunk
 
     const chunks = [];
-    
+
     // Start chunk
     chunks.push(await file.slice(0, sampleSize).arrayBuffer());
-    
+
     // Middle chunk
     if (size > sampleSize * 3) {
       const mid = Math.floor(size / 2) - Math.floor(sampleSize / 2);
       chunks.push(await file.slice(mid, mid + sampleSize).arrayBuffer());
     }
-    
+
     // End chunk
     if (size > sampleSize) {
       chunks.push(await file.slice(size - sampleSize, size).arrayBuffer());
     }
 
     // Combine metadata and samples into a string for hashing
-    const samples = chunks.map(c => {
+    const samples = chunks.map((c) => {
       const u8 = new Uint8Array(c);
-      let hex = '';
+      let hex = "";
       for (let i = 0; i < u8.length; i++) {
-        hex += u8[i].toString(16).padStart(2, '0');
+        hex += u8[i].toString(16).padStart(2, "0");
       }
       return hex;
     });
 
-    const dataString = `${size}_${lastModified}_${samples.join('_')}`;
-    
+    const dataString = `${size}_${lastModified}_${samples.join("_")}`;
+
     // Simple but effective string hash (Java-style hashCode)
     let hash = 0;
     for (let i = 0; i < dataString.length; i++) {
       const char = dataString.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash | 0; // Convert to 32bit integer
     }
-    
+
     return `f_${size}_${(hash >>> 0).toString(36)}`;
   }
 
@@ -65,7 +65,7 @@ class ImportUtils {
         available,
         isLow: available < requiredBytes * 2, // Require 2x for safety during import
         quota: estimate.quota,
-        usage: estimate.usage
+        usage: estimate.usage,
       };
     }
     return null;
@@ -79,17 +79,22 @@ class ImportUtils {
    */
   static detectFormat(zip) {
     const files = Object.keys(zip.files);
-    const hasIfo = files.some(f => f.endsWith('.ifo'));
-    const hasIdx = files.some(f => f.endsWith('.idx') || f.endsWith('.idx.gz'));
-    const hasDict = files.some(f => f.endsWith('.dict') || f.endsWith('.dict.gz') || f.endsWith('.dict.dz'));
-    
-    // Yomitan: look for index.json or term_bank_*.json anywhere (some ZIPs have a subfolder)
-    const hasYomitanIndex = files.some(f => f.endsWith('index.json'));
-    const hasYomitanTerms = files.some(f => f.includes('term_bank_'));
+    const hasIfo = files.some((f) => f.endsWith(".ifo"));
+    const hasIdx = files.some(
+      (f) => f.endsWith(".idx") || f.endsWith(".idx.gz"),
+    );
+    const hasDict = files.some(
+      (f) =>
+        f.endsWith(".dict") || f.endsWith(".dict.gz") || f.endsWith(".dict.dz"),
+    );
 
-    if (hasIfo && hasIdx && hasDict) return 'stardict';
-    if (hasYomitanIndex || hasYomitanTerms) return 'yomitan';
-    throw new Error('Unrecognized dictionary format');
+    // Yomitan: look for index.json or term_bank_*.json anywhere (some ZIPs have a subfolder)
+    const hasYomitanIndex = files.some((f) => f.endsWith("index.json"));
+    const hasYomitanTerms = files.some((f) => f.includes("term_bank_"));
+
+    if (hasIfo && hasIdx && hasDict) return "stardict";
+    if (hasYomitanIndex || hasYomitanTerms) return "yomitan";
+    throw new Error("Unrecognized dictionary format");
   }
 
   /**
@@ -101,7 +106,7 @@ class ImportUtils {
     const files = new Map();
     for (const [fname, entry] of Object.entries(zip.files)) {
       if (!entry.dir) {
-        files.set(fname, await entry.async('uint8array'));
+        files.set(fname, await entry.async("uint8array"));
       }
     }
     return files;
@@ -114,31 +119,39 @@ class ImportUtils {
    * @param {string} scriptPath - Path to worker script (defaults to import-worker.js)
    * @returns {Promise<Worker>}
    */
-  static async createWorker(scriptPath = 'import/import-worker.js') {
+  static async createWorker(scriptPath = "import/import-worker.js") {
     return new Promise((resolve, reject) => {
       try {
         const worker = new Worker(chrome.runtime.getURL(scriptPath));
-        
-        worker.onerror = e => {
-          console.error('Worker error event:', e);
-          reject(new Error(`Worker error: ${e.message || 'Unknown error (could be load failure or CSP violation)'}`));
+
+        worker.onerror = (e) => {
+          console.error("Worker error event:", e);
+          reject(
+            new Error(
+              `Worker error: ${e.message || "Unknown error (could be load failure or CSP violation)"}`,
+            ),
+          );
         };
-        
-        const onMsg = e => {
+
+        const onMsg = (e) => {
           // The worker wraps the response in a SUCCESS type
           const data = e.data;
-          if (data.type === 'SUCCESS' && data.result && data.result.type === 'WORKER_READY') {
-            worker.removeEventListener('message', onMsg);
+          if (
+            data.type === "SUCCESS" &&
+            data.result &&
+            data.result.type === "WORKER_READY"
+          ) {
+            worker.removeEventListener("message", onMsg);
             resolve(worker);
-          } else if (data.type === 'WORKER_READY') {
+          } else if (data.type === "WORKER_READY") {
             // Support direct response just in case
-            worker.removeEventListener('message', onMsg);
+            worker.removeEventListener("message", onMsg);
             resolve(worker);
           }
         };
-        
-        worker.addEventListener('message', onMsg);
-        worker.postMessage({type: 'INIT'});
+
+        worker.addEventListener("message", onMsg);
+        worker.postMessage({ type: "INIT" });
       } catch (err) {
         reject(new Error(`Failed to initialize worker: ${err.message}`));
       }
@@ -153,28 +166,33 @@ class ImportUtils {
    * @param {Object} options - Callbacks and transferables
    * @returns {Promise<any>} Resolves when task completes
    */
-  static async runWorkerTask(worker, taskType, data, { onChunk, onProgress, transfer = [] } = {}) {
+  static async runWorkerTask(
+    worker,
+    taskType,
+    data,
+    { onChunk, onProgress, transfer = [] } = {},
+  ) {
     const requestId = Date.now() + Math.random();
-    
+
     return new Promise((resolve, reject) => {
-      const onMsg = e => {
+      const onMsg = (e) => {
         if (e.data.requestId !== requestId) return;
-        
+
         const { type, chunk, progress, error, result } = e.data;
-        
-        if (type === 'CHUNK') onChunk?.(chunk);
-        if (type === 'PROGRESS') onProgress?.(progress);
-        if (type === 'SUCCESS') {
-          worker.removeEventListener('message', onMsg);
+
+        if (type === "CHUNK") onChunk?.(chunk);
+        if (type === "PROGRESS") onProgress?.(progress);
+        if (type === "SUCCESS") {
+          worker.removeEventListener("message", onMsg);
           resolve(result);
         }
-        if (type === 'ERROR') {
-          worker.removeEventListener('message', onMsg);
-          reject(new Error(error.message || 'Worker task failed'));
+        if (type === "ERROR") {
+          worker.removeEventListener("message", onMsg);
+          reject(new Error(error.message || "Worker task failed"));
         }
       };
-      
-      worker.addEventListener('message', onMsg);
+
+      worker.addEventListener("message", onMsg);
       worker.postMessage({ type: taskType, data, requestId }, transfer);
     });
   }
@@ -184,7 +202,7 @@ class ImportUtils {
    */
   static decodeUTF8(buffer, start = 0, length = buffer.length - start) {
     const slice = buffer.subarray(start, start + length);
-    return new TextDecoder('utf-8').decode(slice);
+    return new TextDecoder("utf-8").decode(slice);
   }
 
   /**
@@ -192,36 +210,42 @@ class ImportUtils {
    * This is done during import for maximum performance on display.
    */
   static formatDictionaryHTML(text) {
-    if (!text) return '';
+    if (!text) return "";
     return text
-      .replace(/style="color:green"/g, 'class="dict-type"')
-      .replace(/style="color:brown"/g, 'class="dict-pron"')
-      .replace(/style="font-size:0\.7em"/g, 'class="dict-level"')
-      .replace(/<type/g, '<span class="dict-type"')
-      .replace(/<\/type>/g, '</span>')
-      .replace(/<pron/g, '<span class="dict-pron"')
-      .replace(/<\/pron>/g, '</span>')
-      .replace(/<level/g, '<span class="dict-level"')
-      .replace(/<\/level>/g, '</span>')
-      .replace(/<thai/g, '<span class="dict-thai"')
-      .replace(/<\/thai>/g, '</span>')
-      .replace(/<def/g, '<span class="dict-def"')
-      .replace(/<\/def>/g, '</span>');
+      .replace(/style="color:green"/g, 'class="type"')
+      .replace(/style="color:brown"/g, 'class="pron"')
+      .replace(/style="font-size:0\.7em"/g, 'class="level"')
+      .replace(/<type/g, '<span class="type"')
+      .replace(/<\/type>/g, "</span>")
+      .replace(/<pron/g, '<span class="pron"')
+      .replace(/<\/pron>/g, "</span>")
+      .replace(/<level/g, '<span class="level"')
+      .replace(/<\/level>/g, "</span>")
+      .replace(/<thai/g, '<span class="thai"')
+      .replace(/<\/thai>/g, "</span>")
+      .replace(/<def/g, '<span class="def"')
+      .replace(/<\/def>/g, "</span>");
   }
 
   /**
    * Reads a big-endian uint32 from buffer correctly (unsigned)
    */
   static readUint32(buffer, offset) {
-    return ((buffer[offset] << 24) | (buffer[offset + 1] << 16) | (buffer[offset + 2] << 8) | buffer[offset + 3]) >>> 0;
+    return (
+      ((buffer[offset] << 24) |
+        (buffer[offset + 1] << 16) |
+        (buffer[offset + 2] << 8) |
+        buffer[offset + 3]) >>>
+      0
+    );
   }
 
   /**
    * Yields control to the event loop
    */
   static yieldToEventLoop() {
-    return new Promise(resolve => {
-      if (typeof setImmediate !== 'undefined') {
+    return new Promise((resolve) => {
+      if (typeof setImmediate !== "undefined") {
         setImmediate(resolve);
       } else {
         setTimeout(resolve, 0);
@@ -233,12 +257,12 @@ class ImportUtils {
    * Decompress if gz/dz using pako
    */
   static decompressIfNeeded(buffer, ext) {
-    if (typeof pako === 'undefined') {
-      throw new Error('pako library not loaded');
+    if (typeof pako === "undefined") {
+      throw new Error("pako library not loaded");
     }
     const u8 = new Uint8Array(buffer);
-    if (ext.endsWith('.gz') || ext.endsWith('.dz')) {
-      return pako.inflate(u8, { to: 'uint8array' });
+    if (ext.endsWith(".gz") || ext.endsWith(".dz")) {
+      return pako.inflate(u8, { to: "uint8array" });
     }
     return u8;
   }
@@ -246,7 +270,7 @@ class ImportUtils {
   /**
    * Formats progress messages consistently
    */
-  static formatProgress(operation, current, total, unit = 'entries') {
+  static formatProgress(operation, current, total, unit = "entries") {
     const pct = total > 0 ? Math.round((current / total) * 100) : 0;
     return `${operation}: ${current.toLocaleString()}/${total.toLocaleString()} ${unit} (${pct}%)`;
   }
@@ -257,19 +281,21 @@ class ImportUtils {
   static validateImportSize(fileSize, estimatedEntries) {
     const warnings = [];
     const fileSizeMB = Math.round(fileSize / (1024 * 1024));
-    
+
     if (fileSizeMB > 500) {
       warnings.push(`Large file: ${fileSizeMB}MB (high memory usage expected)`);
     }
     if (estimatedEntries > 1000000) {
-      warnings.push(`Huge dictionary: ${estimatedEntries.toLocaleString()} entries`);
+      warnings.push(
+        `Huge dictionary: ${estimatedEntries.toLocaleString()} entries`,
+      );
     }
-    
+
     return {
       valid: warnings.length === 0,
       warnings,
       fileSizeMB,
-      estimatedEntries
+      estimatedEntries,
     };
   }
 
@@ -279,56 +305,60 @@ class ImportUtils {
    * @returns {string} HTML string
    */
   static renderYomitanStructuredContent(content) {
-    if (content === null || content === undefined) return '';
-    if (typeof content === 'string') return content;
+    if (content === null || content === undefined) return "";
+    if (typeof content === "string") return content;
     if (Array.isArray(content)) {
-      return content.map(item => ImportUtils.renderYomitanStructuredContent(item)).join('');
+      return content
+        .map((item) => ImportUtils.renderYomitanStructuredContent(item))
+        .join("");
     }
-    
-    if (typeof content === 'object') {
+
+    if (typeof content === "object") {
       // Handle 'type: text' nodes
-      if (content.type === 'text') {
-        return content.text || '';
+      if (content.type === "text") {
+        return content.text || "";
       }
-      
+
       // Handle tag nodes
       if (content.tag) {
         const tag = content.tag;
-        const children = content.content ? ImportUtils.renderYomitanStructuredContent(content.content) : '';
-        
-        let attrStr = '';
+        const children = content.content
+          ? ImportUtils.renderYomitanStructuredContent(content.content)
+          : "";
+
+        let attrStr = "";
         const classes = [];
-        
+
         // Map Yomitan 'data' properties to classes
-        if (content.data && typeof content.data === 'object') {
+        if (content.data && typeof content.data === "object") {
           for (const [key, value] of Object.entries(content.data)) {
-             if (value) classes.push(`yomitan-${key}-${value}`);
+            if (value) classes.push(`yomitan-${key}-${value}`);
           }
         }
-        
+
         if (content.class) classes.push(content.class);
-        
+
         if (classes.length > 0) {
-          attrStr = ` class="${classes.join(' ')}"`;
+          attrStr = ` class="${classes.join(" ")}"`;
         }
-        
+
         // Handle href for links
-        if (tag === 'a' && content.href) {
-            attrStr += ` href="${content.href}"`;
+        if (tag === "a" && content.href) {
+          attrStr += ` href="${content.href}"`;
         }
 
         return `<${tag}${attrStr}>${children}</${tag}>`;
       }
 
       // Structured content can also be a single object with 'type' and 'content' (like the root)
-      if (content.type === 'structured-content' && content.content) {
-          return ImportUtils.renderYomitanStructuredContent(content.content);
+      if (content.type === "structured-content" && content.content) {
+        return ImportUtils.renderYomitanStructuredContent(content.content);
       }
 
       // If it's an object but not a text or tag node, just stringify it
       return JSON.stringify(content);
     }
-    
+
     return String(content);
   }
 
@@ -339,9 +369,9 @@ class ImportUtils {
    */
   static async *streamJsonArray(data, chunkSize = 1024 * 1024) {
     let position = 0;
-    let buffer = '';
-    const decoder = new TextDecoder('utf-8');
-    
+    let buffer = "";
+    const decoder = new TextDecoder("utf-8");
+
     let inString = false;
     let escapeNext = false;
     let braceDepth = 0;
@@ -365,7 +395,7 @@ class ImportUtils {
           continue;
         }
 
-        if (char === '\\') {
+        if (char === "\\") {
           escapeNext = true;
           continue;
         }
@@ -380,21 +410,23 @@ class ImportUtils {
           continue;
         }
 
-        if (char === '{' || char === '[') {
+        if (char === "{" || char === "[") {
           // If we are at depth 1 (inside the top-level array), this is the start of a new item
           if (braceDepth === 0 && bracketDepth === 1) itemStart = i;
-          
-          if (char === '{') braceDepth++; else bracketDepth++;
-        } else if (char === '}' || char === ']') {
-          if (char === '}') braceDepth--; else bracketDepth--;
-          
+
+          if (char === "{") braceDepth++;
+          else bracketDepth++;
+        } else if (char === "}" || char === "]") {
+          if (char === "}") braceDepth--;
+          else bracketDepth--;
+
           // If we just finished an item at depth 1, yield it
           if (braceDepth === 0 && bracketDepth === 1 && itemStart !== -1) {
             const itemStr = buffer.substring(itemStart, i + 1);
             try {
               yield JSON.parse(itemStr);
             } catch (e) {
-              console.warn('JSON stream parse error:', e.message);
+              console.warn("JSON stream parse error:", e.message);
             }
             itemStart = -1;
           }
@@ -406,7 +438,7 @@ class ImportUtils {
         buffer = buffer.substring(itemStart);
         itemStart = 0;
       } else {
-        buffer = '';
+        buffer = "";
       }
 
       await this.yieldToEventLoop();
@@ -437,16 +469,16 @@ class ImportUtils {
           batch = [];
         }
         return total;
-      }
+      },
     };
   }
 }
 
 // Export
-const exportObj = typeof self !== 'undefined' ? self : window;
+const exportObj = typeof self !== "undefined" ? self : window;
 exportObj.ImportUtils = ImportUtils;
 exportObj.DictImportUtils = ImportUtils;
 
-if (typeof module !== 'undefined' && module.exports) {
+if (typeof module !== "undefined" && module.exports) {
   module.exports = ImportUtils;
 }

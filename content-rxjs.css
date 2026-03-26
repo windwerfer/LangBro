@@ -294,11 +294,11 @@
 }
 
 /* Dictionary content styles */
-.dict-type { color: green; }
-.dict-pron { color: brown; }
-.dict-level { font-size: 0.7em; }
-.dict-thai { color: #2c3e50; }
-.dict-def { display: block; margin-top: 5px; }
+.langbro-result .type { color: green; }
+.langbro-result .pron { color: brown; }
+.langbro-result .level { font-size: 0.7em; }
+.langbro-result .thai { color: #2c3e50; }
+.langbro-result .def { display: block; margin-top: 5px; }
 
 
 /* ===== DARK MODE STYLES ===== */
