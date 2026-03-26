@@ -188,6 +188,28 @@ class ImportUtils {
   }
 
   /**
+   * Cleans and formats StarDict definitions by converting custom tags to standard HTML
+   * This is done during import for maximum performance on display.
+   */
+  static cleanStarDictDefinition(text) {
+    if (!text) return '';
+    return text
+      .replace(/style="color:green"/g, 'class="dict-type"')
+      .replace(/style="color:brown"/g, 'class="dict-pron"')
+      .replace(/style="font-size:0\.7em"/g, 'class="dict-level"')
+      .replace(/<type/g, '<span')
+      .replace(/<\/type>/g, '</span>')
+      .replace(/<pron/g, '<span')
+      .replace(/<\/pron>/g, '</span>')
+      .replace(/<level/g, '<span')
+      .replace(/<\/level>/g, '</span>')
+      .replace(/<thai/g, '<span')
+      .replace(/<\/thai>/g, '</span>')
+      .replace(/<def/g, '<span')
+      .replace(/<\/def>/g, '</span>');
+  }
+
+  /**
    * Reads a big-endian uint32 from buffer correctly (unsigned)
    */
   static readUint32(buffer, offset) {
