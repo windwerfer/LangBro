@@ -409,9 +409,25 @@ class StructuredDictionaryDatabase {
       // Try exact match first
       let results = await this._queryTerms('expression', [dict.title, expression]);
 
+      // If no results and first char is uppercase, try lowercase match
+      if (results.length === 0 && expression.length > 0 && expression[0] === expression[0].toUpperCase()) {
+        const lowerExpression = expression.toLowerCase();
+        if (lowerExpression !== expression) {
+          results = await this._queryTerms('expression', [dict.title, lowerExpression]);
+        }
+      }
+
       // If no results and reading differs, try reading match
       if (results.length === 0 && reading !== expression) {
         results = await this._queryTerms('reading', [dict.title, reading]);
+        
+        // Try lowercase reading if still no results
+        if (results.length === 0 && reading.length > 0 && reading[0] === reading[0].toUpperCase()) {
+          const lowerReading = reading.toLowerCase();
+          if (lowerReading !== reading) {
+             results = await this._queryTerms('reading', [dict.title, lowerReading]);
+          }
+        }
       }
 
       if (results.length > 0) {
