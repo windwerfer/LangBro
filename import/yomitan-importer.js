@@ -26,7 +26,8 @@ class YomitanDictionaryImporter {
     async importDictionary(database, archiveContent, options = {}) {
         const job = options.job;
         const startOffset = job ? (job.processedEntries || 0) : 0;
-        let worker = null;
+        let worker = options.worker;
+        let ownWorker = false;
         
         try {
             this.showStatus('Extracting ZIP archive...');
@@ -67,10 +68,17 @@ class YomitanDictionaryImporter {
             }
 
             // 3. Initialize Worker
-            this.showStatus('Initializing worker...');
             const utils = typeof ImportUtils !== 'undefined' ? ImportUtils : (window.ImportUtils || null);
             if (!utils) throw new Error('ImportUtils not found');
-            worker = await utils.createWorker();
+            
+            if (!worker) {
+                this.showStatus('Initializing worker...');
+                worker = await utils.createWorker();
+                ownWorker = true;
+            } else {
+                this.showStatus('Resetting worker...');
+                await utils.runWorkerTask(worker, 'RESET', {});
+            }
 
             // 4. Process Banks
             const counts = await this._processAllBanks(zip, rootPath, title, version, startOffset, db, job, worker, utils);
@@ -95,7 +103,9 @@ class YomitanDictionaryImporter {
             this.showStatus(`Import failed: ${error.message}`, 'error');
             throw error;
         } finally {
-            if (worker) worker.terminate();
+            if (worker && ownWorker) {
+                worker.terminate();
+            }
         }
     }
 

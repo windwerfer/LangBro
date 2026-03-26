@@ -4,11 +4,12 @@
 class StarDictImporter {
   constructor(options = {}) {
     this.showStatus = options.showStatus;
+    this.onProgress = options.onProgress;
     this.getDB = options.getDB;
     this.utils = typeof ImportUtils !== 'undefined' ? ImportUtils : null;
   }
 
-  async importFromZip(zip, job = null) {
+  async importFromZip(zip, job = null, sharedWorker = null) {
     if (!this.utils) throw new Error('ImportUtils not loaded');
     
     // Resume detection
@@ -35,7 +36,7 @@ class StarDictImporter {
       this.showStatus(`Resuming import: ${dictName} from entry ${startOffset}`, 'info');
     }
 
-    await this.runStreamingImport(dictName, metadata, requiredEntryPaths, zip, job);
+    await this.runStreamingImport(dictName, metadata, requiredEntryPaths, zip, job, sharedWorker);
   }
 
   findRequiredEntryPaths(files) {
@@ -70,14 +71,22 @@ class StarDictImporter {
     return meta;
   }
 
-  async runStreamingImport(dictName, metadata, paths, zip, job = null) {
+  async runStreamingImport(dictName, metadata, paths, zip, job = null, sharedWorker = null) {
     console.log(`StarDict: Starting streaming import for ${dictName}`, metadata);
     const db = await this.getDB();
     
-    console.log('StarDict: Initializing worker...');
-    const worker = await this.utils.createWorker();
-    console.log('StarDict: Worker initialized successfully');
-    
+    let worker = sharedWorker;
+    let ownWorker = false;
+
+    if (!worker) {
+      console.log('StarDict: Initializing own worker...');
+      worker = await this.utils.createWorker();
+      ownWorker = true;
+    } else {
+      console.log('StarDict: Using shared worker. Resetting...');
+      await this.utils.runWorkerTask(worker, 'RESET', {});
+    }
+
     // Chunk size 1000 for stability and crash recovery
     const CHUNK_SIZE = 1000;
     
@@ -127,7 +136,19 @@ class StarDictImporter {
       const indexResult = await this.utils.runWorkerTask(
         worker,
         'BUILD_STARDICT_INDEX',
-        { wordCount: metadata.wordcount }
+        { wordCount: metadata.wordcount },
+        { 
+          onProgress: (p) => {
+             this.showStatus(`Building index: ${p.progress}%`, 'info');
+             if (this.onProgress) {
+                this.onProgress({ 
+                  progress: p.progress, 
+                  current: p.current, 
+                  total: p.total 
+                });
+             }
+          }
+        }
       );
       console.log('StarDict: Word index built successfully', indexResult);
 
@@ -151,6 +172,11 @@ class StarDictImporter {
             wordOffsets: chunkOffsets,
             dictionaryName: dictName,
             chunkSize: 1000
+          },
+          {
+            onProgress: (p) => {
+               // Sub-progress within chunk extraction (usually fast)
+            }
           }
         );
 
@@ -169,6 +195,14 @@ class StarDictImporter {
         const progress = Math.round((totalProcessed / allWordOffsets.length) * 100);
         this.showStatus(`Progress: ${totalProcessed}/${allWordOffsets.length} (${progress}%)`, 'info');
         
+        if (this.onProgress) {
+          this.onProgress({ 
+            progress, 
+            current: totalProcessed, 
+            total: allWordOffsets.length 
+          });
+        }
+        
         // Yield to keep UI responsive
         await this.utils.yieldToEventLoop();
       }
@@ -181,7 +215,10 @@ class StarDictImporter {
       this.showStatus(`Import failed: ${error.message}`, 'error');
       throw error;
     } finally {
-      worker.terminate();
+      if (ownWorker) {
+        console.log('StarDict: Terminating own worker');
+        worker.terminate();
+      }
     }
   }
 }

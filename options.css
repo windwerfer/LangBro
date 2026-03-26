@@ -519,6 +519,12 @@ button { margin: 10px 0; padding: 8px; cursor: pointer; }
   font-size: 14px;
 }
 
+.pct-label {
+  float: right;
+  font-weight: bold;
+  color: #28a745;
+}
+
 .progress-container {
   height: 8px;
   background: #eee;

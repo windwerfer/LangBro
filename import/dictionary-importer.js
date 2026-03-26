@@ -7,6 +7,7 @@ class DictionaryImporter {
     this.showStatus = options.showStatus;
     this.loadCurrentDict = options.loadCurrentDict;
     this.isProcessing = false;
+    this.worker = null;
   }
 
   init() {
@@ -139,7 +140,20 @@ class DictionaryImporter {
       if (pendingJobs.length === 0) {
         console.log('Importer: No more pending jobs.');
         this.isProcessing = false;
+        
+        // Finalize worker if it exists
+        if (this.worker) {
+          console.log('Importer: All jobs finished, terminating worker.');
+          this.worker.terminate();
+          this.worker = null;
+        }
         return;
+      }
+
+      // Ensure worker is initialized
+      if (!this.worker) {
+        console.log('Importer: Initializing shared worker...');
+        this.worker = await ImportUtils.createWorker();
       }
 
       // Process only one job (the first pending one)
@@ -180,21 +194,36 @@ class DictionaryImporter {
         const importer = new StarDictImporter({
           showStatus: (msg, type) => {
             this.showStatus(`[${job.title}] ${msg}`, type);
-            if (msg.includes('%')) {
-               const p = parseInt(msg.match(/(\d+)%/)[1]);
-               this.updateJobProgressInUI(job.id, p);
+            // Fallback for any other messages that might contain percentage
+            const match = msg.match(/(\d+)%/);
+            if (match) {
+               this.updateJobProgressInUI(job.id, parseInt(match[1]));
+            }
+          },
+          onProgress: (progress) => {
+            const p = progress.progress !== undefined ? progress.progress : 
+                      Math.round((progress.current / progress.total) * 100);
+            this.updateJobProgressInUI(job.id, p);
+            
+            // Update job record for resumability
+            if (progress.current % 1000 === 0 || progress.progress === 100) {
+              db.updateImportJob(job.id, { 
+                processedEntries: progress.current, 
+                totalEntries: progress.total 
+              });
             }
           },
           getDB: this.getStructuredDB
         });
         
-        // Pass job details for resuming
-        await importer.importFromZip(zip, job);
+        // Pass job details and shared worker for resuming/shared threading
+        await importer.importFromZip(zip, job, this.worker);
         
       } else if (job.format === 'yomitan') {
         console.log('Importer: Starting Yomitan importer...');
-        const importer = new YomitanDictionaryImporter();
-        // ... (rest of yomitan logic remains same)
+        const importer = new YomitanDictionaryImporter({
+           getDB: this.getStructuredDB
+        });
         importer.setStatusCallback((msg) => this.showStatus(`[${job.title}] ${msg}`, 'info'));
         importer.setProgressCallback((progress) => {
           const p = Math.round((progress.index / progress.count) * 100);
@@ -210,7 +239,7 @@ class DictionaryImporter {
           }
         });
         
-        await importer.importDictionary(db, job.fileBlob, { job });
+        await importer.importDictionary(db, job.fileBlob, { job, worker: this.worker });
       }
 
       // Finalize job
@@ -239,7 +268,7 @@ class DictionaryImporter {
     const queue = await db.getImportQueue();
     const job = queue.find(j => j.id === jobId);
     if (job) {
-      this.runJob(job);
+      this.processQueue(); // Use processQueue to ensure worker management
     }
   }
 
@@ -290,10 +319,12 @@ class DictionaryImporter {
       // Use structured approach to avoid XSS for title/filename
       const infoEl = document.createElement('div');
       infoEl.className = 'job-info';
-      infoEl.innerHTML = `<strong></strong> (<span class="filename"></span>) - <span class="status"></span>`;
+      infoEl.innerHTML = `<strong></strong> (<span class="filename"></span>) - <span class="status"></span> <span class="pct-label"></span>`;
       infoEl.querySelector('strong').textContent = job.title;
       infoEl.querySelector('.filename').textContent = job.filename;
       infoEl.querySelector('.status').textContent = job.status;
+      infoEl.querySelector('.pct-label').id = `pct-${job.id}`;
+      infoEl.querySelector('.pct-label').textContent = progress > 0 ? `${progress}%` : '';
       
       const progressContainer = document.createElement('div');
       progressContainer.className = 'progress-container';
@@ -330,6 +361,10 @@ class DictionaryImporter {
     const pb = document.getElementById(`pb-${jobId}`);
     if (pb) {
       pb.style.width = `${progress}%`;
+    }
+    const pct = document.getElementById(`pct-${jobId}`);
+    if (pct) {
+      pct.textContent = `${progress}%`;
     }
   }
 }

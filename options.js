@@ -41,12 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const simpleDictGroupSelect = document.getElementById('simpleDictGroup');
 
   // Import page elements
-  const filesInput = document.getElementById('filesInput');
-  const uploadBtn = document.getElementById('uploadBtn');
   const importStatusDiv = document.getElementById('importStatus');
-  const yomitanFileInput = document.getElementById('yomitanFileInput');
-  const uploadYomitanBtn = document.getElementById('uploadYomitanBtn');
-  const yomitanStatusDiv = document.getElementById('yomitanStatus');
   const checkDictsBtn = document.getElementById('checkDictsBtn');
 
   // Query groups elements

@@ -27,6 +27,11 @@ self.onmessage = async function(event) {
         result = { type: 'WORKER_READY' };
         break;
 
+      case 'RESET':
+        self.cachedData.clear();
+        result = { type: 'WORKER_RESET' };
+        break;
+
       case 'CACHE_DATA':
         for (const [key, value] of Object.entries(data)) {
           self.cachedData.set(key, value);
