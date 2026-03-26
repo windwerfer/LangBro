@@ -184,7 +184,7 @@ async function extractStarDictData({ wordOffsets, dictData, dictionaryName, chun
     for (const entry of chunk) {
       const slice = dictData.subarray(entry.dictOffset, entry.dictOffset + entry.dictSize);
       const rawDefinition = ImportUtils.decodeUTF8(slice);
-      const definition = ImportUtils.cleanStarDictDefinition(rawDefinition);
+      const definition = ImportUtils.formatDictionaryHTML(rawDefinition);
 
       const key = `${entry.word}|${entry.word}`; // expression|reading (same for StarDict)
 
@@ -364,7 +364,7 @@ async function processStarDictChunk({ metadata, idxReader, dictReader, synData, 
       if (dictOffset + dictSize <= dictReader.data.length) {
         const definitionBytes = dictReader.data.subarray(dictOffset, dictOffset + dictSize);
         const rawDefinition = ImportUtils.decodeUTF8(definitionBytes);
-        const definition = ImportUtils.cleanStarDictDefinition(rawDefinition);
+        const definition = ImportUtils.formatDictionaryHTML(rawDefinition);
 
         terms.push({
           expression: word,
@@ -434,7 +434,7 @@ async function processYomitanTerms({ content, version, dictionary, filename, fil
       // Process glossary - handle structured content
       const processedGlossary = (Array.isArray(glossary) ? glossary : [glossary]).map(item => {
         if (typeof item === 'string') {
-          return item;
+          return ImportUtils.formatDictionaryHTML(item);
         } else if (typeof item === 'object' && item !== null) {
           // For structured content, convert to HTML using shared utility
           return ImportUtils.renderYomitanStructuredContent(item);

@@ -188,10 +188,10 @@ class ImportUtils {
   }
 
   /**
-   * Cleans and formats StarDict definitions by converting custom tags to standard HTML
+   * Cleans and formats dictionary HTML by converting custom tags and inline styles to standard HTML/classes.
    * This is done during import for maximum performance on display.
    */
-  static cleanStarDictDefinition(text) {
+  static formatDictionaryHTML(text) {
     if (!text) return '';
     return text
       .replace(/style="color:green"/g, 'class="dict-type"')

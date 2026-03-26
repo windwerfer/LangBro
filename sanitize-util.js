@@ -1,25 +1,15 @@
 import DOMPurify from 'dompurify';
 
-// Shared sanitize function for dictionary HTML
+/**
+ * Shared sanitize function for dictionary HTML.
+ * Focuses on security by using DOMPurify. 
+ * Note: Custom tag conversion (e.g., <thai> -> <span>) is now performed during import 
+ * for better lookup performance.
+ */
 export function sanitizeDictHTML(html) {
-  // Replace common inline styles with classes and convert custom tags to spans
-  let processed = html
-    .replace(/style="color:green"/g, 'class="dict-type"')
-    .replace(/style="color:brown"/g, 'class="dict-pron"')
-    .replace(/style="font-size:0\.7em"/g, 'class="dict-level"')
-    .replace(/<type/g, '<span')
-    .replace(/<\/type>/g, '</span>')
-    .replace(/<pron/g, '<span')
-    .replace(/<\/pron>/g, '</span>')
-    .replace(/<level/g, '<span')
-    .replace(/<\/level>/g, '</span>')
-    .replace(/<thai/g, '<span')
-    .replace(/<\/thai>/g, '</span>')
-    .replace(/<def/g, '<span')
-    .replace(/<\/def>/g, '</span>');
-
-  // Sanitize with DOMPurify, allowing only safe tags and attributes
-  return DOMPurify.sanitize(processed, {
+  // Sanitize with DOMPurify, allowing only safe tags and attributes.
+  // We keep style for legacy support and for potentially dynamic content.
+  return DOMPurify.sanitize(html, {
     ALLOWED_TAGS: [
       'span', 'b', 'i', 'em', 'strong', 'br', 'hr', 'p', 'div', 
       'ul', 'li', 'ol', 'details', 'summary', 'style', 'a',
