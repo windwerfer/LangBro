@@ -4,7 +4,7 @@
 class StructuredDictionaryDatabase {
   constructor() {
     this.db = null;
-    this.dbVersion = 9; // Incremented to add dictionary indexes for faster deletion
+    this.dbVersion = 10; // Incremented to 10 to ensure all missing indexes are created
   }
 
   // Initialize database with structured schema
@@ -30,10 +30,16 @@ class StructuredDictionaryDatabase {
           termsStore.createIndex('dictionary', 'dictionary', { unique: false });
           termsStore.createIndex('dict_expr', ['dictionary', 'expression'], { unique: false });
         } else {
-          // Add missing reading index if it's an old schema
+          // Ensure all missing indexes are added if they are an old schema
           const termsStore = event.target.transaction.objectStore('terms');
           if (!termsStore.indexNames.contains('reading')) {
             termsStore.createIndex('reading', 'reading', { unique: false });
+          }
+          if (!termsStore.indexNames.contains('dictionary')) {
+            termsStore.createIndex('dictionary', 'dictionary', { unique: false });
+          }
+          if (!termsStore.indexNames.contains('dict_expr')) {
+            termsStore.createIndex('dict_expr', ['dictionary', 'expression'], { unique: false });
           }
         }
 
@@ -41,12 +47,22 @@ class StructuredDictionaryDatabase {
           const kanjiStore = db.createObjectStore('kanji', { autoIncrement: true });
           kanjiStore.createIndex('character', 'character', { unique: false });
           kanjiStore.createIndex('dictionary', 'dictionary', { unique: false });
+        } else {
+          const kanjiStore = event.target.transaction.objectStore('kanji');
+          if (!kanjiStore.indexNames.contains('dictionary')) {
+            kanjiStore.createIndex('dictionary', 'dictionary', { unique: false });
+          }
         }
 
         if (!db.objectStoreNames.contains('media')) {
           const mediaStore = db.createObjectStore('media', { autoIncrement: true });
           mediaStore.createIndex('path', 'path', { unique: false });
           mediaStore.createIndex('dictionary', 'dictionary', { unique: false });
+        } else {
+          const mediaStore = event.target.transaction.objectStore('media');
+          if (!mediaStore.indexNames.contains('dictionary')) {
+            mediaStore.createIndex('dictionary', 'dictionary', { unique: false });
+          }
         }
 
         // TagMeta, TermMeta, KanjiMeta with dictionary indexes
@@ -687,58 +703,34 @@ class StructuredDictionaryDatabase {
     let totalDeleted = 0;
     let lastProgressTime = Date.now();
 
-    // Delete dictionary metadata
-    const dictStore = transaction.objectStore('dictionaries');
-    dictStore.delete(dictName);
-
-    // Also remove from import registry if it exists
-    if (availableStores.includes('import_registry')) {
-      const registryStore = transaction.objectStore('import_registry');
-      await new Promise((resolve) => {
-        const registryReq = registryStore.openCursor();
-        registryReq.onsuccess = (event) => {
-          const cursor = event.target.result;
-          if (cursor) {
-            if (cursor.value.title === dictName) {
-              cursor.delete();
-            }
-            cursor.continue();
-          } else {
-            resolve();
-          }
-        };
-        registryReq.onerror = () => resolve();
-      });
-    }
-
-    // Also remove from import queue if it exists
-    if (availableStores.includes('import_queue')) {
-      const queueStore = transaction.objectStore('import_queue');
-      await new Promise((resolve) => {
-        const queueReq = queueStore.openCursor();
-        queueReq.onsuccess = (event) => {
-          const cursor = event.target.result;
-          if (cursor) {
-            if (cursor.value.title === dictName) {
-              cursor.delete();
-            }
-            cursor.continue();
-          } else {
-            resolve();
-          }
-        };
-        queueReq.onerror = () => resolve();
-      });
-    }
-
     // Helper function to delete with range queries where possible
-    const deleteWithCursor = (store, indexName, keyRange, description) => {
+    const deleteWithCursor = (storeName, indexName, keyRange, description) => {
       return new Promise((resolve) => {
-        let localDeleted = 0;
-        const request = indexName ?
-          store.index(indexName).openCursor(keyRange) :
-          store.openCursor(keyRange);
+        if (!availableStores.includes(storeName)) {
+          console.warn(`Store ${storeName} not found, skipping deletion for ${description}`);
+          return resolve();
+        }
 
+        const store = transaction.objectStore(storeName);
+        let request;
+        
+        try {
+          if (indexName) {
+            if (!store.indexNames.contains(indexName)) {
+              console.warn(`Index ${indexName} not found on store ${storeName}, skipping indexed deletion`);
+              // Fallback to manual scan if index missing? For now just skip to be safe
+              return resolve();
+            }
+            request = store.index(indexName).openCursor(keyRange);
+          } else {
+            request = store.openCursor(keyRange);
+          }
+        } catch (e) {
+          console.error(`Error opening cursor for ${description}:`, e);
+          return resolve();
+        }
+
+        let localDeleted = 0;
         request.onsuccess = (event) => {
           const cursor = event.target.result;
           if (cursor) {
@@ -746,10 +738,10 @@ class StructuredDictionaryDatabase {
             localDeleted++;
             totalDeleted++;
 
-            // Send progress update every 2 seconds
+            // Send progress update periodically
             if (progressCallback) {
               const currentTime = Date.now();
-              if (currentTime - lastProgressTime >= 2000) {
+              if (currentTime - lastProgressTime >= 1000) {
                 progressCallback(`Deleted ${totalDeleted} entries so far...`);
                 lastProgressTime = currentTime;
               }
@@ -757,13 +749,13 @@ class StructuredDictionaryDatabase {
 
             cursor.continue();
           } else {
-            console.log(`Deleted ${localDeleted} ${description} entries`);
+            if (localDeleted > 0) console.log(`Deleted ${localDeleted} ${description} entries`);
             resolve();
           }
         };
 
         request.onerror = () => {
-          console.error(`Error deleting ${description} entries`);
+          console.error(`Error deleting ${description} entries:`, request.error);
           resolve(); // Continue with other deletions
         };
       });
@@ -771,43 +763,63 @@ class StructuredDictionaryDatabase {
 
     const dictRange = IDBKeyRange.only(dictName);
 
-    // Delete all terms for this dictionary using efficient dictionary index
-    console.log(`Starting deletion of terms for dictionary: ${dictName}`);
-    const termStore = transaction.objectStore('terms');
-    await deleteWithCursor(termStore, 'dictionary', dictRange, 'term');
+    // 1. Delete dictionary metadata
+    if (availableStores.includes('dictionaries')) {
+      transaction.objectStore('dictionaries').delete(dictName);
+    }
 
-    // Delete kanji for this dictionary
-    console.log(`Starting deletion of kanji for dictionary: ${dictName}`);
-    const kanjiStore = transaction.objectStore('kanji');
-    await deleteWithCursor(kanjiStore, 'dictionary', dictRange, 'kanji');
+    // 2. Remove from import registry if it exists
+    const registryPromise = availableStores.includes('import_registry') ? 
+      new Promise((resolve) => {
+        const store = transaction.objectStore('import_registry');
+        const req = store.openCursor();
+        req.onsuccess = (event) => {
+          const cursor = event.target.result;
+          if (cursor) {
+            if (cursor.value.title === dictName) cursor.delete();
+            cursor.continue();
+          } else resolve();
+        };
+        req.onerror = () => resolve();
+      }) : Promise.resolve();
 
-    // Delete media for this dictionary
-    console.log(`Starting deletion of media for dictionary: ${dictName}`);
-    const mediaStore = transaction.objectStore('media');
-    await deleteWithCursor(mediaStore, 'dictionary', dictRange, 'media');
+    // 3. Remove from import queue if it exists
+    const queuePromise = availableStores.includes('import_queue') ?
+      new Promise((resolve) => {
+        const store = transaction.objectStore('import_queue');
+        const req = store.openCursor();
+        req.onsuccess = (event) => {
+          const cursor = event.target.result;
+          if (cursor) {
+            if (cursor.value.title === dictName) cursor.delete();
+            cursor.continue();
+          } else resolve();
+        };
+        req.onerror = () => resolve();
+      }) : Promise.resolve();
 
-    // Bulk delete tag metadata
-    console.log(`Bulk deleting tag metadata for dictionary: ${dictName}`);
-    const tagStore = transaction.objectStore('tagMeta');
-    await deleteWithCursor(tagStore, 'dictionary', dictRange, 'tagMeta');
-
-    // Bulk delete term metadata
-    console.log(`Bulk deleting term metadata for dictionary: ${dictName}`);
-    const termMetaStore = transaction.objectStore('termMeta');
-    await deleteWithCursor(termMetaStore, 'dictionary', dictRange, 'termMeta');
-
-    // Bulk delete kanji metadata
-    console.log(`Bulk deleting kanji metadata for dictionary: ${dictName}`);
-    const kanjiMetaStore = transaction.objectStore('kanjiMeta');
-    await deleteWithCursor(kanjiMetaStore, 'dictionary', dictRange, 'kanjiMeta');
+    // 4. Delete all linked data using indexes
+    // We execute these sequentially but within the SAME transaction
+    try {
+      await registryPromise;
+      await queuePromise;
+      await deleteWithCursor('terms', 'dictionary', dictRange, 'term');
+      await deleteWithCursor('kanji', 'dictionary', dictRange, 'kanji');
+      await deleteWithCursor('media', 'dictionary', dictRange, 'media');
+      await deleteWithCursor('tagMeta', 'dictionary', dictRange, 'tagMeta');
+      await deleteWithCursor('termMeta', 'dictionary', dictRange, 'termMeta');
+      await deleteWithCursor('kanjiMeta', 'dictionary', dictRange, 'kanjiMeta');
+    } catch (e) {
+      console.error('Error during sequential deletion:', e);
+    }
 
     return new Promise((resolve, reject) => {
       transaction.oncomplete = () => {
-        console.log(`Dictionary "${dictName}" and all its data deleted successfully (${totalDeleted} entries)`);
+        console.log(`Dictionary "${dictName}" deleted successfully (${totalDeleted} entries)`);
         resolve();
       };
       transaction.onerror = () => {
-        console.error('Failed to delete dictionary:', transaction.error);
+        console.error('Transaction failed during dictionary deletion:', transaction.error);
         reject(transaction.error);
       };
     });
