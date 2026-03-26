@@ -1,574 +1,965 @@
-<!DOCTYPE html>
-<!DOCTYPE html>
+<!doctype html>
+<!doctype html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Langbro Settings</title>
-  <link rel="stylesheet" href="options.css">
-</head>
-<body>
-  <div class="nav">
-    <button id="nav-main" class="active">Main Settings</button>
-    <button id="nav-groups">Query Groups</button>    
-    <button id="nav-offline">Offline Dictionary</button>
-    <button id="nav-web">Web Dictionarys / Translators</button>
-    <button id="nav-ai">AI</button>
-    <button id="nav-backup">Backup/Restore</button>
-  </div>
-
-  <!-- Main Settings Page -->
-  <div id="page-main" class="page active">
-    <h2>Main Settings</h2>
-
-    <h3>Extension Control</h3>
-    <label>
-      <input type="checkbox" id="extensionEnabledCheckbox" />
-      Extension Enabled
-    </label>
-
-    <h3>Appearance</h3>
-    <label>
-      <input type="checkbox" id="darkModeCheckbox" />
-      Enable dark mode for dictionary popup
-    </label>
-    <br>
-    <label>
-      <input type="checkbox" id="hideGroupNamesCheckbox" />
-      Hide query group names in results (show only icons)
-    </label>
-
-    <h3>Caching</h3>
-    <label>
-      <input type="checkbox" id="cachingEnabledCheckbox" />
-      Enable query caching
-    </label>
-    <br>
-    <div id="cacheTimeoutContainer" style="display: none; margin-top: 10px;">
-      <label for="cacheTimeoutInput">Cache timeout (days): </label>
-      <input type="number" id="cacheTimeoutInput" placeholder="0" value="0" min="0" style="width: 60px;">
-      <small style="margin-left: 10px; color: #666;">0 = keep indefinitely</small>
-    </div>
-
-    <h4>Translation Settings</h4>
-    <div class="form-group">
-      <label for="targetLanguage">Target Language: </label>
-      <select id="targetLanguage">
-        <option value="en">English</option>
-        <option value="es">Spanish</option>
-        <option value="fr">French</option>
-        <option value="de">German</option>
-        <option value="it">Italian</option>
-        <option value="pt">Portuguese</option>
-        <option value="ru">Russian</option>
-        <option value="ja">Japanese</option>
-        <option value="ko">Korean</option>
-        <option value="zh">Chinese</option>
-        <option value="ar">Arabic</option>
-        <option value="hi">Hindi</option>
-        <option value="bn">Bengali</option>
-        <option value="pa">Punjabi</option>
-        <option value="jv">Javanese</option>
-        <option value="th">Thai</option>
-        <option value="vi">Vietnamese</option>
-        <option value="tr">Turkish</option>
-        <option value="pl">Polish</option>
-        <option value="nl">Dutch</option>
-        <option value="sv">Swedish</option>
-        <option value="da">Danish</option>
-        <option value="no">Norwegian</option>
-        <option value="fi">Finnish</option>
-        <option value="he">Hebrew</option>
-        <option value="el">Greek</option>
-        <option value="cs">Czech</option>
-        <option value="hu">Hungarian</option>
-        <option value="ro">Romanian</option>
-        <option value="sk">Slovak</option>
-        <option value="hr">Croatian</option>
-        <option value="sl">Slovenian</option>
-      </select>
-    </div>
-
-    <h4>Query Button Placement</h4>
-    <div class="form-group">
-      <label for="iconPlacement">Placement: </label>
-      <select id="iconPlacement">
-        <option value="right">Right</option>
-        <option value="left">Left</option>
-        <option value="underneath">underneath the Word (default)</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label for="iconOffset">Vertical offset (px): </label>
-      <input type="number" id="iconOffset" placeholder="-50" value="50">
-    </div>
-    <div class="form-group">
-      <label for="iconSpacing">Space between icons (px): </label>
-      <input type="number" id="iconSpacing" placeholder="10" value="10" min="5" max="50">
-    </div>
-
-    <h4>Touch Gestures</h4>
-    <div class="form-group">
-      <label for="rightSwipeGroup">Right swipe executes: </label>
-      <select id="rightSwipeGroup">
-        <option value="">None</option>
-        <!-- Query groups will be loaded here -->
-      </select>
-    </div>
-
-    <h4>Mouse Gestures</h4>
-     <div class="form-group">
-       <label for="singleClickGroup">Single click / tap (selects word) and executes: </label>
-       <select id="singleClickGroup">
-         <option value="">None</option>
-         <option value="icons">Display query icons</option>
-         <!-- Query groups will be loaded here -->
-       </select>
-     </div>
-
-     <div class="form-group">
-       <label for="simpleDictGroup">Simple Dict Group:</label>
-       <select id="simpleDictGroup">
-         <option value="">None</option>
-         <!-- Query groups will be loaded here -->
-       </select>
-     </div>
-  </div>
-
-  <!-- Offline Dictionary Page -->
-  <div id="page-offline" class="page">
-    <h2>Offline Dictionary</h2>
-
-     <h3>Import Dictionary (ZIP)</h3>
-     <p>Select one or more ZIP files containing either StarDict or Yomitan dictionary files:</p>
-     <input type="file" id="dictionaryZipInput" accept=".zip" multiple />
-     <br>
-     <label style="margin-top: 10px; display: block;">
-       <input type="checkbox" id="skipExistingCheckbox" checked />
-       Skip already installed files
-     </label>
-     <br>
-     <button id="importDictionaryBtn">Import Dictionary</button>
-     
-     <div id="importQueueContainer" style="display: none; margin-top: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px; background: #fdfdfd;">
-       <!-- Queued jobs will appear here -->
-     </div>
-
-     <div id="importStatus"></div>
-
-    <h3>Loaded Dictionaries</h3>
-    <button id="checkDictsBtn">Check Dicts</button>
-    <div id="dictList"></div>
-  </div>
-
-  <!-- Web Dictionarys / Translators Page -->
-  <div id="page-web" class="page">
-    <h2>Web Dictionarys / Translators</h2>
-
-    <button id="addWebServiceBtn" style="margin-bottom: 20px; background: #28a745; color: white; border: 1px solid #28a745;">Add New Service</button>
-
-    <!-- Web Service Form (hidden by default) -->
-    <div id="webServiceForm" style="display: none; margin: 20px 0; border: 1px solid #ddd; padding: 20px; border-radius: 4px; background: #f9f9f9;">
-      <h3 id="webServiceFormTitle">Add Web Service</h3>
-
-      <div class="form-group">
-        <label for="webServiceName">Service Name:</label>
-        <input type="text" id="webServiceName" placeholder="e.g., Dictionary API, Google Translate" required>
-      </div>
-
-      <div class="form-group">
-        <label for="webServiceUrl">API URL:</label>
-        <input type="url" id="webServiceUrl" placeholder="https://api.example.com/lookup?word={text}" required>
-        <small>Use {text} for selected text, {lang} for full language name, {lang_short} for 2-letter code</small>
-        <br><small>Examples:</small>
-        <br><small>• Dictionary API: https://api.dictionaryapi.dev/api/v2/entries/{lang_short}/{text}</small>
-        <br><small>• Translation API: https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={lang_short}&dt=t&q={text}</small>
-      </div>
-
-      <div class="form-group">
-        <label for="webServiceJsonPath">JSON Path (optional):</label>
-        <input type="text" id="webServiceJsonPath" placeholder="data.translation or 0[0][0]">
-        <small>If autodetection fails, enter the data format of the JSON response (e.g., '0[0][0]' or 'result.translation' or 'data[0].text')</small>
-      </div>
-
-      <div style="margin-top: 20px;">
-        <button id="saveWebServiceBtn">Save Service</button>
-        <button id="cancelWebServiceBtn">Cancel</button>
-      </div>
-    </div>
-
-    <div id="webServicesList">
-      <!-- Web services will be loaded here -->
-      <p style="color: #666; font-style: italic;">Loading web services...</p>
-    </div>
-  </div>
-
-  <!-- AI API Page -->
-  <div id="page-ai" class="page">
-    <h2>AI API</h2>
-
-    <button id="addAiServiceBtn" style="margin-bottom: 20px; background: #28a745; color: white; border: 1px solid #28a745;">Add New AI Service</button>
-
-    <!-- AI Service Form (hidden by default) -->
-    <div id="aiServiceForm" style="display: none; margin: 20px 0; border: 1px solid #ddd; padding: 20px; border-radius: 4px; background: #f9f9f9;">
-      <h3 id="aiServiceFormTitle">Add AI Service</h3>
-
-      <div class="form-group">
-        <label for="aiServiceName">Service Name:</label>
-        <input type="text" id="aiServiceName" placeholder="e.g., My OpenAI Service, Claude Assistant" required>
-      </div>
-
-      <div class="form-group">
-        <label for="aiServiceProvider">AI Provider:</label>
-         <select id="aiServiceProvider" required>
-           <option value="google">Google AI</option>
-           <option value="openai">OpenAI</option>
-           <option value="anthropic">Anthropic Claude</option>
-           <option value="xai">xAI</option>
-           <option value="openrouter">OpenRouter</option>
-         </select>
-      </div>
-
-      <div class="form-group">
-        <label for="aiServiceApiKey">API Key:</label>
-        <input type="password" id="aiServiceApiKey" placeholder="Enter your API key" required>
-      </div>
-
-       <div class="form-group">
-         <label for="aiServiceModel">Model:</label>
-         <input type="text" id="aiServiceModel" placeholder="gemini-2.5-flash" required>
-       </div>
-
-       <div class="form-group" id="openrouterReasoningSettings" style="display: none;">
-         <label>
-           <input type="checkbox" id="aiServiceReasoningEnabled" />
-           Enable Reasoning
-         </label>
-         <div id="reasoningEffortContainer" style="margin-top: 10px; display: none;">
-           <label for="aiServiceReasoningEffort">Reasoning Effort:</label>
-           <select id="aiServiceReasoningEffort">
-             <option value="minimal">Minimal</option>
-             <option value="low">Low</option>
-             <option value="medium">Medium</option>
-             <option value="high">High</option>
-           </select>
-         </div>
-       </div>
-
-        <div style="margin-top: 20px;">
-         <button id="saveAiServiceBtn">Save Service</button>
-         <button id="testAiServiceBtn" style="background-color: #28a745; color: white; border: 1px solid #28a745;">Test Service</button>
-         <button id="cancelAiServiceBtn">Cancel</button>
-       </div>
-    </div>
-
-    <div id="aiServicesList">
-      <!-- AI services will be loaded here -->
-      <p style="color: #666; font-style: italic;">Loading AI services...</p>
-    </div>
-  </div>
-
-  <!-- Query Groups Page -->
-  <div id="page-groups" class="page">
-    <h2>Query Groups</h2>
-
-    <button id="addGroupBtn">Add Query Group</button>
-
-    <!-- Query Group Form (hidden by default) -->
-    <div id="groupForm" style="display: none; margin: 20px 0; border: 1px solid #ddd; padding: 20px; border-radius: 4px; background: #f9f9f9;">
-      <h3 id="formTitle">Add Query Group</h3>
-
-      <div class="form-group">
-        <label for="groupName">Group Name:</label>
-        <input type="text" id="groupName" required>
-      </div>
-
-      <div class="form-group">
-        <label>Icon:</label>
-        <div class="icon-selector" id="iconSelector">
-          <div class="icon-option" data-icon="#">#</div>
-          <div class="icon-option" data-icon="🔍">🔍</div>
-          <div class="icon-option" data-icon="📖">📖</div>
-          <div class="icon-option" data-icon="🤖">🤖</div>
-          <div class="icon-option" data-icon="🌐">🌐</div>
-          <div class="icon-option" data-icon="📚">📚</div>
-          <div class="icon-option" data-icon="💡">💡</div>
-          <div class="icon-option" data-icon="🎯">🎯</div>
-          <div class="icon-option" data-icon="icon_Google_Translate.png"><img src="icon_Google_Translate.png" style="width: 16px; height: 16px;" alt="GT"></div>
-          <div class="icon-option" data-icon="icon_gemini.png"><img src="icon_gemini.png" style="width: 16px; height: 16px;" alt="Gemini"></div>
-          <input type="text" id="customIcon" placeholder="Or enter custom icon/text" style="margin-left: 10px; width: 150px;">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Langbro Settings</title>
+        <link rel="stylesheet" href="options.css" />
+    </head>
+    <body>
+        <div class="nav">
+            <button id="nav-main" class="active">Main Settings</button>
+            <button id="nav-groups">Query Groups</button>
+            <button id="nav-offline">Offline Dictionary</button>
+            <button id="nav-web">Web Dictionarys / Translators</button>
+            <button id="nav-ai">AI</button>
+            <button id="nav-backup">Backup/Restore</button>
         </div>
-      </div>
 
-      <div class="form-group">
-        <label for="queryType">Query Type:</label>
-        <select id="queryType">
-          <option value="offline">Offline Dictionary</option>
-          <option value="web">Web Dictionary / Translator</option>
-          <option value="ai">AI</option>
-        </select>
-      </div>
+        <!-- Main Settings Page -->
+        <div id="page-main" class="page active">
+            <h2>Main Settings</h2>
 
-      <!-- Web Service Selection (only shown when query type is web) -->
-      <div class="form-group" id="webServiceSelection" style="display: none;">
-        <label for="selectedWebService">Web Service:</label>
-        <select id="selectedWebService">
-          <option value="">Select a web service...</option>
-          <!-- Web services will be loaded here -->
-        </select>
-      </div>
-
-      <!-- AI Service Selection (only shown when query type is ai) -->
-      <div class="form-group" id="aiServiceSelection" style="display: none;">
-        <label for="selectedAiService">AI Service:</label>
-        <select id="selectedAiService">
-          <option value="">Select an AI service...</option>
-          <!-- AI services will be loaded here -->
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label for="displayMethod">Display Method:</label>
-        <select id="displayMethod">
-          <option value="popup">Popup (floating box)</option>
-          <option value="inline">Inline (below selected text)</option>
-          <option value="bottom">Bottom panel (full width)</option>
-        </select>
-      </div>
-
-      <!-- Popup Settings (only shown when display method is popup) -->
-      <div id="popupSettings" class="query-type-settings" style="display: none;">
-        <div class="form-group">
-          <label for="popupWidth">Popup Width (px or %):</label>
-          <input type="text" id="popupWidth" placeholder="40%" value="40%">
-          <small>Width of popup window (e.g., "400px" or "40%")</small>
-        </div>
-        <div class="form-group">
-          <label for="popupHeight">Popup Height (px or %):</label>
-          <input type="text" id="popupHeight" placeholder="30%" value="30%">
-          <small>Height of popup window (e.g., "200px" or "30%")</small>
-        </div>
-        <div class="form-group">
-          <label>
-            <input type="checkbox" id="popupHideOnClickOutside" />
-            Hide popup when clicking outside
-          </label>
-        </div>
-      </div>
-
-      <!-- Inline Settings (only shown when display method is inline) -->
-      <div id="inlineSettings" class="query-type-settings" style="display: none;">
-        <div class="form-group">
-          <label>
-            <input type="checkbox" id="inlineFlexibleHeight" checked />
-            Flexible height (grows with content, otherwise shows scrollbars)
-          </label>
-        </div>
-      </div>
-
-      <!-- Bottom Panel Settings (only shown when display method is bottom) -->
-      <div id="bottomSettings" class="query-type-settings" style="display: none;">
-        <div class="form-group">
-          <label for="bottomHeight">Panel Height (px or %):</label>
-          <input type="text" id="bottomHeight" placeholder="200px" value="200px">
-          <small>Height of bottom panel (e.g., "200px" or "30%")</small>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label for="textSelectionMethod">Text Selection Method:</label>
-        <select id="textSelectionMethod">
-          <option value="selectedText">Selected text</option>
-          <option value="wholeWord">Whole word</option>
-          <option value="wholeParagraph">Whole paragraph</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label for="showSearchField">Show Search Field inside the result window:</label>
-        <select id="showSearchField">
-          <option value="none">None</option>
-          <option value="liveResults">Live results</option>
-          <option value="onPressingEnter">On pressing enter</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label for="displaySuggestions">Display suggestions (only for offline dictionaries):</label>
-        <input type="number" id="displaySuggestions" min="0" max="100" value="20" style="width: 60px;">
-        <small>0 to disable, default 20</small>
-      </div>
-
-       <div class="form-group">
-         <label>
-           <input type="checkbox" id="showDidYouMeanSuggestions" checked />
-           Show "did you mean" suggestions (if only 'apple' is selected from the text 'apple pie' an alternative entry suggestion will be shown)
-         </label>
-       </div>
-
-       <div class="form-group">
-         <label>
-           <input type="checkbox" id="showDidYouMeanInternalSuggestions" checked />
-           Show "did you mean (internal)" suggestions (decompose compound words into constituent parts, e.g. 'apfelbaum' → 'apfel', 'baum')
-         </label>
-       </div>
-
-       <!-- Offline Settings -->
-      <div id="offlineSettings" class="query-type-settings">
-        <p>This group will use the selected StarDict dictionaries.</p>
-        <div class="form-group">
-          <div id="dictionarySelection">
-            <div class="dict-selection-section">
-              <h5>Available Dictionaries:</h5>
-              <div id="availableDicts" class="dict-checkboxes">
-                <p style="color: #666; font-style: italic;">Loading dictionaries...</p>
-              </div>
-            </div>
-             <div class="dict-selection-section">
-               <h5>Selected Dictionaries (drag to reorder or edit position numbers):</h5>
-               <div id="selectedDicts" class="sortable-list">
-                 <p style="color: #666; font-style: italic; margin: 10px;">Select dictionaries above to add them here</p>
-               </div>
-             </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Web API Settings -->
-      <div id="webSettings" class="query-type-settings" style="display: none;">
-        <p>Select a web service from the dropdown above. Configure web services in the "Web Dictionarys / Translators" tab.</p>
-      </div>
-
-      <!-- AI Settings -->
-      <div id="aiSettings" class="query-type-settings" style="display: none;">
-        <div class="form-group">
-          <label for="aiMaxTokens">Max Tokens:</label>
-          <input type="number" id="aiMaxTokens" placeholder="2048" value="2048" min="1" max="10000">
-          <small>Maximum number of tokens to generate in the response</small>
-        </div>
-        <div class="form-group">
-          <label>
-            <input type="checkbox" id="aiSendContext" />
-            Send additional context to the AI
-          </label>
-          <small>Include surrounding text from the webpage with the selected word</small>
-        </div>
-        <div class="form-group" id="aiContextSettings" style="display: none;">
-          <div style="display: flex; gap: 10px;">
-            <div>
-              <label for="aiWordsBefore">Words before selection:</label>
-              <input type="number" id="aiWordsBefore" value="40" min="0" max="500" style="width: 60px;">
-            </div>
-            <div>
-              <label for="aiWordsAfter">Words after selection:</label>
-              <input type="number" id="aiWordsAfter" value="40" min="0" max="500" style="width: 60px;">
-            </div>
-          </div>
-          <div style="margin-top: 10px;">
+            <h3>Extension Control</h3>
             <label>
-              <input type="checkbox" id="aiCompleteContext" />
-              Get complete context from surrounding text blocks (elements above, below, and parent)
+                <input type="checkbox" id="extensionEnabledCheckbox" />
+                Extension Enabled
             </label>
-            <small>Otherwise context stops at text block boundaries</small>
-          </div>
-          <small>The full context will be available in AI prompts as {context} variable</small>
+
+            <h3>Appearance</h3>
+            <label>
+                <input type="checkbox" id="darkModeCheckbox" />
+                Enable dark mode for dictionary popup
+            </label>
+            <br />
+            <label>
+                <input type="checkbox" id="hideGroupNamesCheckbox" />
+                Hide query group names in results (show only icons)
+            </label>
+
+            <h3>Caching</h3>
+            <label>
+                <input type="checkbox" id="cachingEnabledCheckbox" />
+                Enable query caching
+            </label>
+            <br />
+            <div
+                id="cacheTimeoutContainer"
+                style="display: none; margin-top: 10px"
+            >
+                <label for="cacheTimeoutInput">Cache timeout (days): </label>
+                <input
+                    type="number"
+                    id="cacheTimeoutInput"
+                    placeholder="0"
+                    value="0"
+                    min="0"
+                    style="width: 60px"
+                />
+                <small style="margin-left: 10px; color: #666"
+                    >0 = keep indefinitely</small
+                >
+            </div>
+
+            <h4>Translation Settings</h4>
+            <div class="form-group">
+                <label for="targetLanguage">Target Language: </label>
+                <select id="targetLanguage">
+                    <option value="en">English</option>
+                    <option value="es">Spanish</option>
+                    <option value="fr">French</option>
+                    <option value="de">German</option>
+                    <option value="it">Italian</option>
+                    <option value="pt">Portuguese</option>
+                    <option value="ru">Russian</option>
+                    <option value="ja">Japanese</option>
+                    <option value="ko">Korean</option>
+                    <option value="zh">Chinese</option>
+                    <option value="ar">Arabic</option>
+                    <option value="hi">Hindi</option>
+                    <option value="bn">Bengali</option>
+                    <option value="pa">Punjabi</option>
+                    <option value="jv">Javanese</option>
+                    <option value="th">Thai</option>
+                    <option value="vi">Vietnamese</option>
+                    <option value="tr">Turkish</option>
+                    <option value="pl">Polish</option>
+                    <option value="nl">Dutch</option>
+                    <option value="sv">Swedish</option>
+                    <option value="da">Danish</option>
+                    <option value="no">Norwegian</option>
+                    <option value="fi">Finnish</option>
+                    <option value="he">Hebrew</option>
+                    <option value="el">Greek</option>
+                    <option value="cs">Czech</option>
+                    <option value="hu">Hungarian</option>
+                    <option value="ro">Romanian</option>
+                    <option value="sk">Slovak</option>
+                    <option value="hr">Croatian</option>
+                    <option value="sl">Slovenian</option>
+                </select>
+            </div>
+
+            <h4>Query Button Placement</h4>
+            <div class="form-group">
+                <label for="iconPlacement">Placement: </label>
+                <select id="iconPlacement">
+                    <option value="right">Right</option>
+                    <option value="left">Left</option>
+                    <option value="underneath">
+                        underneath the Word (default)
+                    </option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="iconOffset">Vertical offset (px): </label>
+                <input
+                    type="number"
+                    id="iconOffset"
+                    placeholder="-50"
+                    value="50"
+                />
+            </div>
+            <div class="form-group">
+                <label for="iconSpacing">Space between icons (px): </label>
+                <input
+                    type="number"
+                    id="iconSpacing"
+                    placeholder="10"
+                    value="10"
+                    min="5"
+                    max="50"
+                />
+            </div>
+
+            <h4>Touch Gestures</h4>
+            <div class="form-group">
+                <label for="rightSwipeGroup">Right swipe executes: </label>
+                <select id="rightSwipeGroup">
+                    <option value="">None</option>
+                    <!-- Query groups will be loaded here -->
+                </select>
+            </div>
+
+            <h4>Mouse Gestures</h4>
+            <div class="form-group">
+                <label for="singleClickGroup"
+                    >Single click / tap (selects word) and executes:
+                </label>
+                <select id="singleClickGroup">
+                    <option value="">None</option>
+                    <option value="icons">Display query icons</option>
+                    <!-- Query groups will be loaded here -->
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="simpleDictGroup">Simple Dict Group:</label>
+                <select id="simpleDictGroup">
+                    <option value="">None</option>
+                    <!-- Query groups will be loaded here -->
+                </select>
+            </div>
         </div>
-        <div class="form-group">
-          <label class="lPrompt" for="aiPrompt">Prompt Template:</label>
-          <textarea id="aiPrompt" rows="3" placeholder="You are a Tutor, give a grammar breakdown for: {text}">You are a Tutor, give a grammar breakdown for: {text}</textarea>
+
+        <!-- Offline Dictionary Page -->
+        <div id="page-offline" class="page">
+            <h2>Offline Dictionary</h2>
+
+            <h3>Import Dictionary (ZIP)</h3>
+            <p>
+                Select one or more ZIP files containing either StarDict or
+                Yomitan dictionary files:
+            </p>
+            <input type="file" id="dictionaryZipInput" accept=".zip" multiple />
+            <br />
+            <label style="margin-top: 10px; display: block">
+                <input type="checkbox" id="skipExistingCheckbox" checked />
+                Skip already installed files
+            </label>
+            <br />
+            <button id="importDictionaryBtn">Import Dictionary</button>
+
+            <div
+                id="importQueueContainer"
+                style="
+                    display: none;
+                    margin-top: 20px;
+                    border: 1px solid #ddd;
+                    padding: 15px;
+                    border-radius: 5px;
+                    background: #fdfdfd;
+                "
+            >
+                <!-- Queued jobs will appear here -->
+            </div>
+
+            <div id="importStatus"></div>
+
+            <h3>Loaded Dictionaries</h3>
+            <button id="checkDictsBtn">Check Dicts</button>
+            <div id="dictList"></div>
         </div>
-      </div>
 
-      <div style="margin-top: 20px;">
-        <button id="saveGroupBtn">Save Group</button>
-        <button id="cancelGroupBtn">Cancel</button>
-      </div>
-    </div>
+        <!-- Web Dictionarys / Translators Page -->
+        <div id="page-web" class="page">
+            <h2>Web Dictionarys / Translators</h2>
 
-    <div id="groupsList">
-      <!-- Query groups will be loaded here -->
-    </div>
-  </div>
+            <button
+                id="addWebServiceBtn"
+                style="
+                    margin-bottom: 20px;
+                    background: #28a745;
+                    color: white;
+                    border: 1px solid #28a745;
+                "
+            >
+                Add New Service
+            </button>
 
-  <!-- Backup/Restore Page -->
-  <div id="page-backup" class="page">
-    <h2>Backup/Restore</h2>
+            <!-- Web Service Form (hidden by default) -->
+            <div
+                id="webServiceForm"
+                style="
+                    display: none;
+                    margin: 20px 0;
+                    border: 1px solid #ddd;
+                    padding: 20px;
+                    border-radius: 4px;
+                    background: #f9f9f9;
+                "
+            >
+                <h3 id="webServiceFormTitle">Add Web Service</h3>
 
-    <h3>Settings Backup</h3>
-    <p>Export your settings to a file or import settings from a backup file.</p>
-    <button id="exportSettingsBtn">Export Settings</button>
-    <br>
-    <input type="file" id="importSettingsFile" accept=".json" style="display: none;">
-    <button id="importSettingsBtn">Import Settings</button>
-    <div id="settingsStatus"></div>
+                <div class="form-group">
+                    <label for="webServiceName">Service Name:</label>
+                    <input
+                        type="text"
+                        id="webServiceName"
+                        placeholder="e.g., Dictionary API, Google Translate"
+                        required
+                    />
+                </div>
 
-    <h3>Dictionary Backup</h3>
-    <p>Export your dictionaries in Yomitan-compatible format or import dictionaries from Yomitan.</p>
-    <button id="exportDictBtn">Export Dictionaries</button>
-    <br>
-    <input type="file" id="importDictFile" accept=".zip,.json" style="display: none;">
-    <button id="importDictBtn">Import Dictionaries</button>
-    <div id="dictStatus"></div>
+                <div class="form-group">
+                    <label for="webServiceUrl">API URL:</label>
+                    <input
+                        type="url"
+                        id="webServiceUrl"
+                        placeholder="https://api.example.com/lookup?word={text}"
+                        required
+                    />
+                    <small
+                        >Use {text} for selected text, {lang} for full language
+                        name, {lang_short} for 2-letter code</small
+                    >
+                    <br /><small>Examples:</small> <br /><small
+                        >• Dictionary API:
+                        https://api.dictionaryapi.dev/api/v2/entries/{lang_short}/{text}</small
+                    >
+                    <br /><small
+                        >• Translation API:
+                        https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={lang_short}&dt=t&q={text}</small
+                    >
+                </div>
 
-     <h3>Full Backup</h3>
-     <p>Export both settings and dictionaries in a single backup file.</p>
-     <button id="exportAllBtn">Export Everything</button>
-     <br>
-     <input type="file" id="importAllFile" accept=".json" style="display: none;">
-     <button id="importAllBtn">Import Everything</button>
-     <div id="fullBackupStatus"></div>
+                <div class="form-group">
+                    <label for="webServiceJsonPath"
+                        >JSON Path (optional):</label
+                    >
+                    <input
+                        type="text"
+                        id="webServiceJsonPath"
+                        placeholder="data.translation or 0[0][0]"
+                    />
+                    <small
+                        >If autodetection fails, enter the data format of the
+                        JSON response (e.g., '0[0][0]' or 'result.translation'
+                        or 'data[0].text')</small
+                    >
+                </div>
 
-     <h3>Danger Zone</h3>
-     <p style="color: #d9534f; font-weight: bold;">⚠️ WARNING: This action cannot be undone!</p>
-     <p>Clearing the database will permanently delete all imported dictionaries and their data. Only do this if you are absolutely sure and have backups of your dictionaries.</p>
-     <button id="clearDatabaseBtn" style="background: #d9534f; color: white; border: 1px solid #d9534f;">Clear Database</button>
-     <div id="clearStatus"></div>
-  </div>
+                <div style="margin-top: 20px">
+                    <button id="saveWebServiceBtn">Save Service</button>
+                    <button id="cancelWebServiceBtn">Cancel</button>
+                </div>
+            </div>
 
-  <!-- Test Results Modal -->
-  <div id="testModal" class="modal" style="display: none;">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 id="testModalTitle">AI Service Test Results</h3>
-        <span class="modal-close">&times;</span>
-      </div>
-      <div class="modal-body">
-        <div id="testStatus" class="test-status">
-          <div id="testStatusIcon"></div>
-          <div id="testStatusText">Testing...</div>
+            <div id="webServicesList">
+                <!-- Web services will be loaded here -->
+                <p style="color: #666; font-style: italic">
+                    Loading web services...
+                </p>
+            </div>
         </div>
-        <div class="test-details">
-          <div class="test-query">
-            <strong>Test Query:</strong>
-            <div id="testQueryText">What is 2+2? Explain your answer in one sentence.</div>
-          </div>
-          <div class="test-response" id="testResponseSection" style="display: none;">
-            <strong>AI Response:</strong>
-            <div id="testResponseText"></div>
-          </div>
-          <div class="test-error" id="testErrorSection" style="display: none;">
-            <strong>Error:</strong>
-            <div id="testErrorText"></div>
-          </div>
-        </div>
-        <div class="modal-actions">
-          <button id="copyTestResultsBtn">Copy Results</button>
-          <button id="closeTestModalBtn">Close</button>
-        </div>
-      </div>
-    </div>
-  </div>
 
-   <script src="dist/options-bundle.bundle.js"></script>
-   <script src="pako.min.js"></script>
-   <script src="dompurify.min.js"></script>
-   <script src="structured-db.js"></script>
-   <script src="import/import-utils.js"></script>
-   <script src="parser.js"></script>
-     <script src="import/yomitan-importer.js"></script>
-     <script src="import/stardict-importer.js"></script>
-     <script src="import/dictionary-importer.js"></script>
-     <script src="ai-services.js"></script>
-     <script src="options.js"></script>
-</body>
+        <!-- AI API Page -->
+        <div id="page-ai" class="page">
+            <h2>AI API</h2>
+
+            <button
+                id="addAiServiceBtn"
+                style="
+                    margin-bottom: 20px;
+                    background: #28a745;
+                    color: white;
+                    border: 1px solid #28a745;
+                "
+            >
+                Add New AI Service
+            </button>
+
+            <!-- AI Service Form (hidden by default) -->
+            <div
+                id="aiServiceForm"
+                style="
+                    display: none;
+                    margin: 20px 0;
+                    border: 1px solid #ddd;
+                    padding: 20px;
+                    border-radius: 4px;
+                    background: #f9f9f9;
+                "
+            >
+                <h3 id="aiServiceFormTitle">Add AI Service</h3>
+
+                <div class="form-group">
+                    <label for="aiServiceName">Service Name:</label>
+                    <input
+                        type="text"
+                        id="aiServiceName"
+                        placeholder="e.g., My OpenAI Service, Claude Assistant"
+                        required
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="aiServiceProvider">AI Provider:</label>
+                    <select id="aiServiceProvider" required>
+                        <option value="google">Google AI</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic Claude</option>
+                        <option value="xai">xAI</option>
+                        <option value="openrouter">OpenRouter</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="aiServiceApiKey">API Key:</label>
+                    <input
+                        type="password"
+                        id="aiServiceApiKey"
+                        placeholder="Enter your API key"
+                        required
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="aiServiceModel">Model:</label>
+                    <input
+                        type="text"
+                        id="aiServiceModel"
+                        placeholder="gemini-2.5-flash"
+                        required
+                    />
+                </div>
+
+                <div
+                    class="form-group"
+                    id="openrouterReasoningSettings"
+                    style="display: none"
+                >
+                    <label>
+                        <input type="checkbox" id="aiServiceReasoningEnabled" />
+                        Enable Reasoning
+                    </label>
+                    <div
+                        id="reasoningEffortContainer"
+                        style="margin-top: 10px; display: none"
+                    >
+                        <label for="aiServiceReasoningEffort"
+                            >Reasoning Effort:</label
+                        >
+                        <select id="aiServiceReasoningEffort">
+                            <option value="minimal">Minimal</option>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px">
+                    <button id="saveAiServiceBtn">Save Service</button>
+                    <button
+                        id="testAiServiceBtn"
+                        style="
+                            background-color: #28a745;
+                            color: white;
+                            border: 1px solid #28a745;
+                        "
+                    >
+                        Test Service
+                    </button>
+                    <button id="cancelAiServiceBtn">Cancel</button>
+                </div>
+            </div>
+
+            <div id="aiServicesList">
+                <!-- AI services will be loaded here -->
+                <p style="color: #666; font-style: italic">
+                    Loading AI services...
+                </p>
+            </div>
+        </div>
+
+        <!-- Query Groups Page -->
+        <div id="page-groups" class="page">
+            <h2>Query Groups</h2>
+
+            <button id="addGroupBtn">Add Query Group</button>
+
+            <!-- Query Group Form (hidden by default) -->
+            <div
+                id="groupForm"
+                style="
+                    display: none;
+                    margin: 20px 0;
+                    border: 1px solid #ddd;
+                    padding: 20px;
+                    border-radius: 4px;
+                    background: #f9f9f9;
+                "
+            >
+                <h3 id="formTitle">Add Query Group</h3>
+
+                <div class="form-group">
+                    <label for="groupName">Group Name:</label>
+                    <input type="text" id="groupName" required />
+                </div>
+
+                <div class="form-group">
+                    <label>Icon:</label>
+                    <div class="icon-selector" id="iconSelector">
+                        <div class="icon-option" data-icon="#">#</div>
+                        <div class="icon-option" data-icon="🔍">🔍</div>
+                        <div class="icon-option" data-icon="📖">📖</div>
+                        <div class="icon-option" data-icon="🤖">🤖</div>
+                        <div class="icon-option" data-icon="🌐">🌐</div>
+                        <div class="icon-option" data-icon="📚">📚</div>
+                        <div class="icon-option" data-icon="💡">💡</div>
+                        <div class="icon-option" data-icon="🎯">🎯</div>
+                        <div
+                            class="icon-option"
+                            data-icon="icon_Google_Translate.png"
+                        >
+                            <img
+                                src="icon_Google_Translate.png"
+                                style="width: 16px; height: 16px"
+                                alt="GT"
+                            />
+                        </div>
+                        <div class="icon-option" data-icon="icon_gemini.png">
+                            <img
+                                src="icon_gemini.png"
+                                style="width: 16px; height: 16px"
+                                alt="Gemini"
+                            />
+                        </div>
+                        <input
+                            type="text"
+                            id="customIcon"
+                            placeholder="Or enter custom icon/text"
+                            style="margin-left: 10px; width: 150px"
+                        />
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="queryType">Query Type:</label>
+                    <select id="queryType">
+                        <option value="offline">Offline Dictionary</option>
+                        <option value="web">Web Dictionary / Translator</option>
+                        <option value="ai">AI</option>
+                    </select>
+                </div>
+
+                <!-- Web Service Selection (only shown when query type is web) -->
+                <div
+                    class="form-group"
+                    id="webServiceSelection"
+                    style="display: none"
+                >
+                    <label for="selectedWebService">Web Service:</label>
+                    <select id="selectedWebService">
+                        <option value="">Select a web service...</option>
+                        <!-- Web services will be loaded here -->
+                    </select>
+                </div>
+
+                <!-- AI Service Selection (only shown when query type is ai) -->
+                <div
+                    class="form-group"
+                    id="aiServiceSelection"
+                    style="display: none"
+                >
+                    <label for="selectedAiService">AI Service:</label>
+                    <select id="selectedAiService">
+                        <option value="">Select an AI service...</option>
+                        <!-- AI services will be loaded here -->
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="displayMethod">Display Method:</label>
+                    <select id="displayMethod">
+                        <option value="popup">Popup (floating box)</option>
+                        <option value="inline">
+                            Inline (below selected text)
+                        </option>
+                        <option value="bottom">
+                            Bottom panel (full width)
+                        </option>
+                    </select>
+                </div>
+
+                <!-- Popup Settings (only shown when display method is popup) -->
+                <div
+                    id="popupSettings"
+                    class="query-type-settings"
+                    style="display: none"
+                >
+                    <div class="form-group">
+                        <label for="popupWidth">Popup Width (px or %):</label>
+                        <input
+                            type="text"
+                            id="popupWidth"
+                            placeholder="40%"
+                            value="40%"
+                        />
+                        <small
+                            >Width of popup window (e.g., "400px" or
+                            "40%")</small
+                        >
+                    </div>
+                    <div class="form-group">
+                        <label for="popupHeight">Popup Height (px or %):</label>
+                        <input
+                            type="text"
+                            id="popupHeight"
+                            placeholder="30%"
+                            value="30%"
+                        />
+                        <small
+                            >Height of popup window (e.g., "200px" or
+                            "30%")</small
+                        >
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input
+                                type="checkbox"
+                                id="popupHideOnClickOutside"
+                            />
+                            Hide popup when clicking outside
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Inline Settings (only shown when display method is inline) -->
+                <div
+                    id="inlineSettings"
+                    class="query-type-settings"
+                    style="display: none"
+                >
+                    <div class="form-group">
+                        <label>
+                            <input
+                                type="checkbox"
+                                id="inlineFlexibleHeight"
+                                checked
+                            />
+                            Flexible height (grows with content, otherwise shows
+                            scrollbars)
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Bottom Panel Settings (only shown when display method is bottom) -->
+                <div
+                    id="bottomSettings"
+                    class="query-type-settings"
+                    style="display: none"
+                >
+                    <div class="form-group">
+                        <label for="bottomHeight"
+                            >Panel Height (px or %):</label
+                        >
+                        <input
+                            type="text"
+                            id="bottomHeight"
+                            placeholder="200px"
+                            value="200px"
+                        />
+                        <small
+                            >Height of bottom panel (e.g., "200px" or
+                            "30%")</small
+                        >
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="textSelectionMethod"
+                        >Text Selection Method:</label
+                    >
+                    <select id="textSelectionMethod">
+                        <option value="selectedText">Selected text</option>
+                        <option value="wholeWord">Whole word</option>
+                        <option value="wholeParagraph">Whole paragraph</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="showSearchField"
+                        >Show Search Field inside the result window:</label
+                    >
+                    <select id="showSearchField">
+                        <option value="none">None</option>
+                        <option value="liveResults">Live results</option>
+                        <option value="onPressingEnter">
+                            On pressing enter
+                        </option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="displaySuggestions"
+                        >Display suggestions (only for offline
+                        dictionaries):</label
+                    >
+                    <input
+                        type="number"
+                        id="displaySuggestions"
+                        min="0"
+                        max="100"
+                        value="20"
+                        style="width: 60px"
+                    />
+                    <small>0 to disable, default 20</small>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input
+                            type="checkbox"
+                            id="showDidYouMeanSuggestions"
+                            checked
+                        />
+                        Show "did you mean" suggestions (if only 'apple' is
+                        selected from the text 'apple pie' an alternative entry
+                        suggestion will be shown)
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input
+                            type="checkbox"
+                            id="showDidYouMeanInternalSuggestions"
+                            checked
+                        />
+                        Show "did you mean (internal)" suggestions (decompose
+                        compound words into constituent parts, e.g. 'apfelbaum'
+                        → 'apfel', 'baum')
+                    </label>
+                </div>
+
+                <!-- Offline Settings -->
+                <div id="offlineSettings" class="query-type-settings">
+                    <p>
+                        This group will use the selected StarDict dictionaries.
+                    </p>
+                    <div class="form-group">
+                        <div id="dictionarySelection">
+                            <div class="dict-selection-section">
+                                <h5>Available Dictionaries:</h5>
+                                <div
+                                    id="availableDicts"
+                                    class="dict-checkboxes"
+                                >
+                                    <p style="color: #666; font-style: italic">
+                                        Loading dictionaries...
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="dict-selection-section">
+                                <h5>
+                                    Selected Dictionaries (drag to reorder or
+                                    edit position numbers):
+                                </h5>
+                                <div id="selectedDicts" class="sortable-list">
+                                    <p
+                                        style="
+                                            color: #666;
+                                            font-style: italic;
+                                            margin: 10px;
+                                        "
+                                    >
+                                        Select dictionaries above to add them
+                                        here
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Web API Settings -->
+                <div
+                    id="webSettings"
+                    class="query-type-settings"
+                    style="display: none"
+                >
+                    <p>
+                        Select a web service from the dropdown above. Configure
+                        web services in the "Web Dictionarys / Translators" tab.
+                    </p>
+                </div>
+
+                <!-- AI Settings -->
+                <div
+                    id="aiSettings"
+                    class="query-type-settings"
+                    style="display: none"
+                >
+                    <div class="form-group">
+                        <label for="aiMaxTokens">Max Tokens:</label>
+                        <input
+                            type="number"
+                            id="aiMaxTokens"
+                            placeholder="2048"
+                            value="2048"
+                            min="1"
+                            max="10000"
+                        />
+                        <small
+                            >Maximum number of tokens to generate in the
+                            response</small
+                        >
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="aiSendContext" />
+                            Send additional context to the AI
+                        </label>
+                        <small
+                            >Include surrounding text from the webpage with the
+                            selected word</small
+                        >
+                    </div>
+                    <div
+                        class="form-group"
+                        id="aiContextSettings"
+                        style="display: none"
+                    >
+                        <div style="display: flex; gap: 10px">
+                            <div>
+                                <label for="aiWordsBefore"
+                                    >Words before selection:</label
+                                >
+                                <input
+                                    type="number"
+                                    id="aiWordsBefore"
+                                    value="40"
+                                    min="0"
+                                    max="500"
+                                    style="width: 60px"
+                                />
+                            </div>
+                            <div>
+                                <label for="aiWordsAfter"
+                                    >Words after selection:</label
+                                >
+                                <input
+                                    type="number"
+                                    id="aiWordsAfter"
+                                    value="40"
+                                    min="0"
+                                    max="500"
+                                    style="width: 60px"
+                                />
+                            </div>
+                        </div>
+                        <div style="margin-top: 10px">
+                            <label>
+                                <input type="checkbox" id="aiCompleteContext" />
+                                Get complete context from surrounding text
+                                blocks (elements above, below, and parent)
+                            </label>
+                            <small
+                                >Otherwise context stops at text block
+                                boundaries</small
+                            >
+                        </div>
+                        <small
+                            >The full context will be available in AI prompts as
+                            {context} variable</small
+                        >
+                    </div>
+                    <div class="form-group">
+                        <label class="lPrompt" for="aiPrompt"
+                            >Prompt Template:</label
+                        >
+                        <textarea
+                            id="aiPrompt"
+                            rows="3"
+                            placeholder="You are a Tutor, give a grammar breakdown for: {text}"
+                        >
+You are a Tutor, give a grammar breakdown for: {text}</textarea
+                        >
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px">
+                    <button id="saveGroupBtn">Save Group</button>
+                    <button id="cancelGroupBtn">Cancel</button>
+                </div>
+            </div>
+
+            <div id="groupsList">
+                <!-- Query groups will be loaded here -->
+            </div>
+        </div>
+
+        <!-- Backup/Restore Page -->
+        <div id="page-backup" class="page">
+            <h2>Backup/Restore</h2>
+
+            <h3>Settings Backup</h3>
+            <p>
+                Export your settings to a file or import settings from a backup
+                file.
+            </p>
+            <button id="exportSettingsBtn">Export Settings</button>
+            <br />
+            <input
+                type="file"
+                id="importSettingsFile"
+                accept=".json"
+                style="display: none"
+            />
+            <button id="importSettingsBtn">Import Settings</button>
+            <div id="settingsStatus"></div>
+
+            <h3>Dictionary Backup</h3>
+            <p>
+                Export your dictionaries in Yomitan-compatible format or import
+                dictionaries from Yomitan.
+            </p>
+            <button id="exportDictBtn">Export Dictionaries</button>
+            <br />
+            <input
+                type="file"
+                id="importDictFile"
+                accept=".zip,.json"
+                style="display: none"
+            />
+            <button id="importDictBtn">Import Dictionaries</button>
+            <div id="dictStatus"></div>
+
+            <h3>Full Backup</h3>
+            <p>
+                Export both settings and dictionaries in a single backup file.
+            </p>
+            <button id="exportAllBtn">Export Everything</button>
+            <br />
+            <input
+                type="file"
+                id="importAllFile"
+                accept=".json"
+                style="display: none"
+            />
+            <button id="importAllBtn">Import Everything</button>
+            <div id="fullBackupStatus"></div>
+
+            <h3>Danger Zone</h3>
+            <p style="color: #d9534f; font-weight: bold">
+                ⚠️ WARNING: This action cannot be undone!
+            </p>
+            <p>
+                Clearing the database will permanently delete all imported
+                dictionaries and their data. Only do this if you are absolutely
+                sure and have backups of your dictionaries.
+            </p>
+            <button
+                id="clearDatabaseBtn"
+                style="
+                    background: #d9534f;
+                    color: white;
+                    border: 1px solid #d9534f;
+                "
+            >
+                Clear Database
+            </button>
+            <div id="clearStatus"></div>
+        </div>
+
+        <!-- Test Results Modal -->
+        <div id="testModal" class="modal" style="display: none">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="testModalTitle">AI Service Test Results</h3>
+                    <span class="modal-close">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div id="testStatus" class="test-status">
+                        <div id="testStatusIcon"></div>
+                        <div id="testStatusText">Testing...</div>
+                    </div>
+                    <div class="test-details">
+                        <div class="test-query">
+                            <strong>Test Query:</strong>
+                            <div id="testQueryText">
+                                What is 2+2? Explain your answer in one
+                                sentence.
+                            </div>
+                        </div>
+                        <div
+                            class="test-response"
+                            id="testResponseSection"
+                            style="display: none"
+                        >
+                            <strong>AI Response:</strong>
+                            <div id="testResponseText"></div>
+                        </div>
+                        <div
+                            class="test-error"
+                            id="testErrorSection"
+                            style="display: none"
+                        >
+                            <strong>Error:</strong>
+                            <div id="testErrorText"></div>
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <button id="copyTestResultsBtn">Copy Results</button>
+                        <button id="closeTestModalBtn">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script src="dist/options-bundle.bundle.js"></script>
+        <script src="pako.min.js"></script>
+        <script src="dompurify.min.js"></script>
+        <script src="structured-db.js"></script>
+        <script src="import/import-utils.js"></script>
+
+        <script src="import/yomitan-importer.js"></script>
+        <script src="import/stardict-importer.js"></script>
+        <script src="import/dictionary-importer.js"></script>
+        <script src="ai-services.js"></script>
+        <script src="options.js"></script>
+    </body>
 </html>

@@ -244,7 +244,6 @@ The build scripts automatically exclude files listed in `.gitignore` and include
 - pako.min.js
 - jszip.min.js
 - icon128.png
-- parser.js
 - settings-store.js
 - structured-db.js
 - yomitan-importer.js
