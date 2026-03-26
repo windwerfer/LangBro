@@ -26,6 +26,7 @@ class YomitanDictionaryImporter {
     async importDictionary(database, archiveContent, options = {}) {
         const job = options.job;
         const startOffset = job ? (job.processedEntries || 0) : 0;
+        let worker = null;
         
         try {
             this.showStatus('Extracting ZIP archive...');
@@ -65,10 +66,16 @@ class YomitanDictionaryImporter {
                 await db.storeDictionaryMetadata(summary);
             }
 
-            // 3. Process Banks
-            const counts = await this._processAllBanks(zip, rootPath, title, version, startOffset, db, job);
+            // 3. Initialize Worker
+            this.showStatus('Initializing worker...');
+            const utils = typeof ImportUtils !== 'undefined' ? ImportUtils : (window.ImportUtils || null);
+            if (!utils) throw new Error('ImportUtils not found');
+            worker = await utils.createWorker();
 
-            // 4. Finalize Metadata with actual counts
+            // 4. Process Banks
+            const counts = await this._processAllBanks(zip, rootPath, title, version, startOffset, db, job, worker, utils);
+
+            // 5. Finalize Metadata with actual counts
             const finalMetadata = {
                 title: title,
                 revision: index.revision || '1.0',
@@ -87,13 +94,15 @@ class YomitanDictionaryImporter {
         } catch (error) {
             this.showStatus(`Import failed: ${error.message}`, 'error');
             throw error;
+        } finally {
+            if (worker) worker.terminate();
         }
     }
 
     /**
      * Process all JSON banks in the ZIP sequentially
      */
-    async _processAllBanks(zip, rootPath, title, version, startOffset, db, job) {
+    async _processAllBanks(zip, rootPath, title, version, startOffset, db, job, worker, utils) {
         const files = Object.keys(zip.files);
         const termBanks = files.filter(f => f.startsWith(rootPath + 'term_bank_') && f.endsWith('.json')).sort();
         const kanjiBanks = files.filter(f => f.startsWith(rootPath + 'kanji_bank_') && f.endsWith('.json')).sort();
@@ -102,13 +111,11 @@ class YomitanDictionaryImporter {
         let kanjiCounter = 0;
 
         // Estimate total terms for progress if job doesn't have it
-        // Roughly 500 bytes per term
         let estimatedTotal = job?.totalEntries || 0;
         if (!estimatedTotal) {
             let totalBankSize = 0;
             termBanks.forEach(f => {
                 const entry = zip.files[f];
-                // JSZip v3 stores uncompressed size in _data or metadata if available
                 const size = entry._data?.uncompressedSize || 0;
                 totalBankSize += size;
             });
@@ -117,37 +124,54 @@ class YomitanDictionaryImporter {
 
         // --- Process Term Banks ---
         for (const bankFile of termBanks) {
-            this.showStatus(`Processing ${bankFile.split('/').pop()}...`);
+            const filename = bankFile.split('/').pop();
+            this.showStatus(`Processing ${filename}...`);
+            
+            // Get raw bytes for the worker
             const content = await zip.file(bankFile).async('uint8array');
             
-            const batchProcessor = ImportUtils.createBatchProcessor(1000, async (batch) => {
-                await db.storeBatch('terms', batch, title);
-                
-                if (this.progressCallback) {
-                    this.progressCallback({
-                        index: termCounter,
-                        count: Math.max(termCounter, estimatedTotal),
-                        type: 'terms'
-                    });
+            // Offload parsing and rendering to worker
+            // Worker will stream back chunks of ready-to-store objects
+            await utils.runWorkerTask(
+                worker,
+                'PARSE_YOMITAN_TERMS',
+                {
+                    content,
+                    version,
+                    dictionary: title,
+                    filename,
+                    fileIndex: termBanks.indexOf(bankFile)
+                },
+                {
+                    transfer: [content.buffer],
+                    onChunk: async (chunk) => {
+                        // Store the chunk in DB (main thread)
+                        await db.storeBatch('terms', chunk, title);
+                        
+                        termCounter += chunk.length;
+                        
+                        // Update progress
+                        if (this.progressCallback) {
+                            this.progressCallback({
+                                index: termCounter,
+                                count: Math.max(termCounter, estimatedTotal),
+                                type: 'terms'
+                            });
+                        }
+                    }
                 }
-            });
-
-            // Use streaming JSON parser for the bank file
-            const stream = ImportUtils.streamJsonArray(content);
-            for await (const item of stream) {
-                termCounter++;
-                
-                // Skip if resuming
-                if (termCounter <= startOffset) continue;
-
-                const converted = this._convertTerm(item, title, version, termCounter);
-                await batchProcessor.add(converted);
-            }
+            );
             
-            await batchProcessor.flush();
+            // Update job record for resumability after each bank
+            if (job) {
+                await db.updateImportJob(job.id, { 
+                    processedEntries: termCounter, 
+                    totalEntries: Math.max(termCounter, estimatedTotal)
+                });
+            }
         }
 
-        // --- Process Kanji Banks ---
+        // --- Process Kanji Banks (remain in main thread for simplicity) ---
         for (const bankFile of kanjiBanks) {
             this.showStatus(`Processing ${bankFile.split('/').pop()}...`);
             const content = JSON.parse(await zip.file(bankFile).async('string'));

@@ -74,9 +74,9 @@ class StarDictImporter {
     console.log(`StarDict: Starting streaming import for ${dictName}`, metadata);
     const db = await this.getDB();
     
-    console.log('StarDict: Creating worker pool (size: 1)...');
-    const workerPool = await this.utils.createWorkerPool(1);
-    console.log('StarDict: Worker pool created successfully');
+    console.log('StarDict: Initializing worker...');
+    const worker = await this.utils.createWorker();
+    console.log('StarDict: Worker initialized successfully');
     
     // Chunk size 1000 for stability and crash recovery
     const CHUNK_SIZE = 1000;
@@ -111,19 +111,21 @@ class StarDictImporter {
       const dictData = this.utils.decompressIfNeeded(rawDict, paths.dict);
       console.log(`StarDict: Dictionary decompressed, final size: ${dictData.length} bytes`);
 
-      // Broadcast buffers to all workers using TRANSFERABLES to avoid OOM
-      this.showStatus('Uploading data to workers...', 'info');
-      console.log('StarDict: Broadcasting data to workers (using transferables)...');
-      await workerPool.broadcast(
+      // Send buffers to worker using TRANSFERABLES to avoid OOM
+      this.showStatus('Uploading data to worker...', 'info');
+      console.log('StarDict: Sending data to worker (using transferables)...');
+      await this.utils.runWorkerTask(
+        worker,
         'CACHE_DATA', 
         { idxData, dictData }, 
-        [idxData.buffer, dictData.buffer]
+        { transfer: [idxData.buffer, dictData.buffer] }
       );
-      console.log('StarDict: Data successfully broadcast to workers');
+      console.log('StarDict: Data successfully sent to worker');
 
       this.showStatus('Building word index...', 'info');
       console.log(`StarDict: Sending BUILD_STARDICT_INDEX to worker (wordcount: ${metadata.wordcount})...`);
-      const indexResult = await workerPool.execute(
+      const indexResult = await this.utils.runWorkerTask(
+        worker,
         'BUILD_STARDICT_INDEX',
         { wordCount: metadata.wordcount }
       );
@@ -142,7 +144,8 @@ class StarDictImporter {
         const chunkOffsets = allWordOffsets.slice(i, i + CHUNK_SIZE);
         
         // Process this chunk using cached data in worker
-        const result = await workerPool.execute(
+        const result = await this.utils.runWorkerTask(
+          worker,
           'EXTRACT_STARDICT_DATA',
           {
             wordOffsets: chunkOffsets,
@@ -178,7 +181,7 @@ class StarDictImporter {
       this.showStatus(`Import failed: ${error.message}`, 'error');
       throw error;
     } finally {
-      workerPool.terminate();
+      worker.terminate();
     }
   }
 }

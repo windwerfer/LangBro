@@ -109,6 +109,8 @@ class ImportUtils {
 
   /**
    * Creates and initializes a Web Worker
+  /**
+   * Creates and initializes a Web Worker
    * @param {string} scriptPath - Path to worker script (defaults to import-worker.js)
    * @returns {Promise<Worker>}
    */
@@ -175,76 +177,6 @@ class ImportUtils {
       worker.addEventListener('message', onMsg);
       worker.postMessage({ type: taskType, data, requestId }, transfer);
     });
-  }
-
-  /**
-   * Create a pool of workers for parallel processing
-   * @param {number} size - Number of workers
-   * @returns {Promise<Object>} Worker pool interface
-   */
-  static async createWorkerPool(size = navigator.hardwareConcurrency || 4) {
-    const workers = [];
-    const queue = [];
-
-    for (let i = 0; i < size; i++) {
-      const worker = await this.createWorker();
-      workers.push({
-        instance: worker,
-        id: i,
-        busy: false
-      });
-    }
-
-    const getAvailableWorker = () => workers.find(w => !w.busy);
-
-    const processQueue = async () => {
-      if (queue.length === 0) return;
-      
-      const worker = getAvailableWorker();
-      if (!worker) return;
-
-      const { taskType, data, options, resolve, reject } = queue.shift();
-      worker.busy = true;
-
-      try {
-        const result = await this.runWorkerTask(worker.instance, taskType, data, options);
-        resolve(result);
-      } catch (err) {
-        reject(err);
-      } finally {
-        worker.busy = false;
-        processQueue();
-      }
-    };
-
-    return {
-      execute: (taskType, data, options = {}) => {
-        return new Promise((resolve, reject) => {
-          queue.push({ taskType, data, options, resolve, reject });
-          processQueue();
-        });
-      },
-      broadcast: async (taskType, data, transfer = []) => {
-        const results = [];
-        for (let i = 0; i < workers.length; i++) {
-          const w = workers[i];
-          const isLast = i === workers.length - 1;
-          // Only transfer on the last one, otherwise it clones
-          const currentTransfer = isLast ? transfer : [];
-          results.push(await ImportUtils.runWorkerTask(w.instance, taskType, data, { transfer: currentTransfer }));
-        }
-        return results;
-      },
-      terminate: () => {
-        workers.forEach(w => w.instance.terminate());
-        queue.length = 0;
-      },
-      getStats: () => ({
-        total: workers.length,
-        busy: workers.filter(w => w.busy).length,
-        queued: queue.length
-      })
-    };
   }
 
   /**
