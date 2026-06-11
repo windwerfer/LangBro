@@ -1,22 +1,23 @@
 {
-    "name": "LangBro",
-    "build": {
-        "dockerfile": "Dockerfile"
+  "name": "LangBro",
+  "build": {
+    "dockerfile": "Dockerfile",
+  },
+  "postCreateCommand": "",
+  "remoteUser": "node",
+  "containerUser": "node",
+  "updateRemoteUserUID": true,
+  "runArgs": ["--userns=keep-id:uid=1000,gid=1000"],
+  "containerEnv": {
+    "HOME": "/home/node",
+  },
+  // use zsh as the default shell
+  "settings": {
+    "terminal.integrated.defaultProfile.linux": "zsh",
+  },
+  "customizations": {
+    "zed": {
+      "extensions": ["mcp-server-sequential-thinking", "mcp-server-context7"],
     },
-    "postCreateCommand": "",
-    "remoteUser": "node",
-    "containerUser": "node",
-    "updateRemoteUserUID": true,
-    "runArgs": ["--userns=keep-id:uid=1000,gid=1000"],
-    "containerEnv": {
-        "HOME": "/home/node"
-    },
-    "customizations": {
-        "zed": {
-            "extensions": [
-                "mcp-server-sequential-thinking",
-                "mcp-server-context7"
-            ]
-        }
-    }
+  },
 }

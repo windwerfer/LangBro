@@ -1,14 +1,5 @@
-FROM docker.io/library/node:24-slim
+FROM mcr.microsoft.com/devcontainers/javascript-node:24-trixie
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    curl \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-# Update npm as root (best practice) - but not needed, because the image already has the latest npm
-# RUN npm install -g npm@latest
 
 # Prepare workspace directory as root and set correct ownership
 RUN mkdir -p /workspace && chown -R node:node /workspace
@@ -20,6 +11,8 @@ WORKDIR /workspace
 # Configure npm to use user-owned global directory (avoids permission issues later)
 RUN mkdir -p ~/.npm-global \
     && npm config set prefix '~/.npm-global' \
-    && echo 'export PATH="$PATH:~/.npm-global/bin"' >> ~/.bashrc
+    && echo 'export PATH="$PATH:~/.npm-global/bin"' >> ~/.bashrc \
+    && echo 'export PATH="$PATH:~/.npm-global/bin"' >> ~/.zshrc
 
-CMD ["bash"]
+# Ensure zsh is the default shell for the node user
+RUN sudo chsh -s /usr/bin/zsh node
